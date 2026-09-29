@@ -1,4 +1,3 @@
-
 name: Deploy HappyPay Frontend
 
 on:
@@ -46,10 +45,19 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            echo "Creating .env file..."
+            echo "${{ secrets.ENV_FILE }}" > .env
+
             echo "Installing dependencies..."
             npm ci
 
             echo "Building frontend..."
             npm run build
+
+            echo "Testing Nginx configuration..."
+            sudo nginx -t
+
+            echo "Reloading Nginx..."
+            sudo systemctl reload nginx
 
             echo "Deployment completed successfully."
