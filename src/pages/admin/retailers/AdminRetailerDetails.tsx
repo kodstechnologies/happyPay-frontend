@@ -94,7 +94,7 @@ export default function AdminRetailerDetails() {
               { label: "Shop Name", value: selected.shop?.name || "Dummy Shop" },
               { label: "Shop Category", value: "Mobile & Accessories" },
               { label: "Property Type", value: "Rented" },
-              { label: "Shop Address", value: selected.shop ? `${selected.shop.address.addressLine}, ${selected.shop.address.city}, ${selected.shop.address.state}` : "Dummy Address" },
+              { label: "Shop Address", value: selected.shop?.address ? `${selected.shop.address.addressLine ?? ""}, ${selected.shop.address.city ?? ""}, ${selected.shop.address.state ?? ""}` : "Dummy Address" },
               { label: "Business Proof", value: "GST Registration", isDoc: true },
               { label: "Bank Name", value: "State Bank of India" },
               { label: "IFSC Code", value: "SBIN0001234" },
