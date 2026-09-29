@@ -135,7 +135,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                 >
                   Customer Aadhaar Number <span className="text-red-500">*</span>
                 </label>
-                <div className="mt-2 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <UserCircle className="h-4 w-4 shrink-0 text-slate-400" />
                   <input
                     id="aadhaar-number"
@@ -161,7 +161,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                 >
                   Select Bank <span className="text-red-500">*</span>
                 </label>
-                <div className="mt-2 flex h-11 relative items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 relative items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <Landmark className="h-4 w-4 shrink-0 text-slate-400 pointer-events-none" />
                   <select
                     id="bank-select"
@@ -188,7 +188,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                 >
                   Deposit Amount <span className="text-red-500">*</span>
                 </label>
-                <div className="mt-2 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <span className="mr-2 text-sm font-bold text-slate-400">
                     ₹
                   </span>
@@ -213,7 +213,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                     type="checkbox"
                     checked={consent}
                     onChange={(e) => setConsent(e.target.checked)}
-                    className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-[#315bd1] checked:bg-[#315bd1] focus:outline-none focus:ring-2 focus:ring-[#315bd1]/20 focus:ring-offset-1"
+                    className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-slate-300 bg-white transition-all checked:border-[#7c3aed] checked:bg-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 focus:ring-offset-1"
                   />
                   <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100">
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
@@ -230,7 +230,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
               type="button"
               onClick={handleProceedToBiometric}
               disabled={!isFormValid}
-              className="mt-8 flex h-12 w-full md:w-auto md:min-w-[200px] mx-auto items-center justify-center gap-2 rounded-xl bg-[#315bd1] px-6 text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-50"
+              className="mt-8 flex h-12 w-full md:w-auto md:min-w-[200px] mx-auto items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-6 text-sm font-bold text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
             >
               Proceed to Biometric
             </button>
@@ -265,7 +265,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
               <div className="rounded-2xl border-2 border-slate-100 bg-white p-5">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Deposit Amount</p>
-                  <p className="text-2xl font-black text-[#315bd1]">₹{amount}</p>
+                  <p className="text-2xl font-black text-[#7c3aed]">₹{amount}</p>
                 </div>
                 <div className="space-y-4 pt-4">
                   <div className="flex justify-between items-center">
@@ -280,10 +280,10 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
               </div>
 
               {/* Connected Device Configuration */}
-              <div className="rounded-2xl border border-[#315bd1]/15 bg-[#f4f6fd] p-5">
+              <div className="rounded-2xl border border-[#7c3aed]/15 bg-[#f4f6fd] p-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#315bd1]">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed]">
                       <Fingerprint className="h-5 w-5 text-white" />
                     </div>
                     <div>
@@ -300,7 +300,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                   
                   {/* Device Dropdown to Change */}
                   <div className="relative group">
-                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 cursor-pointer hover:border-[#315bd1] transition-colors">
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 cursor-pointer hover:border-[#7c3aed] transition-colors">
                       <Settings2 className="h-3.5 w-3.5 text-slate-400" />
                       <span className="text-xs font-bold text-slate-700">{selectedDevice}</span>
                       <ChevronDown className="h-3 w-3 text-slate-400" />
@@ -311,7 +311,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                         <button
                           key={d}
                           onClick={() => setSelectedDevice(d)}
-                          className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-lg ${selectedDevice === d ? "bg-[#eef2ff] text-[#315bd1]" : "text-slate-600 hover:bg-slate-50"}`}
+                          className={`w-full text-left px-3 py-2 text-xs font-semibold rounded-lg ${selectedDevice === d ? "bg-[#f3e8ff] text-[#7c3aed]" : "text-slate-600 hover:bg-slate-50"}`}
                         >
                           {d}
                         </button>
@@ -326,7 +326,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                 type="button"
                 onClick={handleScanAndDeposit}
                 disabled={isScanning || transactionStatus === "PROCESSING"}
-                className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#315bd1] px-4 text-sm font-bold text-white transition hover:bg-[#274dbd] shadow-lg shadow-[#315bd1]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                className="mt-2 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] px-4 text-sm font-bold text-white transition hover:bg-[#6d28d9] shadow-lg shadow-[#7c3aed]/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 {isScanning ? (
                   <>
@@ -349,10 +349,10 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
         </section>
       )}
 
-      {/* Receipt Modal */}
+      {/* Receipt View */}
       {showReceipt && transactionStatus === "SUCCESS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl my-auto">
+        <div className="flex w-full items-center justify-center bg-white py-6">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-lg border border-slate-100">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-600">
@@ -399,7 +399,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
                 <span className="text-sm font-bold text-slate-700">
                   Amount Deposited
                 </span>
-                <span className="text-xl font-black text-[#315bd1]">
+                <span className="text-xl font-black text-[#7c3aed]">
                   ₹{amount}
                 </span>
               </div>
@@ -422,7 +422,7 @@ const AepsDeposit: React.FC<AepsDepositProps> = () => {
               <button
                 type="button"
                 onClick={resetForm}
-                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#315bd1] text-sm font-bold text-white transition hover:bg-[#274dbd] shadow-md shadow-[#315bd1]/20"
+                className="flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] text-sm font-bold text-white transition hover:bg-[#6d28d9] shadow-md shadow-[#7c3aed]/20"
               >
                 <RefreshCw className="h-4 w-4" />
                 Done

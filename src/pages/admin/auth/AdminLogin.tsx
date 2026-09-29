@@ -63,7 +63,7 @@ export default function AdminLogin() {
           <div>
             <div className="flex items-center gap-3">
               <div className="rounded-xl bg-white p-2">
-                <img src="/logo.jpg" alt="Happy Pay Logo" className="h-10 w-auto object-contain" />
+                <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="h-10 w-auto object-contain" />
               </div>
             </div>
             <p className="mt-16 max-w-sm text-4xl font-bold leading-tight text-white">
@@ -78,13 +78,13 @@ export default function AdminLogin() {
 
         <div className="p-6 sm:p-10 lg:p-14">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <img src="/logo.jpg" alt="Happy Pay Logo" className="h-10 w-auto object-contain" />
+            <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="h-10 w-auto object-contain" />
           </div>
 
           <div className="mx-auto max-w-md">
             <div className="mb-8">
               <div className="mb-5 flex items-center">
-                <img src="/logo.jpg" alt="Happy Pay Logo" className="h-12 w-auto object-contain" />
+                <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="h-12 w-auto object-contain" />
               </div>
               <h1 className="text-2xl font-bold text-slate-900">
                 Super Admin Portal

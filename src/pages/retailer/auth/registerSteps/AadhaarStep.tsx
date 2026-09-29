@@ -44,7 +44,7 @@ const AadhaarStep = () => {
     <div className="space-y-6">
       {/* HEADER INFORMATION */}
       <div className="flex items-start gap-4">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#eef1ff]">
+        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#f3e8ff]">
           <Fingerprint
             className="h-7 w-7 text-[#7c3aed]"
             strokeWidth={2}
@@ -182,7 +182,7 @@ const AadhaarStep = () => {
         onClick={() => aadhaarInputRef.current?.click()}
         className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-3.5 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
       >
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#eef1ff]">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3e8ff]">
           {aadhaarFile ? (
             <CheckCircle2
               className="h-5 w-5 text-[#08ae82]"

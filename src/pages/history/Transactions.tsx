@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Activity, Search } from "lucide-react";
+import { Activity, Search, Eye, X, CheckCircle2, Printer } from "lucide-react";
 
 type ServiceType = "ALL" | "AEPS" | "DMT" | "CMS";
 
@@ -66,6 +66,7 @@ export default function Transactions() {
   const [filter, setFilter] = useState<ServiceType>('ALL');
   const [dateStr, setDateStr] = useState<string>("2026-09-24");
   const [search, setSearch] = useState("");
+  const [selectedTxn, setSelectedTxn] = useState<Transaction | null>(null);
 
   const filteredTransactions = transactions.filter(tx => 
     (filter === 'ALL' || tx.service === filter) && 
@@ -144,6 +145,7 @@ export default function Transactions() {
                   <th className="px-5 py-3 font-semibold">Amount</th>
                   <th className="px-5 py-3 font-semibold">Status</th>
                   <th className="px-5 py-3 font-semibold">Date & Time</th>
+                  <th className="px-5 py-3 font-semibold text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -164,6 +166,15 @@ export default function Transactions() {
                       </span>
                     </td>
                     <td className="px-5 py-4 text-xs font-semibold">{tx.date} <span className="text-slate-400">{tx.time}</span></td>
+                    <td className="px-5 py-4 text-right">
+                      <button
+                        onClick={() => setSelectedTxn(tx)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition hover:bg-[#7c3aed] hover:text-white"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        View
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -171,6 +182,62 @@ export default function Transactions() {
           </div>
         )}
       </section>
+
+      {/* RECEIPT MODAL */}
+      {selectedTxn && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 sm:p-6 overflow-y-auto">
+          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setSelectedTxn(null)}
+              className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 transition"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            
+            <div className="flex flex-col items-center border-b border-slate-100 pb-5 pt-2">
+               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 mb-3">
+                 <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+               </div>
+               <h2 className="text-xl font-bold text-slate-900">{selectedTxn.title}</h2>
+               <p className="mt-1 text-sm font-semibold text-slate-500">{selectedTxn.date} at {selectedTxn.time}</p>
+               <h3 className={`mt-3 text-3xl font-black ${selectedTxn.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                 ₹{selectedTxn.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+               </h3>
+            </div>
+            
+            <div className="mt-5 space-y-4">
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Transaction ID</span>
+                <span className="font-bold text-slate-900">{selectedTxn.id}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Customer Name</span>
+                <span className="font-bold text-slate-900">{selectedTxn.customerName}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Service</span>
+                <span className="font-bold text-slate-900">{selectedTxn.service}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Flow</span>
+                <span className={`font-bold ${selectedTxn.type === 'CREDIT' ? 'text-emerald-600' : 'text-rose-600'}`}>{selectedTxn.type}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-slate-500">Status</span>
+                <span className={`font-bold ${selectedTxn.status === 'Success' ? 'text-emerald-600' : selectedTxn.status === 'Pending' ? 'text-amber-600' : 'text-rose-600'}`}>{selectedTxn.status}</span>
+              </div>
+            </div>
+            
+            <button
+              onClick={() => window.print()}
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3.5 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+            >
+              <Printer className="h-4 w-4" />
+              Print Receipt
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

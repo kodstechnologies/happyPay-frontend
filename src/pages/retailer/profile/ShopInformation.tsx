@@ -915,7 +915,7 @@ export default function ShopInformation() {
                   handleReplace("GST Certificate")
                 }
                 disabled={isSaving}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
                 aria-label="Replace business proof"
               >
                 <Upload size={22} />
@@ -948,8 +948,8 @@ export default function ShopInformation() {
               duration-200
               ${
                 isSaving
-                  ? "cursor-wait bg-[#274dbd]"
-                  : "bg-[#7c3aed] hover:bg-[#274dbd]"
+                  ? "cursor-wait bg-[#6d28d9]"
+                  : "bg-[#7c3aed] hover:bg-[#6d28d9]"
               }
             `}
           >

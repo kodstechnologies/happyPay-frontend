@@ -941,7 +941,7 @@ const HelpSupport = () => {
               <button
                 type="button"
                 onClick={handleSubmitTicket}
-                className="mt-7 flex h-[80px] w-full items-center justify-center gap-4 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-[0_5px_12px_rgba(49,91,209,0.25)] transition hover:bg-[#274dbd] sm:h-[88px] sm:text-xl"
+                className="mt-7 flex h-[80px] w-full items-center justify-center gap-4 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-[0_5px_12px_rgba(49,91,209,0.25)] transition hover:bg-[#6d28d9] sm:h-[88px] sm:text-xl"
               >
                 <Send className="h-7 w-7 fill-current" />
 

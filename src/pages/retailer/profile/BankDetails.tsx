@@ -983,7 +983,7 @@ export default function BankDetails() {
                 type="button"
                 onClick={handleUpload}
                 disabled={isSaving}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Upload bank proof"
               >
                 <Upload size={22} />
@@ -1013,8 +1013,8 @@ export default function BankDetails() {
             disabled={isSaving}
             className={`flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl px-5 text-base font-bold text-white shadow-md transition-all ${
               isSaving
-                ? "cursor-wait bg-[#274dbd]"
-                : "bg-[#7c3aed] hover:bg-[#274dbd] active:scale-[0.99]"
+                ? "cursor-wait bg-[#6d28d9]"
+                : "bg-[#7c3aed] hover:bg-[#6d28d9] active:scale-[0.99]"
             }`}
           >
 

@@ -252,7 +252,7 @@ const SecuritySettings = () => {
           <button
             type="button"
             onClick={() => navigate("/retailer/profile")}
-            className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7c3aed] transition hover:text-[#274dbd]"
+            className="mb-4 inline-flex items-center gap-2 text-sm font-semibold text-[#7c3aed] transition hover:text-[#6d28d9]"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Profile
@@ -452,7 +452,7 @@ const SecuritySettings = () => {
                   <button
                     type="button"
                     onClick={handlePasswordUpdate}
-                    className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#274dbd]"
+                    className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d28d9]"
                   >
                     Update Password
                   </button>
@@ -615,7 +615,7 @@ const SecuritySettings = () => {
                   <button
                     type="button"
                     onClick={handlePinUpdate}
-                    className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#274dbd]"
+                    className="rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#6d28d9]"
                   >
                     Update PIN
                   </button>

@@ -16,6 +16,7 @@ import {
   ReceiptIndianRupee,
   ChevronRight,
   SmartphoneNfc,
+  Users,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -49,9 +50,13 @@ const SidebarContent = ({
   return (
     <div className="flex h-full w-full flex-col bg-white text-[#1f2937]">
       {/* BRAND */}
-      <div className="hp-retailer-brand flex h-[76px] shrink-0 items-center border-b border-[#f1d9dd] px-5">
+      <div className="hp-retailer-brand flex h-[100px] shrink-0 items-center border-b border-[#f1d9dd] px-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#0f172a] shadow-sm p-1"><img src="/logo.jpg" alt="Happy Pay Logo" className="h-full w-full rounded-lg object-contain bg-white" /></div>
+          <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="h-20 w-20 object-contain mix-blend-multiply" />
+          <div>
+            <p className="font-extrabold text-[#1f2937] text-[18px]">HappyPay</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">Retailer</p>
+          </div>
         </div>
       </div>
 
@@ -78,6 +83,13 @@ const SidebarContent = ({
             icon={<Wallet />}
             active={isActive("/retailer/wallet")}
             onClick={() => goTo("/retailer/wallet")}
+          />
+
+          <SidebarItem
+            label="Distributor"
+            icon={<Users />}
+            active={location.pathname.startsWith("/retailer/distributor")}
+            onClick={() => goTo("/retailer/distributor")}
           />
         </SidebarSection>
 

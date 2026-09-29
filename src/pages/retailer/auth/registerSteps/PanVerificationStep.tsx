@@ -50,7 +50,7 @@ const PanVerificationStep = () => {
         >
           <div
             className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-              panFile ? "bg-[#e9f9f4]" : "bg-[#eef1ff]"
+              panFile ? "bg-[#e9f9f4]" : "bg-[#f3e8ff]"
             }`}
           >
             {panFile ? (
@@ -84,7 +84,7 @@ const PanVerificationStep = () => {
             )}
           </div>
 
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#eef1ff] transition group-hover:bg-[#e4e9ff]">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f3e8ff] transition group-hover:bg-[#e4e9ff]">
             <Upload
               className="h-5 w-5 text-[#7c3aed]"
               strokeWidth={2.3}

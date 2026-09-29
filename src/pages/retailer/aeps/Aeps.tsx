@@ -6,26 +6,26 @@ import {
   Banknote,
   Building2,
   Check,
+  ChevronDown,
   ChevronRight,
   Edit3,
   Fingerprint,
   IdCard,
   Phone,
   Play,
-  Search,
   ShieldCheck,
-
   WalletCards,
   Printer,
   RefreshCw,
   LockKeyhole,
   FileText,
+  ReceiptText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
 
-type Step = 0 | 1 | 2 | 3 | 4;
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
 type ServiceId =
   | "cash-withdrawal"
@@ -394,11 +394,7 @@ const Aeps = () => {
   const [selectedBank, setSelectedBank] =
     useState<Bank | null>(null);
 
-  const [showBankSelection, setShowBankSelection] =
-    useState(false);
 
-  const [bankSearch, setBankSearch] =
-    useState("");
 
   const [consent, setConsent] =
     useState(false);
@@ -412,8 +408,9 @@ const Aeps = () => {
   /*
    * Modal
    */
-  const [modalType, setModalType] =
-    useState<ModalType>("");
+  const [modalType, setModalType] = useState<ModalType>("");
+  const [balWithBalanceChecked, setBalWithBalanceChecked] = useState(false);
+  const [fetchedBalance, setFetchedBalance] = useState<number | null>(null);
 
   /*
    * Processing state
@@ -536,24 +533,38 @@ const Aeps = () => {
    * ============================================================
    */
 
-  const filteredBanks = banks.filter(
-    (bank) =>
-      bank.name
-        .toLowerCase()
-        .includes(
-          bankSearch.toLowerCase()
-        ) ||
-      bank.code
-        .toLowerCase()
-        .includes(
-          bankSearch.toLowerCase()
-        )
-  );
+
 
   const handleBankSelect = (bank: Bank) => {
     setSelectedBank(bank);
     setShowBankSelection(false);
     setBankSearch("");
+  };
+
+  /*
+   * ============================================================
+   * SERVICE HANDLERS
+   * ============================================================
+   */
+
+  const handleServiceClick = (
+    serviceId: ServiceId
+  ) => {
+    setSelectedService(serviceId);
+
+    if (
+      serviceId === "cash-withdrawal"
+    ) {
+      setModalType("amount");
+    } else if (serviceId === "balance-withdrawal") {
+      setBalWithBalanceChecked(false);
+      setFetchedBalance(null);
+      setModalType("biometric");
+      startBiometric(serviceId);
+    } else {
+      setModalType("biometric");
+      startBiometric(serviceId);
+    }
   };
 
   /*
@@ -628,9 +639,16 @@ const Aeps = () => {
         serviceId ===
         "balance-withdrawal"
       ) {
-        completeTransaction(
-          "balance-withdrawal"
-        );
+        if (!balWithBalanceChecked) {
+          setBalWithBalanceChecked(true);
+          setFetchedBalance(14250);
+          setModalType("amount");
+        } else {
+          completeTransaction(
+            "balance-withdrawal"
+          );
+        }
+        return;
       }
     }, 2500);
   };
@@ -800,7 +818,7 @@ const Aeps = () => {
     setSelectedService("");
     setWithdrawalAmount(1000);
     setOtp("");
-    setStep(4);
+    setStep(5);
   };
 
   /*
@@ -816,7 +834,7 @@ const Aeps = () => {
     setWithdrawalAmount(1000);
     setOtp("");
     setModalType("");
-    setStep(1);
+    setStep(5);
   };
 
   /*
@@ -900,37 +918,37 @@ const Aeps = () => {
     return (
       <>
         {/* 2FA + Biometric Device */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-4 text-slate-900 shadow-md sm:p-5">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-                <ShieldCheck className="h-7 w-7" />
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-3 text-slate-900 shadow-sm sm:p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+                <ShieldCheck className="h-5 w-5" />
               </div>
 
               <div>
-                <h2 className="text-base font-bold text-[#171717] sm:text-lg">
+                <h2 className="text-sm font-bold text-[#171717] sm:text-base">
                   Retailer Daily 2FA Active
                 </h2>
 
-                <p className="mt-1 text-sm text-[#8992a3] sm:text-base">
+                <p className="mt-0.5 text-xs text-[#8992a3] sm:text-sm">
                   NPCI Mandatory Biometric Verification
                 </p>
               </div>
             </div>
 
-            <p className="mt-4 text-sm leading-6 text-[#596273] sm:text-base">
+            <p className="mt-3 text-xs leading-5 text-[#596273] sm:text-sm">
               As per regulatory compliance, complete 2FA authentication once
               every morning before initiating cash transactions.
             </p>
           </div>
 
-          <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-4 shadow-sm sm:p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-bold text-slate-900 sm:text-lg">
+          <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-3 shadow-sm sm:p-4">
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-slate-900 sm:text-base">
                 Select Biometric Device
               </h2>
 
-              <span className="rounded-full bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-600 sm:text-sm">
+              <span className="rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold text-purple-600 sm:text-xs">
                 ✓ USB / OTG
               </span>
             </div>
@@ -939,25 +957,25 @@ const Aeps = () => {
               <button
                 type="button"
                 onClick={() => setIsDeviceDropdownOpen(!isDeviceDropdownOpen)}
-                className="flex w-full items-center justify-between rounded-2xl border border-purple-100 bg-white p-4 transition-all hover:border-purple-300"
+                className="flex w-full items-center justify-between rounded-xl border border-purple-100 bg-white p-3 transition-all hover:border-purple-300"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-purple-50">
-                    <Fingerprint className="h-7 w-7 text-purple-600" />
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50">
+                    <Fingerprint className="h-5 w-5 text-purple-600" />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-base font-bold text-[#171717]">{withdrawalDevice}</h3>
-                    <p className="mt-1 flex items-center gap-2 text-sm font-medium text-[#087f5b]">
-                      <span className="h-2.5 w-2.5 rounded-full bg-[#20a873]" />
+                    <h3 className="text-sm font-bold text-[#171717]">{withdrawalDevice}</h3>
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[#087f5b]">
+                      <span className="h-2 w-2 rounded-full bg-[#20a873]" />
                       Ready · RD Service Active
                     </p>
                   </div>
                 </div>
-                <ChevronRight className={`h-5 w-5 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
+                <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
               </button>
 
               {isDeviceDropdownOpen && (
-                <div className="absolute left-0 right-0 mt-2 z-10 overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-lg">
+                <div className="absolute left-0 right-0 mt-2 z-10 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-lg">
                   {["Mantra MFS100", "Morpho MSO 1300 E3", "Startek FM220"].map((device) => (
                     <button
                       key={device}
@@ -966,7 +984,7 @@ const Aeps = () => {
                         setWithdrawalDevice(device);
                         setIsDeviceDropdownOpen(false);
                       }}
-                      className={`w-full border-b border-slate-50 px-4 py-3 text-left transition-colors last:border-0 hover:bg-slate-50 ${
+                      className={`w-full border-b border-slate-50 px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${
                         withdrawalDevice === device ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
                       }`}
                     >
@@ -980,19 +998,19 @@ const Aeps = () => {
         </div>
 
         {/* Retailer Mobile + Aadhaar */}
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section>
-            <label className="mb-3 block text-base font-bold text-slate-900 sm:text-lg">
+            <label className="mb-2 block text-sm font-bold text-slate-900 sm:text-base">
               Retailer Mobile Number{" "}
-              <span className="text-sm font-medium text-slate-500">
+              <span className="text-xs font-medium text-slate-500">
                 (Autofetched)
               </span>
             </label>
 
-            <div className="flex min-h-[56px] w-full max-w-xl items-center gap-4 rounded-xl border border-purple-100 bg-[#f8f5ff] px-4">
-              <Phone className="h-5 w-5 shrink-0 text-purple-600" />
+            <div className="flex min-h-[48px] w-full max-w-xl items-center gap-3 rounded-xl border border-purple-100 bg-[#f8f5ff] px-3">
+              <Phone className="h-4 w-4 shrink-0 text-purple-600" />
 
-              <span className="text-base font-semibold text-slate-800">
+              <span className="text-sm font-semibold text-slate-800">
                 {retailerMobile}
               </span>
             </div>
@@ -1001,13 +1019,13 @@ const Aeps = () => {
           <section>
             <label
               htmlFor="retailer-aadhaar"
-              className="mb-3 block text-base font-bold text-slate-900 sm:text-lg"
+              className="mb-2 block text-sm font-bold text-slate-900 sm:text-base"
             >
               Retailer Aadhaar Number
             </label>
 
-            <div className="flex min-h-[56px] w-full max-w-xl items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 focus-within:border-[#7c3aed]">
-              <IdCard className="h-6 w-6 shrink-0 text-purple-600" />
+            <div className="flex min-h-[48px] w-full max-w-xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 focus-within:border-[#7c3aed]">
+              <IdCard className="h-5 w-5 shrink-0 text-purple-600" />
 
               <input
                 id="retailer-aadhaar"
@@ -1018,44 +1036,44 @@ const Aeps = () => {
                 onChange={handleRetailerAadhaarChange}
                 disabled={isCapturingRetailer || retailerAuthenticated}
                 placeholder="Enter 12-digit Aadhaar number"
-                className="w-full bg-transparent text-base font-medium outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
               />
             </div>
           </section>
         </div>
 
         {isCapturingRetailer && (
-          <div className="rounded-2xl border-2 border-[#172033] bg-white p-6 text-center">
-            <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-purple-50">
-              <Fingerprint className="h-12 w-12 animate-pulse text-[#172033]" />
+          <div className="rounded-2xl border-2 border-[#172033] bg-white p-5 text-center">
+            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-purple-50">
+              <Fingerprint className="h-10 w-10 animate-pulse text-[#172033]" />
             </div>
 
-            <h2 className="mt-6 text-xl font-bold text-slate-900">
+            <h2 className="mt-5 text-lg font-bold text-slate-900">
               Capturing Biometric Fingerprint...
             </h2>
 
-            <p className="mt-2 text-slate-500">
+            <p className="mt-1 text-sm text-slate-500">
               Place your finger on Mantra MFS100 scanner
             </p>
 
-            <div className="mx-auto mt-6 h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#172033]" />
+            <div className="mx-auto mt-5 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#172033]" />
           </div>
         )}
 
         {retailerAuthenticated && !isCapturingRetailer && (
           <>
-            <div className="rounded-2xl border-2 border-[#cbd3e3] bg-purple-50 p-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-purple-600 transition hover:bg-purple-700">
-                  <Check className="h-8 w-8 text-white" />
+            <div className="rounded-2xl border-2 border-[#cbd3e3] bg-purple-50 p-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-purple-600 transition hover:bg-purple-700">
+                  <Check className="h-6 w-6 text-white" />
                 </div>
 
                 <div>
-                  <h2 className="text-lg font-bold text-[#172033]">
+                  <h2 className="text-base font-bold text-[#172033]">
                     Retailer 2FA Authentication Success
                   </h2>
 
-                  <p className="mt-1 text-slate-700">
+                  <p className="mt-0.5 text-sm text-slate-700">
                     Verified with UIDAI
                   </p>
                 </div>
@@ -1065,9 +1083,9 @@ const Aeps = () => {
             <button
               type="button"
               onClick={handleStartTransaction}
-              className="flex min-h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-purple-600 px-5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 sm:text-base"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9]"
             >
-              <Play className="h-6 w-6 fill-current" />
+              <Play className="h-5 w-5 fill-current" />
               START TRANSACTION
             </button>
           </>
@@ -1078,7 +1096,7 @@ const Aeps = () => {
             type="button"
             onClick={handleRetailerBiometric}
             disabled={retailerAadhaar.length !== 12}
-            className="flex min-h-[52px] w-full items-center justify-center gap-3 rounded-xl bg-purple-600 px-5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Fingerprint className="h-5 w-5" />
             PROCEED FOR BIOMETRIC AUTH
@@ -1116,9 +1134,9 @@ const Aeps = () => {
               setFlowMode("deposit");
               setStep(2);
             }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#315bd1] hover:shadow-lg transition-all"
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
           >
-            <Banknote className="h-12 w-12 text-[#315bd1] mb-4" />
+            <Banknote className="h-12 w-12 text-[#7c3aed] mb-4" />
             <span className="text-xl font-bold text-slate-900">Cash Deposit</span>
           </button>
         </div>
@@ -1140,32 +1158,32 @@ const Aeps = () => {
     return (
       <>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-xl font-bold text-slate-900">
             Step 2: Aadhaar & Biometric
           </h2>
 
-          <p className="mt-2 text-base text-slate-500">
+          <p className="mt-1 text-sm text-slate-500">
             Verify customer identity using connected
             biometric device.
           </p>
         </div>
 
-        <section className="w-full max-w-3xl">
+        <section className="w-full max-w-2xl">
           <label
             htmlFor="customer-aadhaar"
-            className="mb-3 block text-lg font-bold text-slate-900"
+            className="mb-2 block text-sm font-bold text-slate-900"
           >
             Customer Aadhaar Number
           </label>
 
           <div
-            className={`flex min-h-[72px] items-center gap-4 rounded-2xl border-2 bg-white px-5 ${
+            className={`flex min-h-[52px] items-center gap-3 rounded-xl border-2 bg-white px-4 ${
               customerVerified
                 ? "border-slate-200"
                 : "border-slate-200 focus-within:border-[#172033]"
             }`}
           >
-            <IdCard className="h-7 w-7 shrink-0 text-slate-500" />
+            <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
 
             <input
               id="customer-aadhaar"
@@ -1181,7 +1199,7 @@ const Aeps = () => {
                 isVerifyingCustomer
               }
               placeholder="Enter 12-digit Aadhaar number"
-              className="min-w-0 flex-1 bg-transparent text-lg font-medium outline-none placeholder:text-slate-400"
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
             />
 
             {!customerVerified &&
@@ -1195,7 +1213,7 @@ const Aeps = () => {
                   disabled={
                     isVerifyingCustomer
                   }
-                  className="shrink-0 font-bold text-[#172033] hover:text-[#101827] disabled:opacity-60"
+                  className="shrink-0 text-xs font-bold text-[#172033] hover:text-[#101827] disabled:opacity-60"
                 >
                   {isVerifyingCustomer
                     ? "VERIFYING..."
@@ -1204,30 +1222,30 @@ const Aeps = () => {
               )}
 
             {customerVerified && (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-600 transition hover:bg-purple-700">
-                <Check className="h-6 w-6 text-white" />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-600 transition hover:bg-purple-700">
+                <Check className="h-4 w-4 text-white" />
               </div>
             )}
           </div>
         </section>
 
         {customerVerified && (
-          <div className="w-full max-w-3xl flex items-center justify-between rounded-2xl border-2 border-[#cbd3e3] bg-purple-50 p-5">
-            <div className="flex items-center gap-4">
-              <Phone className="h-7 w-7 text-[#172033]" />
+          <div className="w-full max-w-2xl flex items-center justify-between rounded-xl border-2 border-[#cbd3e3] bg-purple-50 p-4">
+            <div className="flex items-center gap-3">
+              <Phone className="h-5 w-5 text-[#172033]" />
 
               <div>
-                <p className="text-sm font-semibold text-slate-600">
+                <p className="text-xs font-semibold text-slate-600">
                   Registered Mobile with Aadhaar
                 </p>
 
-                <p className="mt-1 text-lg font-bold text-slate-900">
+                <p className="mt-0.5 text-sm font-bold text-slate-900">
                   {customerMobile}
                 </p>
               </div>
             </div>
 
-            <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-bold text-[#172033]">
+            <span className="rounded-full bg-purple-50 px-2 py-1 text-xs font-bold text-[#172033]">
               ✓ Verified
             </span>
           </div>
@@ -1237,9 +1255,9 @@ const Aeps = () => {
           type="button"
           onClick={() => setStep(4)}
           disabled={!customerVerified}
-            className="flex min-h-[52px] w-full max-w-3xl items-center justify-center gap-3 rounded-xl bg-purple-600 px-5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6] sm:text-base"
+            className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
         >
-          <ArrowRight className="h-7 w-7" />
+          <ArrowRight className="h-5 w-5" />
           CONTINUE TO BANK SELECTION
         </button>
       </>
@@ -1254,81 +1272,6 @@ const Aeps = () => {
    */
 
   const renderBankSelection = () => {
-    if (showBankSelection) {
-      return (
-        <>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setShowBankSelection(false);
-                setBankSearch("");
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-full"
-            >
-              <ArrowLeft className="h-6 w-6" />
-            </button>
-
-            <h2 className="text-2xl font-bold text-slate-900">
-              Select Bank
-            </h2>
-          </div>
-
-          <div className="flex min-h-[72px] w-full max-w-3xl items-center gap-3 rounded-2xl border-2 border-[#172033] bg-white px-5">
-            <Search className="h-6 w-6 text-slate-500" />
-
-            <input
-              type="text"
-              value={bankSearch}
-              onChange={(event) =>
-                setBankSearch(
-                  event.target.value
-                )
-              }
-              placeholder="Search bank by name or code..."
-              className="w-full bg-transparent text-lg outline-none placeholder:text-slate-400"
-              autoFocus
-            />
-          </div>
-
-          <div className="overflow-hidden rounded-xl bg-white shadow-sm">
-            {filteredBanks.map((bank) => (
-              <button
-                type="button"
-                key={`${bank.code}-${bank.shortName}`}
-                onClick={() =>
-                  handleBankSelect(bank)
-                }
-                className="flex w-full items-center gap-4 border-b border-slate-100 px-6 py-5 text-left hover:bg-slate-50"
-              >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-lg font-bold text-[#172033]">
-                  {bank.shortName}
-                </div>
-
-                <div className="flex-1">
-                  <p className="text-xl font-semibold text-slate-900">
-                    {bank.name}
-                  </p>
-
-                  <p className="mt-1 text-base text-slate-500">
-                    Code: {bank.code}
-                  </p>
-                </div>
-
-                <ChevronRight className="h-6 w-6 text-slate-700" />
-              </button>
-            ))}
-
-            {filteredBanks.length === 0 && (
-              <div className="p-6 text-center text-slate-500">
-                No bank found.
-              </div>
-            )}
-          </div>
-        </>
-      );
-    }
-
     return (
       <>
         <div>
@@ -1346,45 +1289,23 @@ const Aeps = () => {
             Select Bank
           </h3>
 
-          {!selectedBank ? (
-            <button
-              type="button"
-              onClick={() =>
-                setShowBankSelection(true)
-              }
-              className="flex min-h-[76px] w-full items-center justify-center gap-4 rounded-2xl border-2 border-[#cbd3e3] bg-transparent text-lg font-bold text-[#172033]"
+          <div className="relative">
+            <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
+            <select
+              value={selectedBank?.code || ""}
+              onChange={(e) => {
+                const bank = banks.find(b => b.code === e.target.value);
+                if (bank) handleBankSelect(bank);
+              }}
+              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer"
             >
-              <Building2 className="h-7 w-7" />
-              PLEASE SELECT BANK
-            </button>
-          ) : (
-            <div className="flex min-h-[138px] items-center gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-lg font-bold text-[#172033]">
-                {selectedBank.shortName}
-              </div>
-
-              <div className="flex-1">
-                <p className="text-xl font-bold text-slate-900">
-                  {selectedBank.name}
-                </p>
-
-                <p className="mt-1 text-base text-slate-500">
-                  Bank Code:{" "}
-                  {selectedBank.code}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  setShowBankSelection(true)
-                }
-                className="text-lg font-bold text-[#172033]"
-              >
-                Change
-              </button>
-            </div>
-          )}
+              <option value="" disabled>PLEASE SELECT BANK</option>
+              {banks.map(bank => (
+                <option key={bank.code} value={bank.code}>{bank.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
+          </div>
         </section>
 
         <label className="flex cursor-pointer items-start gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5">
@@ -1531,7 +1452,7 @@ const Aeps = () => {
 
         <button
           type="button"
-          onClick={() => setStep(4)}
+          onClick={() => setStep(5)}
           className="mt-8 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md sm:text-xl"
         >
           <ArrowRight className="h-7 w-7" />
@@ -1543,10 +1464,112 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 4
+   * STEP 5
    * AEPS SERVICES
    * ============================================================
    */
+
+  const services: {
+    id: ServiceId;
+    title: string;
+    description: string;
+    icon: React.ElementType;
+    iconClass: string;
+    bgClass: string;
+  }[] = [
+    {
+      id: "cash-withdrawal",
+      title: "A. Cash Withdrawal",
+      description: "Withdraw cash from A/C",
+      icon: WalletCards,
+      iconClass: "text-[#172033]",
+      bgClass: "bg-purple-50",
+    },
+    {
+      id: "balance-check",
+      title: "B. Balance Enquiry",
+      description: "Enquire A/C balance",
+      icon: Banknote,
+      iconClass: "text-[#172033]",
+      bgClass: "bg-purple-50",
+    },
+    {
+      id: "mini-statement",
+      title: "C. Mini Statement",
+      description: "Last 5 transactions",
+      icon: ReceiptText,
+      iconClass: "text-[#172033]",
+      bgClass: "bg-purple-50",
+    },
+    {
+      id: "balance-withdrawal",
+      title: "D. Bal+Withdraw",
+      description: "Check & withdraw",
+      icon: ArrowRight,
+      iconClass: "text-[#172033]",
+      bgClass: "bg-purple-50",
+    },
+  ];
+
+  const renderServices = () => {
+    return (
+      <>
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">
+            Step 5: Select AEPS Service
+          </h2>
+
+          <p className="mt-2 text-base text-slate-500">
+            Select the transaction you want to
+            perform.
+          </p>
+        </div>
+
+        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+          {services.map((service) => {
+            const Icon = service.icon;
+
+            const selected =
+              selectedService ===
+              service.id;
+
+            return (
+              <button
+                type="button"
+                key={service.id}
+                onClick={() =>
+                  handleServiceClick(
+                    service.id
+                  )
+                }
+                className={`rounded-2xl border-2 p-5 text-left transition ${
+                  selected
+                    ? "border-[#172033] shadow-md"
+                    : "border-[#d8d8d8]"
+                } bg-white shadow-sm hover:shadow-md transition-shadow hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.45)]`}
+              >
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${service.bgClass}`}
+                >
+                  <Icon
+                    className={`h-8 w-8 ${service.iconClass}`}
+                  />
+                </div>
+
+                <h3 className="mt-5 text-xl font-bold text-slate-900">
+                  {service.title}
+                </h3>
+
+                <p className="mt-1 text-base text-slate-700">
+                  {service.description}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </>
+    );
+  };
 
 
 
@@ -1597,7 +1620,7 @@ const Aeps = () => {
     }
 
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+      <div className="flex items-center justify-center py-8 w-full">
         <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-purple-100 bg-white p-5 text-center shadow-md sm:p-6">
           <h2 className="text-left text-2xl font-bold text-slate-900 sm:text-2xl">
             {title}
@@ -1646,8 +1669,8 @@ const Aeps = () => {
       withdrawalAmount > 5000;
 
     return (
-      <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center">
-        <div className="w-full max-w-md overflow-hidden rounded-t-2xl border border-purple-100 bg-white p-5 shadow-md sm:rounded-2xl sm:p-6">
+      <div className="flex items-center justify-center py-8 w-full">
+        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-purple-100 bg-white p-5 shadow-md sm:p-6">
           <div className="mx-auto mb-7 h-1.5 w-16 rounded-full bg-slate-200 sm:hidden" />
 
           <h2 className="text-2xl font-bold text-slate-900">
@@ -1658,6 +1681,15 @@ const Aeps = () => {
             Amounts above ₹5,000 require
             Mobile OTP + Biometric validation
           </p>
+
+          {selectedService === "balance-withdrawal" && fetchedBalance !== null && (
+            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
+              <p className="text-sm font-semibold text-emerald-700">Available Balance</p>
+              <p className="text-2xl font-bold text-emerald-700">
+                ₹{fetchedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          )}
 
           <div className="mt-6 flex min-h-[68px] items-center rounded-xl border border-slate-200 bg-[#f8f5ff] px-4">
             <span className="text-2xl font-bold text-purple-600">
@@ -1770,7 +1802,7 @@ const Aeps = () => {
     }
 
     return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+      <div className="flex items-center justify-center py-8 w-full">
         <div className="w-full max-w-lg overflow-hidden rounded-[28px] border border-white bg-white p-7 shadow-[0_30px_80px_rgba(15,23,42,0.18)] sm:p-6">
           <div className="flex items-center gap-4">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50">
@@ -1867,12 +1899,12 @@ const Aeps = () => {
   ) => {
     return (
       <div className="flex items-center justify-between gap-4">
-        <span className="text-base text-slate-600 sm:text-lg">
+        <span className="shrink-0 text-base text-slate-600 sm:text-lg">
           {label}
         </span>
 
         <span
-          className={`text-right text-base font-semibold sm:text-lg ${valueClass}`}
+          className={`break-all text-right text-base font-semibold sm:text-lg ${valueClass}`}
         >
           {value}
         </span>
@@ -2105,7 +2137,7 @@ const Aeps = () => {
                   className="flex min-h-[68px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-xl font-bold text-white shadow-md"
                 >
                   <RefreshCw className="h-7 w-7" />
-                  START TRANSACTION
+                  NEW WITHDRAWAL
                 </button>
               ) : (
                 <button
@@ -2116,7 +2148,7 @@ const Aeps = () => {
                   className="flex min-h-[68px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-xl font-bold text-white shadow-md"
                 >
                   <RefreshCw className="h-7 w-7" />
-                  Home
+                  NEW WITHDRAWAL
                 </button>
               )}
             </div>
@@ -2154,7 +2186,7 @@ const Aeps = () => {
               Aadhaar ATM
             </p>
             <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-              "AEPS Services"
+              AEPS Services
             </h1>
           </div>
         </div>
@@ -2170,18 +2202,25 @@ const Aeps = () => {
 
         <main className="mt-5">
           <div className="mx-auto w-full max-w-3xl space-y-5">
-            {step === 0 && renderRetailerAuth()}
-            {step === 1 && renderFlowSelection()}
-            {step === 2 && flowMode === "deposit" && <AepsDeposit />}
-            {step === 2 && flowMode === "withdraw" && renderCustomerAadhaar()}
-            {step === 3 && flowMode === "withdraw" && renderBankSelection()}
-            {step === 4 && flowMode === "withdraw" && renderReview()}
+            {modalType === "" ? (
+              <>
+                {step === 0 && renderRetailerAuth()}
+                {step === 1 && renderFlowSelection()}
+                {step === 2 && flowMode === "deposit" && <AepsDeposit />}
+                {step === 2 && flowMode === "withdraw" && renderCustomerAadhaar()}
+                {step === 3 && flowMode === "withdraw" && renderBankSelection()}
+                {step === 4 && flowMode === "withdraw" && renderReview()}
+                {step === 5 && flowMode === "withdraw" && renderServices()}
+              </>
+            ) : (
+              <div className="flex w-full items-center justify-center bg-white rounded-2xl">
+                {renderAmountModal()}
+                {renderOtpModal()}
+                {renderBiometricModal()}
+              </div>
+            )}
           </div>
         </main>
-
-        {renderAmountModal()}
-        {renderOtpModal()}
-        {renderBiometricModal()}
       </section>
     </div>
   );

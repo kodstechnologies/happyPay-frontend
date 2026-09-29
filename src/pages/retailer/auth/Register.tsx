@@ -198,7 +198,7 @@ const RetailerRegister = () => {
                 LEFT REGISTRATION PANEL
             =================================================== */}
 
-            <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[#315bd1] via-[#6366f1] to-[#7c3aed] lg:flex">
+            <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[#7c3aed] via-[#6366f1] to-[#7c3aed] lg:flex">
 
               {/* Decorative background */}
               <div className="absolute -right-28 -top-24 h-[350px] w-[350px] rounded-full bg-white/10 blur-[80px]" />
@@ -655,7 +655,7 @@ const RetailerRegister = () => {
                         currentStep ===
                         steps.length - 1
                           ? "bg-[#10a88a] hover:bg-[#0d8a70]"
-                          : "bg-gradient-to-r from-[#315bd1] to-[#7c3aed] hover:opacity-90"
+                          : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
                       }`}
                     >
 

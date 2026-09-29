@@ -15,6 +15,7 @@ import Cms from "../pages/retailer/cms/Cms";
 import UpiCashPoint from "../pages/retailer/upi-cash-point/UpiCashPoint";
 import BBPS from "../pages/retailer/bbps/Bbps";
 import MicroAtm from "../pages/retailer/micro-atm/MicroAtm";
+import DistributorDashboard from "../pages/distributor/DistributorDashboard";
 
 // TRANSACTIONS
 import Transactions from "../pages/history/Transactions"
@@ -158,6 +159,11 @@ const Router: RouteObject[] = [
             element: <Wallet />,
           },
 
+          {
+            path: "distributor",
+            element: <DistributorDashboard />,
+          },
+
           // PROFILE
           {
             path: "profile",
@@ -257,6 +263,7 @@ const Router: RouteObject[] = [
       },
     ],
   },
+
 ];
 
 export default Router;

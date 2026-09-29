@@ -193,7 +193,7 @@ const BusinessProofStep = () => {
           className={`flex h-12 w-14 shrink-0 items-center justify-center rounded-xl ${
             businessProofFile
               ? "bg-[#e7f8f3]"
-              : "bg-[#eef1ff]"
+              : "bg-[#f3e8ff]"
           }`}
         >
           {businessProofFile ? (
@@ -227,7 +227,7 @@ const BusinessProofStep = () => {
           </p>
         </div>
 
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#eef1ff] transition group-hover:bg-[#e4e9ff]">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#f3e8ff] transition group-hover:bg-[#e4e9ff]">
           <Upload
             className="h-4.5 w-4.5 text-[#7c3aed]"
             strokeWidth={2.4}

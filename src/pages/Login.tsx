@@ -410,6 +410,22 @@ const RetailerLogin = () => {
               </button>
             </div>
 
+            <div className="mt-3 flex items-center justify-center gap-1.5 text-[10px]">
+              <span className="text-[#777A81]">
+                Admin access?
+              </span>
+
+              <button
+                type="button"
+                onClick={() =>
+                  navigate("/admin/login")
+                }
+                className="font-semibold text-[#4A3E94] transition hover:text-[#3B317A] hover:underline"
+              >
+                Go to Admin Portal
+              </button>
+            </div>
+
             {/* ==================================================
                 SECURITY
             ================================================== */}

@@ -6,7 +6,6 @@ import {
   Smartphone,
   LockKeyhole,
   Check,
-  Wifi,
 } from "lucide-react";
 
 const RetailerLogin = () => {
@@ -61,25 +60,7 @@ const RetailerLogin = () => {
      * Only that number is allowed to continue.
      */
 
-    const registeredMobile = localStorage.getItem(
-      "registeredRetailerMobile",
-    );
-
-    // No retailer has completed registration yet.
-    if (!registeredMobile) {
-      setError(
-        "This mobile number is not registered with HappyPay. Please register as a retailer first.",
-      );
-      return;
-    }
-
-    // Entered mobile does not match registered mobile.
-    if (mobile !== registeredMobile) {
-      setError(
-        "This mobile number is not registered with HappyPay. Please use your registered mobile number.",
-      );
-      return;
-    }
+    // Removed registered mobile check to allow any user
 
     // Correct registered number.
     setOtpSent(true);
@@ -94,13 +75,13 @@ const RetailerLogin = () => {
   ) => {
     const value = event.target.value
       .replace(/\D/g, "")
-      .slice(0, 6);
+      .slice(0, 4);
 
     setOtp(value);
     setError("");
 
-    if (value.length === 6) {
-      if (value === "123456") {
+    if (value.length === 4) {
+      if (value === "1234") {
         setOtpVerified(true);
       } else {
         setOtpVerified(false);
@@ -118,32 +99,16 @@ const RetailerLogin = () => {
   const handleLogin = () => {
     setError("");
 
-    const registeredMobile = localStorage.getItem(
-      "registeredRetailerMobile",
-    );
+    // Removed registered mobile check to allow any user
 
-    if (!registeredMobile) {
+    if (otp.length !== 4) {
       setError(
-        "No registered retailer account was found. Please register first.",
+        "Please enter the 4-digit OTP.",
       );
       return;
     }
 
-    if (mobile !== registeredMobile) {
-      setError(
-        "This mobile number is not registered with HappyPay.",
-      );
-      return;
-    }
-
-    if (otp.length !== 6) {
-      setError(
-        "Please enter the 6-digit OTP.",
-      );
-      return;
-    }
-
-    if (otp !== "123456") {
+    if (otp !== "1234") {
       setError(
         "Invalid OTP. Please enter the correct OTP.",
       );
@@ -159,7 +124,7 @@ const RetailerLogin = () => {
 
     localStorage.setItem(
       "retailerMobile",
-      registeredMobile,
+      mobile,
     );
 
     localStorage.setItem(
@@ -198,7 +163,7 @@ const RetailerLogin = () => {
               <div className="w-full max-w-[430px] my-auto">
                 {/* BRAND */}
                 <div className="mb-10 flex items-center gap-3">
-                  <img src="/logo.jpg" alt="Happy Pay Logo" className="h-12 w-auto object-contain" />
+                  <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="h-12 w-auto object-contain" />
                 </div>
 
                 {/* HEADER */}
@@ -221,7 +186,7 @@ const RetailerLogin = () => {
 
                   <p className="mt-3 max-w-[410px] text-[14px] leading-6 text-[#737c8c]">
                     {otpSent
-                      ? `Enter the 6-digit verification code sent to +91 ${mobile}.`
+                      ? `Enter the 4-digit verification code sent to +91 ${mobile}.`
                       : "Sign in securely with the mobile number registered to your HappyPay retailer account."}
                   </p>
                 </div>
@@ -303,21 +268,28 @@ const RetailerLogin = () => {
                       </button>
                     </div>
 
-                    <input
-                      id="retailer-login-otp"
-                      type="text"
-                      value={otp}
-                      onChange={handleOtpChange}
-                      placeholder="Enter 6-digit OTP"
-                      maxLength={6}
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      disabled={otpVerified}
-                      className={`h-[58px] w-full rounded-2xl border bg-[#fafbfd] px-4 text-center text-[19px] font-bold tracking-[0.5em] text-[#172033] outline-none transition placeholder:text-[11px] placeholder:tracking-normal focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${otpVerified
-                        ? "border-[#b9e8d4] bg-[#f4fcf8]"
-                        : "border-[#dfe3e9]"
-                        }`}
-                    />
+                    <div className="relative">
+                      <input
+                        id="retailer-login-otp"
+                        type="text"
+                        value={otp}
+                        onChange={handleOtpChange}
+                        placeholder="Enter 4-digit OTP"
+                        maxLength={4}
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        disabled={otpVerified}
+                        className={`h-[58px] w-full rounded-2xl border bg-[#fafbfd] px-4 text-center text-[19px] font-bold tracking-[0.5em] text-[#172033] outline-none transition placeholder:text-[11px] placeholder:tracking-normal focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${otpVerified
+                          ? "border-[#b9e8d4] bg-[#f4fcf8]"
+                          : "border-[#dfe3e9]"
+                          }`}
+                      />
+                      {otpVerified && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-[#08a77e]">
+                          <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                        </div>
+                      )}
+                    </div>
 
                     <div className="mt-2.5 flex items-center justify-between">
                       <span className="text-[11px] text-[#9299a7]">
@@ -335,27 +307,6 @@ const RetailerLogin = () => {
                       >
                         Resend OTP
                       </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* VERIFIED */}
-                {otpVerified && (
-                  <div className="mt-5 flex items-start gap-3 rounded-2xl border border-[#cce9dc] bg-[#f2fbf7] px-4 py-3.5">
-                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#08a77e]">
-                      <Check
-                        className="h-4 w-4 text-white"
-                        strokeWidth={2.5}
-                      />
-                    </div>
-
-                    <div>
-                      <p className="text-[13px] font-semibold text-[#087b5d]">
-                        Mobile number verified
-                      </p>
-                      <p className="mt-1 text-[11px] leading-5 text-[#5f756c]">
-                        Your registered retailer account is ready to continue.
-                      </p>
                     </div>
                   </div>
                 )}
@@ -414,84 +365,15 @@ const RetailerLogin = () => {
                   </div>
 
                   <p className="mt-3 text-center text-[10px] text-[#a1a8b5]">
-                    Demo OTP: 123456
+                    Demo OTP: 1234
                   </p>
                 </div>
               </div>
             </section>
 
             {/* RIGHT — PREMIUM BRAND PANEL */}
-            <section className="relative hidden w-full overflow-hidden bg-[#0a0514] lg:flex">
-              {/* Decorative fluid background gradients */}
-              <div className="absolute left-[10%] top-[20%] h-[500px] w-[500px] rounded-full bg-[#8b5cf6] opacity-20 blur-[120px]" />
-              <div className="absolute right-[-10%] top-[-10%] h-[400px] w-[400px] rounded-full bg-[#7c3aed] opacity-30 blur-[100px]" />
-              <div className="absolute bottom-[-10%] left-[30%] h-[600px] w-[600px] rounded-full bg-[#4c1d95] opacity-30 blur-[150px]" />
-
-              {/* Dynamic light streak simulating the 3D ribbon */}
-              <div className="absolute bottom-[10%] left-[-10%] h-[150px] w-[120%] -rotate-[15deg] rounded-full bg-gradient-to-r from-[#7c3aed] via-[#6d28d9] to-[#4c1d95] opacity-50 blur-[80px]" />
-              <div className="absolute bottom-[20%] right-[-10%] h-[100px] w-[80%] rotate-[25deg] rounded-full bg-gradient-to-l from-[#7c3aed] via-[#5b21b6] to-[#4c1d95] opacity-50 blur-[60px]" />
-
-              <div className="relative z-10 flex w-full p-10 xl:p-14 mt-4">
-
-                {/* Left content inside the right panel */}
-                <div className="flex flex-col w-[55%] pt-4">
-                  <h2 className="text-[40px] font-medium leading-[1.15] tracking-tight text-white xl:text-[48px]">
-                    Empower your retail business
-                  </h2>
-
-                  <p className="mt-8 text-[14px] leading-relaxed text-white/50 max-w-[320px]">
-                    For those who want more from their transactions — there's HappyPay.
-                  </p>
-
-                  <div className="mt-16 pb-4">
-                    <p className="text-[16px] font-semibold text-white/90">250 000+</p>
-                    <p className="text-[11px] text-white/40 mt-1">retailers trust our platform</p>
-                  </div>
-                </div>
-
-                {/* Floating Cards Container */}
-                <div className="relative w-[45%] h-[320px] mt-4">
-
-                  {/* Top Dark Card */}
-                  <div className="absolute top-[0px] right-[0%] z-20 h-[170px] w-[280px] origin-center rotate-[15deg] rounded-[20px] border border-white/10 bg-[#1e133c]/80 p-5 shadow-2xl backdrop-blur-xl">
-                    <div className="flex justify-end items-start h-full flex-col">
-                      <div className="w-full">
-                        <div className="font-mono text-[16px] tracking-[0.2em] text-white/90">5235 4200 2432 222</div>
-                        <div className="mt-3 flex items-center justify-between">
-                          <span className="font-mono text-[10px] text-white/50">12/24</span>
-                          <div className="flex -space-x-2">
-                            <div className="h-5 w-5 rounded-full bg-white/80" />
-                            <div className="h-5 w-5 rounded-full bg-white/40" />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Bottom Purple Theme Card */}
-                  <div className="absolute top-[170px] left-[5%] z-10 h-[280px] w-[180px] origin-center -rotate-[20deg] rounded-[20px] border border-white/20 bg-gradient-to-br from-[#c4b5fd] via-[#8b5cf6] to-[#6d28d9] p-5 shadow-[0_30px_60px_-15px_rgba(124,58,237,0.4)]">
-                    <Wifi className="h-5 w-5 rotate-90 text-white/80 absolute top-7 right-7" />
-
-                    <div className="absolute inset-0 z-0 opacity-10">
-                      <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="wave" patternUnits="userSpaceOnUse" width="40" height="20"><path d="M0 10 Q10 0 20 10 T40 10" fill="none" stroke="white" strokeWidth="2" /></pattern></defs><rect width="100%" height="100%" fill="url(#wave)" /></svg>
-                    </div>
-
-                    <div className="absolute top-[45%] left-[-20%] z-10 flex items-center rotate-90 w-[250px]">
-                      <span className="text-[26px] font-bold text-white/95 tracking-tight">HappyPay.</span>
-                      <div className="ml-8 flex items-center gap-3">
-                        <span className="text-[11px] font-semibold text-white/80">Retailer</span>
-                        <span className="font-mono text-[9px] text-white/70">12/24</span>
-                      </div>
-                    </div>
-
-                    <div className="absolute bottom-5 right-5 flex -space-x-2">
-                      <div className="h-4 w-4 rounded-full bg-white/80" />
-                      <div className="h-4 w-4 rounded-full bg-white/40" />
-                    </div>
-                  </div>
-
-                </div>
-              </div>
+            <section className="relative hidden w-full items-center justify-center bg-white lg:flex">
+              <img src="/happy-favicon.jpeg" alt="Happy Pay Logo" className="w-[80%] max-w-sm object-contain" />
             </section>
           </div>
         </div>

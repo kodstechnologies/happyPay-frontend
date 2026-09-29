@@ -85,21 +85,15 @@ export default function MicroAtm() {
     
     setStep("WAITING_FOR_CARD");
     
-    // Simulate user entering PIN on device
-    let pinLength = 0;
-    const pinInterval = setInterval(() => {
-      if (pinLength < 4) {
-        pinLength++;
-      } else {
-        clearInterval(pinInterval);
-        setStep("PROCESSING");
-        
-        setTimeout(() => {
-          setTxnId(`MATM${Math.floor(Math.random()*10000000)}`);
-          setStep("SUCCESS");
-        }, 2000);
-      }
-    }, 600);
+    // Automatically proceed to processing after 5 seconds
+    setTimeout(() => {
+      setStep("PROCESSING");
+      
+      setTimeout(() => {
+        setTxnId(`MATM${Math.floor(Math.random()*10000000)}`);
+        setStep("SUCCESS");
+      }, 2000);
+    }, 5000);
   };
 
   const resetFlow = () => {
@@ -116,7 +110,7 @@ export default function MicroAtm() {
         
         <div className="mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 tracking-tight flex items-center gap-3">
-            <SmartphoneNfc className="h-8 w-8 text-[#315bd1]" />
+            <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
             Micro ATM
           </h1>
           <p className="text-slate-500 mt-1 text-sm">Offer cash withdrawals using Micro ATM</p>
@@ -145,12 +139,12 @@ export default function MicroAtm() {
                     <button 
                       key={device.id}
                       onClick={() => handleDeviceTypeSelect(device.id)}
-                      className="flex flex-col items-center justify-center p-6 border-2 border-slate-100 rounded-[16px] hover:border-[#315bd1] hover:bg-[#f8faff] transition-all group"
+                      className="flex flex-col items-center justify-center p-6 border-2 border-slate-100 rounded-[16px] hover:border-[#7c3aed] hover:bg-[#faf5ff] transition-all group"
                     >
                       <div className="h-12 w-12 rounded-full bg-slate-50 flex items-center justify-center mb-3 group-hover:bg-white group-hover:shadow-sm transition-all">
-                        <Smartphone className="h-6 w-6 text-slate-400 group-hover:text-[#315bd1]" />
+                        <Smartphone className="h-6 w-6 text-slate-400 group-hover:text-[#7c3aed]" />
                       </div>
-                      <span className="text-[15px] font-bold text-slate-700 group-hover:text-[#315bd1]">{device.name}</span>
+                      <span className="text-[15px] font-bold text-slate-700 group-hover:text-[#7c3aed]">{device.name}</span>
                       <span className="text-[11px] text-slate-400 mt-1 text-center">{device.desc}</span>
                     </button>
                   ))}
@@ -162,10 +156,10 @@ export default function MicroAtm() {
             {step === "SCANNING" && (
               <div className="bg-white rounded-[24px] p-10 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-300">
                 <div className="relative mb-6">
-                  <div className="absolute -inset-4 rounded-full bg-[#eef1ff] animate-ping opacity-75"></div>
-                  <div className="absolute -inset-8 rounded-full bg-[#eef1ff]/50 animate-ping opacity-50" style={{ animationDelay: '200ms' }}></div>
-                  <div className="h-16 w-16 bg-[#eef1ff] rounded-full flex items-center justify-center relative z-10">
-                    <BluetoothSearching className="h-8 w-8 text-[#315bd1] animate-pulse" />
+                  <div className="absolute -inset-4 rounded-full bg-[#f3e8ff] animate-ping opacity-75"></div>
+                  <div className="absolute -inset-8 rounded-full bg-[#f3e8ff]/50 animate-ping opacity-50" style={{ animationDelay: '200ms' }}></div>
+                  <div className="h-16 w-16 bg-[#f3e8ff] rounded-full flex items-center justify-center relative z-10">
+                    <BluetoothSearching className="h-8 w-8 text-[#7c3aed] animate-pulse" />
                   </div>
                 </div>
                 <h2 className="text-[18px] font-bold text-slate-800 mb-1">Scanning for devices</h2>
@@ -195,18 +189,18 @@ export default function MicroAtm() {
                     <button 
                       key={device.id}
                       onClick={() => handleConnect(device.name)}
-                      className="w-full flex items-center justify-between p-4 border border-slate-100 rounded-[16px] hover:border-[#315bd1] hover:bg-[#f8faff] transition-all group text-left"
+                      className="w-full flex items-center justify-between p-4 border border-slate-100 rounded-[16px] hover:border-[#7c3aed] hover:bg-[#faf5ff] transition-all group text-left"
                     >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all">
-                          <Bluetooth className="h-5 w-5 text-slate-400 group-hover:text-[#315bd1]" />
+                          <Bluetooth className="h-5 w-5 text-slate-400 group-hover:text-[#7c3aed]" />
                         </div>
                         <div>
-                          <p className="text-[15px] font-bold text-slate-700 group-hover:text-[#315bd1]">{device.name}</p>
+                          <p className="text-[15px] font-bold text-slate-700 group-hover:text-[#7c3aed]">{device.name}</p>
                           <p className="text-[11px] text-slate-400">{device.signal} Signal</p>
                         </div>
                       </div>
-                      <span className="text-[12px] font-semibold text-[#315bd1] opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span className="text-[12px] font-semibold text-[#7c3aed] opacity-0 group-hover:opacity-100 transition-opacity">
                         Connect
                       </span>
                     </button>
@@ -217,7 +211,7 @@ export default function MicroAtm() {
                   <button onClick={() => {
                     setStep("SCANNING");
                     setTimeout(() => setStep("DEVICE_LIST"), 2000);
-                  }} className="text-[#315bd1] text-[13px] font-semibold hover:underline">
+                  }} className="text-[#7c3aed] text-[13px] font-semibold hover:underline">
                     Rescan for devices
                   </button>
                 </div>
@@ -228,9 +222,9 @@ export default function MicroAtm() {
             {step === "CONNECTING" && (
               <div className="bg-white rounded-[24px] p-10 sm:p-14 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center animate-in fade-in zoom-in-95 duration-300">
                 <div className="relative mb-6">
-                  <div className="absolute -inset-4 rounded-full bg-[#eef1ff] animate-pulse"></div>
-                  <div className="h-16 w-16 bg-[#eef1ff] rounded-full flex items-center justify-center relative z-10">
-                    <Loader2 className="h-8 w-8 text-[#315bd1] animate-spin" />
+                  <div className="absolute -inset-4 rounded-full bg-[#f3e8ff] animate-pulse"></div>
+                  <div className="h-16 w-16 bg-[#f3e8ff] rounded-full flex items-center justify-center relative z-10">
+                    <Loader2 className="h-8 w-8 text-[#7c3aed] animate-spin" />
                   </div>
                 </div>
                 <h2 className="text-[18px] font-bold text-slate-800 mb-1">Connecting to {connectedDevice}</h2>
@@ -245,7 +239,7 @@ export default function MicroAtm() {
                     <h2 className="text-[17px] font-bold text-slate-800">Select Service</h2>
                     <p className="text-slate-500 text-[13px] mt-0.5">What would the customer like to do?</p>
                   </div>
-                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eef1ff] text-[#315bd1] text-[11px] font-bold">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#f3e8ff] text-[#7c3aed] text-[11px] font-bold">
                     <BluetoothConnected className="h-3 w-3" />
                     {connectedDevice}
                   </span>
@@ -265,13 +259,13 @@ export default function MicroAtm() {
                   
                   <button 
                     onClick={handleWithdrawClick}
-                    className="flex flex-col items-center justify-center p-6 border-2 border-slate-100 rounded-[16px] hover:border-[#315bd1] hover:bg-[#f8faff] transition-all group"
+                    className="flex flex-col items-center justify-center p-6 border-2 border-slate-100 rounded-[16px] hover:border-[#7c3aed] hover:bg-[#faf5ff] transition-all group"
                   >
                     <div className="h-10 w-10 rounded-full bg-slate-50 flex items-center justify-center mb-3 group-hover:bg-white group-hover:shadow-sm transition-all">
-                      <IndianRupee className="h-5 w-5 text-slate-400 group-hover:text-[#315bd1]" />
+                      <IndianRupee className="h-5 w-5 text-slate-400 group-hover:text-[#7c3aed]" />
                     </div>
-                    <span className="text-[15px] font-bold text-slate-700 group-hover:text-[#315bd1]">Cash Withdrawal</span>
-                    <span className="text-[11px] text-slate-400 mt-1.5 text-center group-hover:text-[#315bd1]/70">Withdraw cash from any bank</span>
+                    <span className="text-[15px] font-bold text-slate-700 group-hover:text-[#7c3aed]">Cash Withdrawal</span>
+                    <span className="text-[11px] text-slate-400 mt-1.5 text-center group-hover:text-[#7c3aed]/70">Withdraw cash from any bank</span>
                   </button>
                 </div>
               </div>
@@ -298,7 +292,7 @@ export default function MicroAtm() {
                         placeholder="Enter 10 digit number"
                         value={mobile}
                         onChange={(e) => setMobile(e.target.value.replace(/\D/g, ''))}
-                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#315bd1] focus:ring-4 focus:ring-[#315bd1]/10 outline-none transition-all font-medium text-[14px] text-slate-800"
+                        className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 outline-none transition-all font-medium text-[14px] text-slate-800"
                       />
                     </div>
                   </div>
@@ -312,7 +306,7 @@ export default function MicroAtm() {
                         placeholder="Enter amount (e.g. 500)"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/\D/g, ''))}
-                        className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#315bd1] focus:ring-4 focus:ring-[#315bd1]/10 outline-none transition-all font-bold text-[17px] text-slate-800"
+                        className="w-full pl-9 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 outline-none transition-all font-bold text-[17px] text-slate-800"
                       />
                     </div>
                     
@@ -332,7 +326,7 @@ export default function MicroAtm() {
                   <button
                     onClick={handleInitiateWithdraw}
                     disabled={!mobile || !amount}
-                    className="w-full mt-2 py-3 bg-[#315bd1] hover:bg-[#274dbd] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[14px] font-bold rounded-xl shadow-[0_8px_20px_-10px_rgba(49,91,209,0.8)] transition-all flex items-center justify-center gap-2"
+                    className="w-full mt-2 py-3 bg-[#7c3aed] hover:bg-[#6d28d9] disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-[14px] font-bold rounded-xl shadow-[0_8px_20px_-10px_rgba(49,91,209,0.8)] transition-all flex items-center justify-center gap-2"
                   >
                     <CreditCard className="h-4 w-4" />
                     Initiate Transaction
@@ -345,8 +339,8 @@ export default function MicroAtm() {
             {(step === "WAITING_FOR_CARD" || step === "PROCESSING" || step === "BALANCE_WAITING") && (
               <div className="bg-white rounded-[24px] p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 flex flex-col items-center justify-center text-center">
                 <div className="relative mb-6">
-                  <div className="absolute -inset-3 rounded-full bg-[#eef1ff] animate-pulse"></div>
-                  <CreditCard className="h-10 w-10 text-[#315bd1] relative z-10" />
+                  <div className="absolute -inset-3 rounded-full bg-[#f3e8ff] animate-pulse"></div>
+                  <CreditCard className="h-10 w-10 text-[#7c3aed] relative z-10" />
                   {step === "PROCESSING" && (
                     <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
                       <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
@@ -402,12 +396,12 @@ export default function MicroAtm() {
 
             {/* BALANCE RESULT */}
             {step === "BALANCE_RESULT" && (
-              <div className="bg-white rounded-[24px] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[#315bd1]/20 text-center">
-                <div className="h-14 w-14 rounded-full bg-[#eef1ff] text-[#315bd1] flex items-center justify-center mx-auto mb-4">
+              <div className="bg-white rounded-[24px] p-6 sm:p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[#7c3aed]/20 text-center">
+                <div className="h-14 w-14 rounded-full bg-[#f3e8ff] text-[#7c3aed] flex items-center justify-center mx-auto mb-4">
                   <ShieldCheck className="h-7 w-7" />
                 </div>
                 <h2 className="text-slate-500 font-semibold text-[13px] mb-1">Available Balance</h2>
-                <div className="text-[28px] font-bold text-[#315bd1] tracking-tight mb-6">
+                <div className="text-[28px] font-bold text-[#7c3aed] tracking-tight mb-6">
                   ₹{balanceAmount?.toLocaleString('en-IN', {minimumFractionDigits: 2})}
                 </div>
                 
@@ -415,7 +409,7 @@ export default function MicroAtm() {
                   <button onClick={resetFlow} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[13px] font-bold rounded-xl transition-colors">
                     Done
                   </button>
-                  <button onClick={handleWithdrawClick} className="px-5 py-2.5 bg-[#315bd1] hover:bg-[#274dbd] text-white text-[13px] font-bold rounded-xl shadow-lg transition-colors flex items-center gap-1.5">
+                  <button onClick={handleWithdrawClick} className="px-5 py-2.5 bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-[13px] font-bold rounded-xl shadow-lg transition-colors flex items-center gap-1.5">
                     <IndianRupee className="h-4 w-4" />
                     Withdraw Now
                   </button>

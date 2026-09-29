@@ -118,7 +118,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
         )}
 
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#315bd1]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">
             AEPS
           </p>
           <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
@@ -135,8 +135,8 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
           {/* Form */}
           <div>
               <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2ff]">
-                  <Fingerprint className="h-5 w-5 text-[#315bd1]" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3e8ff]">
+                  <Fingerprint className="h-5 w-5 text-[#7c3aed]" />
                 </div>
 
                 <div>
@@ -158,7 +158,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                   Transaction Amount
                 </label>
 
-                <div className="mt-2 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <span className="mr-2 text-sm font-bold text-slate-400">
                     ₹
                   </span>
@@ -185,7 +185,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                   Customer Aadhaar Number
                 </label>
 
-                <div className="mt-2 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <UserCircle className="h-4 w-4 shrink-0 text-slate-400" />
 
                   <input
@@ -215,7 +215,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                   Customer Bank
                 </label>
 
-                <div className="mt-2 flex h-11 relative items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
+                <div className="mt-2 flex h-11 relative items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#7c3aed] focus-within:bg-white">
                   <Landmark className="h-4 w-4 shrink-0 text-slate-400 pointer-events-none" />
 
                   <select
@@ -238,9 +238,9 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
               </div>
 
               {/* Device */}
-              <div className="mt-5 rounded-xl border border-[#315bd1]/15 bg-[#f4f6fd] p-4">
+              <div className="mt-5 rounded-xl border border-[#7c3aed]/15 bg-[#f4f6fd] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#315bd1]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed]">
                     <Fingerprint className="h-5 w-5 text-white" />
                   </div>
 
@@ -262,7 +262,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={() => setShowReceipt(true)}
-                  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#315bd1] px-4 text-sm font-bold text-white transition hover:bg-[#274dbd]"
+                  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white transition hover:bg-[#6d28d9]"
                 >
                   <CheckCircle2 className="h-4 w-4" />
                   View Receipt
@@ -272,7 +272,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                   type="button"
                   onClick={handleScan}
                   disabled={!isFormValid || isScanning || transactionStatus === "PROCESSING"}
-                  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#315bd1] px-4 text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isScanning ? (
                     <>
@@ -308,10 +308,10 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
           </div>
       </section>
 
-      {/* Receipt Modal */}
+      {/* Receipt View */}
       {showReceipt && transactionStatus === "SUCCESS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex w-full items-center justify-center bg-white py-6">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-lg border border-slate-100">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-600">
@@ -326,7 +326,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
               <CheckCircle2 className="h-7 w-7 text-emerald-500" />
             </div>
 
-            <div className="mt-5 rounded-xl bg-[#f7f8fc] p-4">
+            <div className="mt-5 rounded-xl bg-[#f7f8fc] p-4 border border-slate-100">
               <div className="flex justify-between border-b border-slate-200 pb-2 text-xs">
                 <span className="text-slate-500">Transaction ID</span>
                 <span className="font-semibold text-slate-900">
@@ -358,11 +358,11 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                 </span>
               </div>
 
-              <div className="flex justify-between pt-2">
+              <div className="flex justify-between pt-2 items-center">
                 <span className="text-sm font-bold text-slate-700">
                   Amount Credited
                 </span>
-                <span className="text-lg font-bold text-[#315bd1]">
+                <span className="text-xl font-black text-[#7c3aed]">
                   ₹{amount}
                 </span>
               </div>
@@ -381,7 +381,7 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
               <button
                 type="button"
                 onClick={() => setShowReceipt(false)}
-                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#315bd1] text-xs font-bold text-white transition hover:bg-[#274dbd]"
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#7c3aed] text-xs font-bold text-white transition hover:bg-[#6d28d9]"
               >
                 Close
               </button>

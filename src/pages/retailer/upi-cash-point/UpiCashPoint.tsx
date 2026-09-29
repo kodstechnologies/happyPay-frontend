@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   QrCode,
   RefreshCw,
-  Wallet,
   XCircle,
   Printer,
 } from "lucide-react";
@@ -122,7 +121,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
         )}
 
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#315bd1]">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">
             SERVICES
           </p>
 
@@ -137,14 +136,14 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       </div>
 
       {/* Main Card */}
-      <section className="hp-card rounded-2xl p-5 sm:p-6 bg-white shadow-sm border border-slate-100">
+      <section className="hp-card rounded-3xl p-8 sm:p-10 bg-white shadow-sm border border-slate-100">
         
-        <div className={`grid gap-6 ${transactionStatus !== "IDLE" ? "lg:grid-cols-[1fr_360px]" : "max-w-md mx-auto"}`}>
+        <div className="mx-auto max-w-2xl">
           {/* Form */}
           <div>
             <div className="mb-5 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2ff]">
-                <QrCode className="h-5 w-5 text-[#315bd1]" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3e8ff]">
+                <QrCode className="h-5 w-5 text-[#7c3aed]" />
               </div>
 
               <div>
@@ -159,16 +158,16 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
             </div>
 
             {/* Amount */}
-            <div className="mt-4">
+            <div className="mt-8">
               <label
                 htmlFor="upi-amount"
-                className="text-xs font-semibold text-slate-600"
+                className="text-sm font-bold text-slate-700"
               >
                 Cash Amount
               </label>
 
-              <div className="mt-2 flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 px-3 focus-within:border-[#315bd1] focus-within:bg-white">
-                <span className="mr-2 text-sm font-bold text-slate-400">
+              <div className="mt-3 flex h-14 items-center rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 focus-within:border-[#7c3aed] focus-within:bg-white transition-all hover:border-slate-300">
+                <span className="mr-3 text-lg font-bold text-slate-400">
                   ₹
                 </span>
 
@@ -180,7 +179,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                   onChange={handleAmountChange}
                   disabled={showQr}
                   placeholder="Enter cash amount"
-                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                  className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal"
                 />
               </div>
             </div>
@@ -191,9 +190,9 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                 type="button"
                 onClick={handleGenerateQr}
                 disabled={!isValidAmount}
-                className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#315bd1] px-4 text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-50 shadow-sm"
+                className="mt-8 flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] px-4 text-lg font-bold text-white transition-all hover:bg-[#6d28d9] hover:shadow-lg hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none shadow-md"
               >
-                <QrCode className="h-4 w-4" />
+                <QrCode className="h-6 w-6" />
                 Generate Payment QR
               </button>
             )}
@@ -215,7 +214,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                       <QrCode className="h-36 w-36 text-slate-900" />
 
                       <div className="absolute left-1/2 top-1/2 flex h-10 w-10 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-lg bg-white shadow-sm">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#315bd1]">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-[#7c3aed]">
                           <span className="text-[10px] font-black text-white">
                             UPI
                           </span>
@@ -229,7 +228,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                       Amount
                     </p>
 
-                    <p className="mt-1 text-2xl font-bold text-[#315bd1]">
+                    <p className="mt-1 text-2xl font-bold text-[#7c3aed]">
                       ₹{amount || "0"}
                     </p>
                   </div>
@@ -255,7 +254,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                       <button
                         type="button"
                         onClick={() => setShowReceipt(true)}
-                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#315bd1] text-xs font-bold text-white transition hover:bg-[#274dbd] shadow-sm"
+                        className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] text-xs font-bold text-white transition hover:bg-[#6d28d9] shadow-sm"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         View Receipt
@@ -316,64 +315,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
             )}
           </div>
 
-          {/* Summary sidebar (only on IDLE/PROCESSING) */}
-          {transactionStatus !== "IDLE" && (
-            <div className="rounded-2xl bg-[#f7f8fc] p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef2ff]">
-                  <Wallet className="h-5 w-5 text-[#315bd1]" />
-                </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Transaction Summary
-                  </h3>
-
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Review payment information.
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Cash Amount
-                  </p>
-
-                  <p className="mt-1 text-lg font-bold text-[#315bd1]">
-                    ₹{amount || "0"}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Status
-                  </p>
-
-                  <div className="mt-2 flex items-center gap-2">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        transactionStatus === "PROCESSING"
-                          ? "bg-amber-500"
-                          : transactionStatus === "SUCCESS"
-                          ? "bg-emerald-500"
-                          : "bg-red-500"
-                      }`}
-                    />
-
-                    <span className="text-xs font-bold text-slate-700">
-                      {transactionStatus === "PROCESSING"
-                        ? "Processing"
-                        : transactionStatus === "SUCCESS"
-                        ? "Success"
-                        : "Failed"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </section>
 
@@ -431,7 +373,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                 <span className="text-sm font-bold text-slate-700">
                   Amount
                 </span>
-                <span className="text-lg font-bold text-[#315bd1]">
+                <span className="text-lg font-bold text-[#7c3aed]">
                   ₹{amount}
                 </span>
               </div>
@@ -456,7 +398,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
               <button
                 type="button"
                 onClick={() => setShowReceipt(false)}
-                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#315bd1] text-xs font-bold text-white transition hover:bg-[#274dbd]"
+                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#7c3aed] text-xs font-bold text-white transition hover:bg-[#6d28d9]"
               >
                 Close
               </button>
