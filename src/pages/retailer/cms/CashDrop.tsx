@@ -552,11 +552,6 @@ export default function CashDrop({
         {/* ================= DROP DETAILS ================= */}
         {screen === "drop-details" && (
           <>
-            <PageHeader
-              title="Cash Drop Details"
-              subtitle={`Enter depositor details for ${selectedDisplayName}`}
-              onBack={() => setScreen("home")}
-            />
 
             <Progress
               active={1}
@@ -705,11 +700,6 @@ export default function CashDrop({
         {/* ================= DENOMINATIONS ================= */}
         {screen === "denominations" && (
           <>
-            <PageHeader
-              title="Cash Details"
-              subtitle="Enter the denomination details of the cash being deposited"
-              onBack={() => setScreen("drop-details")}
-            />
 
             <Progress
               active={2}
@@ -937,11 +927,6 @@ export default function CashDrop({
         {/* ================= OTP ================= */}
         {screen === "otp" && (
           <>
-            <PageHeader
-              title="Verify Cash Drop"
-              subtitle="Enter the OTP sent to the depositor mobile number"
-              onBack={() => setScreen("denominations")}
-            />
 
             <Progress
               active={3}
@@ -1067,11 +1052,6 @@ export default function CashDrop({
         {/* ================= RECEIPT ================= */}
         {screen === "receipt" && (
           <>
-            <PageHeader
-              title="Cash Drop Receipt"
-              subtitle="Transaction completed successfully"
-              onBack={() => setScreen("home")}
-            />
 
             <div className="mx-auto max-w-3xl">
               <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
@@ -1297,39 +1277,7 @@ export default function CashDrop({
   );
 }
 
-/* ================= REUSABLE COMPONENTS ================= */
 
-function PageHeader({
-  title,
-  subtitle,
-  onBack,
-}: {
-  title: string;
-  subtitle: string;
-  onBack: () => void;
-}) {
-  return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-      >
-        <ArrowLeft size={19} />
-      </button>
-
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">
-          {title}
-        </h1>
-
-        <p className="mt-1 text-sm text-slate-500">
-          {subtitle}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 function Progress({
   active,

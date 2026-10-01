@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { useState, useEffect } from "react";
 import {
   Fingerprint,
   Send,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
 import { useNavigate } from "react-router-dom";
+import { apiClient } from "../../services/api/client";
 
 type ServicePath =
   | "/retailer/aeps"
@@ -174,15 +176,39 @@ const Dashboard = () => {
      BANNERS
   ========================================================= */
 
-  const banners = useMemo(
-    () => [
-      "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1616077168079-7e09a6a4c2f2?auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1589758438368-0ad531db3366?auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&q=80",
-    ],
-    [],
-  );
+  const [banners, setBanners] = useState<string[]>([]);
+  
+  useEffect(() => {
+    const fetchBanners = async () => {
+      try {
+        const response = await apiClient<any>("/api/v1/banners", { method: "GET" });
+        if (response.success && response.data) {
+          // Sort by order and map to imageUrl
+          const sorted = response.data
+            .sort((a: any, b: any) => a.order - b.order)
+            .map((b: any) => b.imageUrl);
+          
+          if (sorted.length > 0) {
+            setBanners(sorted);
+          } else {
+            // Fallback to defaults if no active banners found
+            setBanners([
+              "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80",
+              "https://images.unsplash.com/photo-1616077168079-7e09a6a4c2f2?auto=format&fit=crop&q=80",
+            ]);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch banners", err);
+        setBanners([
+          "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80",
+          "https://images.unsplash.com/photo-1616077168079-7e09a6a4c2f2?auto=format&fit=crop&q=80",
+        ]);
+      }
+    };
+    
+    fetchBanners();
+  }, []);
 
 
 
@@ -485,6 +511,9 @@ const Dashboard = () => {
                         src={banner}
                         alt={`HappyPay banner ${index + 1}`}
                         className="h-[128px] w-full object-cover sm:h-[148px] lg:h-[164px]"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80";
+                        }}
                       />
                     </div>
                   ))}

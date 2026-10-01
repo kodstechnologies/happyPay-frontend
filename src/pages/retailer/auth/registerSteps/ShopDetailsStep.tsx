@@ -74,7 +74,7 @@ const ShopDetailsStep = () => {
           />
 
           <input
-            id="shop-email"
+            id="shop-email" name="email"
             type="email"
             value={email}
             onChange={(event) => {
@@ -142,7 +142,7 @@ const ShopDetailsStep = () => {
           />
 
           <input
-            id="shop-name"
+            id="shop-name" name="shopName"
             type="text"
             value={shopName}
             onChange={(event) =>
@@ -201,7 +201,7 @@ const ShopDetailsStep = () => {
           />
 
           <textarea
-            id="shop-address"
+            id="shop-address" name="shopAddress"
             value={address}
             onChange={(event) =>
               setAddress(event.target.value)

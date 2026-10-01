@@ -49,7 +49,7 @@ const AboutRetailerStep = () => {
           />
 
           <input
-            id="retailer-full-name"
+            id="retailer-full-name" name="name"
             type="text"
             value={fullName}
             onChange={(event) =>
@@ -77,7 +77,7 @@ const AboutRetailerStep = () => {
         <input
           ref={selfieInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*" name="selfie"
           onChange={handleSelfieUpload}
           className="hidden"
         />

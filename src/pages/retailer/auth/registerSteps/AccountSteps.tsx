@@ -148,7 +148,7 @@ const AccountStep = () => {
             />
 
             <input
-              id="registration-pan"
+              id="registration-pan" name="pan"
               type="text"
               value={pan}
               onChange={handlePanChange}
@@ -176,7 +176,7 @@ const AccountStep = () => {
           <input
             ref={panInputRef}
             type="file"
-            accept="image/*,.pdf"
+            accept="image/*,.pdf" name="panDocument"
             onChange={handlePanUpload}
             className="hidden"
           />
@@ -237,7 +237,7 @@ const AccountStep = () => {
           </span>
 
           <input
-            id="registration-mobile"
+            id="registration-mobile" name="mobile"
             type="tel"
             value={mobile}
             onChange={handleMobileChange}

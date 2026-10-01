@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AepsDeposit from "./AepsDeposit";
+import { rdService } from "../../../utils/rdService";
 import {
   ArrowLeft,
   ArrowRight,
@@ -361,8 +362,48 @@ const Aeps = () => {
 
   const [step, setStep] = useState<Step>(0);
   const [flowMode, setFlowMode] = useState<"withdraw" | "deposit" | "">("");
-  const [withdrawalDevice, setWithdrawalDevice] = useState("Mantra MFS100");
+  
+  // Real Biometric States
+  const [availableDevices, setAvailableDevices] = useState<import("../../../utils/rdService").ActiveDevice[]>([]);
+  const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
+  const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
+  const [isScanningDevices, setIsScanningDevices] = useState(true);
   const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
+
+  const handleScanDevices = async () => {
+    setIsScanningDevices(true);
+    setWithdrawalDeviceName("Scanning...");
+    const devices = await rdService.scanAllDevices();
+    setAvailableDevices(devices);
+    
+    if (devices.length > 0) {
+      setSelectedDevicePort(devices[0].port);
+      setWithdrawalDeviceName(devices[0].name);
+    } else {
+      setSelectedDevicePort(null);
+      setWithdrawalDeviceName("No device found");
+    }
+    setIsScanningDevices(false);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    rdService.scanAllDevices().then((devices) => {
+      if (!isMounted) return;
+      setAvailableDevices(devices);
+      if (devices.length > 0) {
+        setSelectedDevicePort(devices[0].port);
+        setWithdrawalDeviceName(devices[0].name);
+      } else {
+        setSelectedDevicePort(null);
+        setWithdrawalDeviceName("No device found");
+      }
+      setIsScanningDevices(false);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   /*
    * Retailer authentication
@@ -537,8 +578,6 @@ const Aeps = () => {
 
   const handleBankSelect = (bank: Bank) => {
     setSelectedBank(bank);
-    setShowBankSelection(false);
-    setBankSearch("");
   };
 
   /*
@@ -600,12 +639,26 @@ const Aeps = () => {
    * could use the previous service value.
    */
 
-  const startBiometric = (
+  const startBiometric = async (
     serviceId: ServiceId
   ) => {
     setIsProcessing(true);
 
-    setTimeout(() => {
+    try {
+      // 1. Actually capture the fingerprint using our new optimized service!
+      const captureResult = await rdService.captureFingerprint(selectedDevicePort);
+
+      if (!captureResult.success) {
+        setIsProcessing(false);
+        setModalType("");
+        alert(captureResult.message);
+        return;
+      }
+
+      // 2. Here we have the XML payload to send to our Node.js backend
+      const pidDataXML = captureResult.data;
+      console.log("Captured PidData XML ready for backend:", pidDataXML);
+
       setIsProcessing(false);
 
       /*
@@ -650,7 +703,12 @@ const Aeps = () => {
         }
         return;
       }
-    }, 2500);
+    } catch (error) {
+      console.error(error);
+      setIsProcessing(false);
+      setModalType("");
+      alert("Something went wrong with the Biometric Scanner.");
+    }
   };
 
   /*
@@ -873,14 +931,7 @@ const Aeps = () => {
       return;
     }
 
-    /*
-     * Bank selection back.
-     */
-    if (showBankSelection) {
-      setShowBankSelection(false);
-      setBankSearch("");
-      return;
-    }
+
 
     if (step === 0) {
       navigate("/retailer");
@@ -956,39 +1007,50 @@ const Aeps = () => {
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setIsDeviceDropdownOpen(!isDeviceDropdownOpen)}
+                onClick={() => !isScanningDevices && setIsDeviceDropdownOpen(!isDeviceDropdownOpen)}
                 className="flex w-full items-center justify-between rounded-xl border border-purple-100 bg-white p-3 transition-all hover:border-purple-300"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50">
-                    <Fingerprint className="h-5 w-5 text-purple-600" />
+                    <Fingerprint className={`h-5 w-5 text-purple-600 ${isScanningDevices ? 'animate-pulse' : ''}`} />
                   </div>
                   <div className="text-left">
-                    <h3 className="text-sm font-bold text-[#171717]">{withdrawalDevice}</h3>
+                    <h3 className="text-sm font-bold text-[#171717]">{withdrawalDeviceName}</h3>
                     <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[#087f5b]">
-                      <span className="h-2 w-2 rounded-full bg-[#20a873]" />
-                      Ready · RD Service Active
+                      <span className={`h-2 w-2 rounded-full ${availableDevices.length > 0 ? 'bg-[#20a873]' : 'bg-red-500'}`} />
+                      {availableDevices.length > 0 ? "Ready · RD Service Active" : isScanningDevices ? "Searching..." : "Not Found"}
                     </p>
                   </div>
                 </div>
-                <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
+                
+                <div className="flex items-center gap-2">
+                  <RefreshCw 
+                    className={`h-4 w-4 text-purple-600 transition-transform ${isScanningDevices ? "animate-spin" : ""}`} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleScanDevices();
+                    }}
+                  />
+                  <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
+                </div>
               </button>
 
-              {isDeviceDropdownOpen && (
+              {isDeviceDropdownOpen && availableDevices.length > 0 && (
                 <div className="absolute left-0 right-0 mt-2 z-10 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-lg">
-                  {["Mantra MFS100", "Morpho MSO 1300 E3", "Startek FM220"].map((device) => (
+                  {availableDevices.map((device) => (
                     <button
-                      key={device}
+                      key={device.port}
                       type="button"
                       onClick={() => {
-                        setWithdrawalDevice(device);
+                        setSelectedDevicePort(device.port);
+                        setWithdrawalDeviceName(device.name);
                         setIsDeviceDropdownOpen(false);
                       }}
                       className={`w-full border-b border-slate-50 px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${
-                        withdrawalDevice === device ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
+                        selectedDevicePort === device.port ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
                       }`}
                     >
-                      {device}
+                      {device.name} (Port: {device.port})
                     </button>
                   ))}
                 </div>
@@ -1095,7 +1157,7 @@ const Aeps = () => {
           <button
             type="button"
             onClick={handleRetailerBiometric}
-            disabled={retailerAadhaar.length !== 12}
+            disabled={retailerAadhaar.length !== 12 || !selectedDevicePort}
             className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Fingerprint className="h-5 w-5" />
@@ -2004,7 +2066,7 @@ const Aeps = () => {
 
     return (
       <div className="">
-        <div className="mx-auto flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] sm:px-5">
+        <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] sm:px-5">
           <button
             type="button"
             onClick={
@@ -2021,7 +2083,7 @@ const Aeps = () => {
         </div>
 
         <main className="px-3 py-5 sm:px-6">
-          <div className="mx-auto w-full max-w-2xl rounded-[30px] border border-white bg-white/60 p-4 shadow-[0_25px_70px_-35px_rgba(15,23,42,0.25)] sm:p-6">
+          <div className="mx-auto w-full max-w-md rounded-[30px] border border-white bg-white p-4 shadow-[0_25px_70px_-35px_rgba(15,23,42,0.25)] sm:p-6">
             <div className="text-center">
               <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-purple-50">
                 <Check className="h-10 w-10 text-[#172033]" />

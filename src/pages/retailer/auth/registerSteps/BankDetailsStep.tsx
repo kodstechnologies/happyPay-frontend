@@ -77,7 +77,7 @@ const BankDetailsStep = () => {
           />
 
           <select
-            value={bankName}
+            name="bankName" value={bankName}
             onChange={(event) =>
               setBankName(event.target.value)
             }
@@ -119,7 +119,7 @@ const BankDetailsStep = () => {
 
           <input
             type="text"
-            value={ifscCode}
+            name="ifscCode" value={ifscCode}
             onChange={handleIfscChange}
             placeholder="Enter IFSC code"
             maxLength={11}
@@ -152,7 +152,7 @@ const BankDetailsStep = () => {
 
           <input
             type="password"
-            value={accountNumber}
+            name="accountNumber" value={accountNumber}
             onChange={handleAccountNumberChange}
             placeholder="Enter account number"
             maxLength={18}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, WalletCards, X, ArrowRightLeft } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
+import SettlementModal from "./SettlementModal";
 
 const formatAmount = (amount: number) => amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -8,6 +9,7 @@ export default function Wallet() {
   const [balance, setBalance] = useState(getWalletBalance);
   const [amount, setAmount] = useState("500");
   const [open, setOpen] = useState(false);
+  const [settlementModalOpen, setSettlementModalOpen] = useState(false);
   const [message, setMessage] = useState("");
 
   const addMoney = () => {
@@ -57,7 +59,7 @@ export default function Wallet() {
             </button>
             <button 
               type="button" 
-              onClick={() => setMessage("Settlement process initiated.")}
+              onClick={() => setSettlementModalOpen(true)}
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
             >
               <ArrowRightLeft className="h-4 w-4" />
@@ -142,6 +144,19 @@ export default function Wallet() {
           </div>
         </div>
       )}
+
+      <SettlementModal
+        open={settlementModalOpen}
+        onClose={() => setSettlementModalOpen(false)}
+        onSuccess={(amount, type) => {
+          const nextBalance = balance - amount;
+          setBalance(nextBalance);
+          setWalletBalance(nextBalance);
+          const typeName = type === "bank" ? "primary bank account" : type === "retailer" ? "retailer wallet" : "distributor account";
+          setMessage(`Successfully transferred ₹${formatAmount(amount)} to ${typeName}.`);
+          window.setTimeout(() => setMessage(""), 3000);
+        }}
+      />
     </div>
   );
 }

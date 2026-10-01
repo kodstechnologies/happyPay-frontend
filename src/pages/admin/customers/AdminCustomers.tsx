@@ -2,11 +2,11 @@ import { RefreshCw, Search, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 const dummyCustomers = [
-  { id: "CUST001", name: "Ramesh Kumar", mobile: "9823145670", aadhar: "XXXX-XXXX-1234", txType: "AEPS Cash Withdraw", amount: "₹5,000" },
-  { id: "CUST002", name: "Suresh Singh", mobile: "8765091234", aadhar: "XXXX-XXXX-5678", txType: "DMT", amount: "₹15,000" },
-  { id: "CUST003", name: "Anil Patel", mobile: "9012384756", aadhar: "XXXX-XXXX-9012", txType: "AEPS Balance Enquiry", amount: "-" },
-  { id: "CUST004", name: "Sunita Devi", mobile: "7845129630", aadhar: "XXXX-XXXX-3456", txType: "CMS Cash Drop", amount: "₹8,500" },
-  { id: "CUST005", name: "Kiran Sharma", mobile: "9356281740", aadhar: "XXXX-XXXX-7890", txType: "AEPS Cash Deposit", amount: "₹2,500" },
+  { id: "CUST001", name: "Ramesh Kumar", mobile: "9823145670", aadhar: "XXXX-XXXX-1234", account: "9876543210123", txType: "AEPS Cash Withdraw", amount: "₹5,000", commission: "₹15" },
+  { id: "CUST002", name: "Suresh Singh", mobile: "8765091234", aadhar: "XXXX-XXXX-5678", account: "1122334455667", txType: "DMT", amount: "₹15,000", commission: "₹45" },
+  { id: "CUST003", name: "Anil Patel", mobile: "9012384756", aadhar: "XXXX-XXXX-9012", account: null, txType: "AEPS Balance Enquiry", amount: "-", commission: "-" },
+  { id: "CUST004", name: "Sunita Devi", mobile: "7845129630", aadhar: "XXXX-XXXX-3456", account: "9988776655443", txType: "CMS Cash Drop", amount: "₹8,500", commission: "₹20" },
+  { id: "CUST005", name: "Kiran Sharma", mobile: "9356281740", aadhar: "XXXX-XXXX-7890", account: "5544332211009", txType: "AEPS Cash Deposit", amount: "₹2,500", commission: "₹8" },
 ];
 
 export default function AdminCustomers() {
@@ -138,6 +138,7 @@ export default function AdminCustomers() {
                   <th>Name</th>
                   <th>Mobile Number</th>
                   <th>Aadhar Number</th>
+                  <th>Account Number</th>
                   <th>Type of Transaction</th>
                   <th>Transaction Amount</th>
                 </tr>
@@ -148,8 +149,14 @@ export default function AdminCustomers() {
                     <td className="font-bold text-slate-800">{customer.name}</td>
                     <td>{customer.mobile}</td>
                     <td className="font-medium">{customer.aadhar}</td>
+                    <td className="font-medium text-slate-600">{customer.account ? `XXXX${customer.account.slice(-3)}` : "-"}</td>
                     <td><span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full text-[10px] font-bold">{customer.txType}</span></td>
-                    <td className="font-bold text-emerald-600">{customer.amount}</td>
+                    <td className="font-bold text-emerald-600">
+                      {customer.amount}
+                      {customer.commission && customer.commission !== "-" && (
+                        <span className="text-xs text-emerald-500 font-normal ml-1">({customer.commission})</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
