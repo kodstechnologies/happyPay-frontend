@@ -49,6 +49,8 @@ import AdminCmsConfig from "../pages/admin/cms/AdminCmsConfig";
 import AdminNotifications from "../pages/admin/notifications/AdminNotifications";
 import AdminBanners from "../pages/admin/banners/AdminBanners";
 
+import Fingerprint from "../pages/dev/fingerPrint";
+
 const Router: RouteObject[] = [
   // ADMIN AUTH
   {
@@ -59,9 +61,13 @@ const Router: RouteObject[] = [
         index: true,
         element: <AdminLogin />,
       },
+    
     ],
   },
-  
+  {
+    path: "/finger-print",
+    element: <Fingerprint />,
+  },
   {
     path: "/admin/forgot-password",
     element: <BlankLayout />,
@@ -142,7 +148,7 @@ const Router: RouteObject[] = [
             path: "upi-cash-point",
             element: <UpiCashPoint />,
           },
-           {
+          {
             path: "bbps",
             element: <BBPS />,
           },
