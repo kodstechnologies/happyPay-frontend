@@ -10,7 +10,7 @@ import {
   RotateCcw,
   ShieldCheck,
   Wallet,
-  Zap,
+  
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
@@ -44,7 +44,7 @@ export default function SettlementToBank() {
   const navigate = useNavigate();
   const [balance, setBalance] = useState(getWalletBalance);
   const [selectedBankId, setSelectedBankId] = useState(REGISTERED_BANKS[0].id);
-  const [settlementMode, setSettlementMode] = useState<"IMPS" | "NEFT">("IMPS");
+  const [settlementMode] = useState<"IMPS" | "NEFT">("IMPS");
   const [amount, setAmount] = useState("");
   const [mpin, setMpin] = useState("");
   const [showMpin, setShowMpin] = useState(false);
@@ -64,8 +64,6 @@ export default function SettlementToBank() {
     REGISTERED_BANKS.find((b) => b.id === selectedBankId) ||
     REGISTERED_BANKS[0];
   const numAmount = Number(amount) || 0;
-  const payoutFee = settlementMode === "IMPS" ? 0 : 0; // Free / 0 charges
-  const netAmount = Math.max(0, numAmount - payoutFee);
 
   const handleQuickAmount = (val: number | "full") => {
     if (val === "full") {
