@@ -17,7 +17,7 @@ import {
   ReceiptIndianRupee,
   Clock3,
   XCircle,
-  SmartphoneNfc,
+
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
 import { useNavigate } from "react-router-dom";
@@ -392,17 +392,6 @@ const Dashboard = () => {
       cardClass:
         "bg-[#f8faff] border-[#dce6ff] hover:bg-[#f0f5ff]",
       path: "/retailer/bbps",
-    },
-    {
-      title: "Micro ATM",
-      description: "Withdraw via Debit Card",
-      icon: SmartphoneNfc,
-      iconClass: "text-[#10b981]",
-      bgClass: "bg-[#ecfdf5]",
-      hoverClass: "hover:bg-[#ecfdf5]",
-      cardClass:
-        "bg-[#f0fdf4] border-[#d1fae5] hover:bg-[#e6fcf5]",
-      path: "/retailer/micro-atm",
     },
     {
       title: "Mobile Recharge",

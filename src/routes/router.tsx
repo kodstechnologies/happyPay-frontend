@@ -14,7 +14,6 @@ import Dmt from "../pages/retailer/dmt/Dmt";
 import Cms from "../pages/retailer/cms/Cms";
 import UpiCashPoint from "../pages/retailer/upi-cash-point/UpiCashPoint";
 import BBPS from "../pages/retailer/bbps/Bbps";
-import MicroAtm from "../pages/retailer/micro-atm/MicroAtm";
 import DistributorDashboard from "../pages/distributor/DistributorDashboard";
 import SettlementToBank from "../pages/retailer/settlement/SettlementToBank";
 import SettlementToRetailer from "../pages/retailer/settlement/SettlementToRetailer";
@@ -153,11 +152,6 @@ const Router: RouteObject[] = [
             element: <BBPS />,
           },
 
-          // MICRO ATM
-          {
-            path: "micro-atm",
-            element: <MicroAtm />,
-          },
 
           // SETTLEMENT SUB-ROUTES
           {

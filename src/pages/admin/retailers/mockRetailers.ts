@@ -104,7 +104,7 @@ export const generateTransactions = (retailerId: string): SubRetailerTransaction
     'CMS': ['Cash Drop - Zomato', 'Cash Drop - Swiggy', 'Cash Collection - Flipkart'],
     'UPI': ['QR Payment', 'UPI Collect', 'UPI Cash Point'],
     'BBPS': ['Electricity Bill', 'Mobile Recharge', 'DTH Recharge', 'Gas Bill', 'Water Bill'],
-    'Aadhaar Pay': ['Aadhaar Payment', 'Micro ATM Withdrawal'],
+    'Aadhaar Pay': ['Aadhaar Payment'],
   };
 
   const hash = retailerId.split('').reduce((a, c) => a + c.charCodeAt(0), 0);

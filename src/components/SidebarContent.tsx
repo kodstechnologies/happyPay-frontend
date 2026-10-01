@@ -16,7 +16,7 @@ import {
   QrCode,
   ReceiptIndianRupee,
   ChevronRight,
-  SmartphoneNfc,
+
   Users,
   ArrowRightLeft,
   ChevronDown,
@@ -141,12 +141,6 @@ const SidebarContent = ({
             onClick={() => goTo("/retailer/bbps")}
           />
 
-          <SidebarItem
-            label="Micro ATM"
-            icon={<SmartphoneNfc />}
-            active={isActive("/retailer/micro-atm")}
-            onClick={() => goTo("/retailer/micro-atm")}
-          />
 
           {/* SETTLEMENT COLLAPSIBLE */}
           <div className="mb-1">
