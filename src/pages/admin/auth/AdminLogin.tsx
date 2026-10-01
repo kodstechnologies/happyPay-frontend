@@ -1,7 +1,6 @@
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { loginAdmin } from "../../../services/api/admin/adminAuthApi";
 import { saveAdminSession } from "../../../utils/adminAuth";
 
 export default function AdminLogin() {
@@ -10,10 +9,9 @@ export default function AdminLogin() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
 
@@ -22,31 +20,14 @@ export default function AdminLogin() {
       return;
     }
 
-    setLoading(true);
-
-    try {
-      const response = await loginAdmin({
-        email: email.trim(),
-        password,
-        rememberMe,
-      });
-      const user = response.user ?? response.admin;
-
-      if (!response.accessToken) {
-        throw new Error("The login response did not include an access token.");
-      }
-
-      saveAdminSession(response.accessToken, user);
-      navigate("/admin/dashboard", { replace: true });
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Unable to sign in. Please try again.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    saveAdminSession("local-admin-session", {
+      id: "local-admin",
+      name: "Super Admin",
+      email: email.trim(),
+      role: "Administrator",
+      status: "Active",
+    });
+    navigate("/admin/dashboard", { replace: true });
   };
 
   return (
@@ -141,8 +122,8 @@ export default function AdminLogin() {
                 <Link to="/admin/forgot-password" className="text-sm font-semibold text-[#315bd1] hover:underline">Forgot password?</Link>
               </div>
 
-              <button type="submit" disabled={loading} className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#315bd1] px-5 text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-60">
-                {loading ? "Signing in..." : "Sign in to Admin Portal"}
+              <button type="submit" className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#315bd1] px-5 text-sm font-bold text-white transition hover:bg-[#274dbd]">
+                Sign in to Admin Portal
               </button>
             </form>
           </div>

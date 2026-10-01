@@ -29,15 +29,6 @@ const DISTRIBUTORS = [
     address: "Shop 12, Commercial Hub, Sector 18",
     isPrimary: true,
   },
-  {
-    id: "HP-DIST-3142",
-    name: "City Digital Distributor Network",
-    contactName: "Sunil Patel",
-    zone: "North District Point",
-    phone: "+91 9898765432",
-    address: "Plot 45, Main Market Road",
-    isPrimary: false,
-  },
 ];
 
 const formatAmount = (val: number) =>

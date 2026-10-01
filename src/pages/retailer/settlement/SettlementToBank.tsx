@@ -330,61 +330,12 @@ export default function SettlementToBank() {
                 </div>
               </div>
 
-              {/* Step 2: Transfer Mode */}
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  2. Settlement Transfer Mode
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setSettlementMode("IMPS")}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border text-left transition ${
-                      settlementMode === "IMPS"
-                        ? "border-[#7c3aed] bg-[#f8f5ff] ring-1 ring-[#7c3aed]"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <Zap className="h-4 w-4 text-[#7c3aed]" />
-                        <span className="font-bold text-sm text-slate-900">IMPS</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Instant 24x7 Settlement</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
-                      Free
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setSettlementMode("NEFT")}
-                    className={`flex items-center justify-between p-3.5 rounded-xl border text-left transition ${
-                      settlementMode === "NEFT"
-                        ? "border-[#7c3aed] bg-[#f8f5ff] ring-1 ring-[#7c3aed]"
-                        : "border-slate-200 bg-white hover:bg-slate-50"
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="h-4 w-4 text-slate-600" />
-                        <span className="font-bold text-sm text-slate-900">NEFT</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Standard Clearing (Batch)</p>
-                    </div>
-                    <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
-                      Free
-                    </span>
-                  </button>
-                </div>
-              </div>
-
+      
               {/* Step 3: Amount */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                    3. Enter Settlement Amount
+                    2. Enter Settlement Amount
                   </label>
                   <span className="text-xs text-slate-500">
                     Available: ₹{formatAmount(balance)}
@@ -431,7 +382,7 @@ export default function SettlementToBank() {
               {/* Step 4: Security MPIN */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  4. Security MPIN
+                  3. Security MPIN
                 </label>
                 <div className="relative">
                   <input
@@ -482,45 +433,7 @@ export default function SettlementToBank() {
 
           {/* Right Summary & Guidelines Card */}
           <div className="space-y-5">
-            {/* Transfer Summary Card */}
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
-              <h3 className="font-bold text-slate-900 text-sm">
-                Settlement Summary
-              </h3>
-
-              <div className="space-y-2.5 text-xs">
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Destination Bank</span>
-                  <span className="font-semibold text-slate-800">
-                    {selectedBank.name}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Account No.</span>
-                  <span className="font-semibold text-slate-800">
-                    •••• {selectedBank.accountNumber.slice(-4)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Transfer Mode</span>
-                  <span className="font-bold text-purple-700">{settlementMode}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Settlement Amount</span>
-                  <span className="font-bold text-slate-900">
-                    ₹{formatAmount(numAmount)}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Payout Charges</span>
-                  <span className="font-semibold text-emerald-600">₹0.00 (Free)</span>
-                </div>
-                <div className="flex justify-between pt-1 text-sm font-bold">
-                  <span className="text-slate-900">Net Amount to Credit</span>
-                  <span className="text-[#7c3aed]">₹{formatAmount(netAmount)}</span>
-                </div>
-              </div>
-            </div>
+          
 
             {/* Important Notes */}
             <div className="rounded-2xl border border-slate-200 bg-[#f8f5ff] p-5">

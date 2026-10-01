@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const RD_PORT = 11100;
-const RD_BASE_URL = `https://127.0.0.1:${RD_PORT}`;
+const RD_BASE_URL = `http://127.0.0.1:${RD_PORT}`;
 
 export interface RDResponse {
   success: boolean;
