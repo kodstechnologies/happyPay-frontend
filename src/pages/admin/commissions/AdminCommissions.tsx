@@ -10,9 +10,7 @@ const allCommissions = [
   { id: "5", txName: "UPI Cash Point", amountRange: "100 - 3000", commission: "0.40%", distributorCommission: "5%" },
   { id: "6", txName: "UPI Cash Point", amountRange: "3001 - 5000", commission: "₹14.10/-", distributorCommission: "5%" },
   { id: "7", txName: "Mini Statement", amountRange: "Any", commission: "₹1.30/-", distributorCommission: "5%" },
-  { id: "8", txName: "Micro ATM", amountRange: "100 - 3000", commission: "0.42%", distributorCommission: "5%" },
-  { id: "9", txName: "Micro ATM", amountRange: "3001 - 7500", commission: "₹11.00/-", distributorCommission: "5%" },
-  { id: "10", txName: "Micro ATM", amountRange: "7501 - 10000", commission: "₹13.70/-", distributorCommission: "5%" },
+
   { id: "11", txName: "Bank Account Opening (NSDL)", amountRange: "Any", commission: "₹100/-", distributorCommission: "5%" },
   { id: "12", txName: "Mobile Recharge (Jio)", amountRange: "Any", commission: "1.80%", distributorCommission: "5%" },
   { id: "13", txName: "Mobile Recharge (Airtel)", amountRange: "Any", commission: "2.10%", distributorCommission: "5%" },

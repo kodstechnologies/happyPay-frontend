@@ -14,7 +14,6 @@ import Dmt from "../pages/retailer/dmt/Dmt";
 import Cms from "../pages/retailer/cms/Cms";
 import UpiCashPoint from "../pages/retailer/upi-cash-point/UpiCashPoint";
 import BBPS from "../pages/retailer/bbps/Bbps";
-import MicroAtm from "../pages/retailer/micro-atm/MicroAtm";
 import DistributorDashboard from "../pages/distributor/DistributorDashboard";
 import SettlementToBank from "../pages/retailer/settlement/SettlementToBank";
 import SettlementToRetailer from "../pages/retailer/settlement/SettlementToRetailer";
@@ -49,6 +48,8 @@ import AdminCmsConfig from "../pages/admin/cms/AdminCmsConfig";
 import AdminNotifications from "../pages/admin/notifications/AdminNotifications";
 import AdminBanners from "../pages/admin/banners/AdminBanners";
 
+import Fingerprint from "../pages/dev/fingerPrint";
+
 const Router: RouteObject[] = [
   // ADMIN AUTH
   {
@@ -59,9 +60,13 @@ const Router: RouteObject[] = [
         index: true,
         element: <AdminLogin />,
       },
+    
     ],
   },
-  
+  {
+    path: "/finger-print",
+    element: <Fingerprint />,
+  },
   {
     path: "/admin/forgot-password",
     element: <BlankLayout />,
@@ -142,16 +147,11 @@ const Router: RouteObject[] = [
             path: "upi-cash-point",
             element: <UpiCashPoint />,
           },
-           {
+          {
             path: "bbps",
             element: <BBPS />,
           },
 
-          // MICRO ATM
-          {
-            path: "micro-atm",
-            element: <MicroAtm />,
-          },
 
           // SETTLEMENT SUB-ROUTES
           {
