@@ -15,21 +15,10 @@ interface ApiEnvelope<T> {
 const unwrap = <T,>(response: ApiEnvelope<T>) => response.data;
 
 export async function loginAdmin(payload: AdminLoginRequest): Promise<AdminLoginResponse> {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        accessToken: "dummy_admin_token_12345",
-        admin: {
-          id: "ADM01",
-          name: "Super Admin",
-          email: payload.email || "admin@happypay.in",
-          mobile: payload.mobile || "9876543210",
-          role: "Super Admin",
-          status: "active",
-        },
-      });
-    }, 600);
-  });
+  return apiClient<ApiEnvelope<AdminLoginResponse>>("/api/admin/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then(unwrap);
 }
 
 

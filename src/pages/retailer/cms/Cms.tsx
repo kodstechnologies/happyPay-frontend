@@ -138,7 +138,7 @@ export default function Cms() {
   return (
     <div className="w-full">
       <main className="mt-4">
-        <div className="hp-page-head mx-auto w-full max-w-[760px]">
+        <div className="flex items-center gap-3 mx-auto w-full max-w-5xl">
           <button
             type="button"
             onClick={handleBack}
@@ -159,7 +159,7 @@ export default function Cms() {
           </div>
         </div>
 
-        <div className="mx-auto mt-4 w-full max-w-[760px] space-y-4">
+        <div className="mx-auto mt-6 w-full max-w-2xl space-y-4">
           {!selectedCompany ? (
             <>
               {/* CMS INTRO */}
@@ -311,3 +311,4 @@ export default function Cms() {
     </div>
   );
 }
+

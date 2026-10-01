@@ -4,7 +4,6 @@ import StepIndicator from "../../../components/common/StepIndicator";
 import Input from "../../../components/common/Input";
 import Button from "../../../components/common/Button";
 import {
-  ArrowLeft,
   ArrowRight,
   Bike,
   CheckCircle2,
@@ -513,52 +512,6 @@ const CashCollection = ({
     return <Send className="h-5 w-5" />;
   };
 
-  /* =========================
-     HEADER
-     
-     NOTE:
-     This header is only used for the
-     individual Cash Collection steps.
-     The CMS header/tabs are now handled
-     by Cms.tsx.
-  ========================= */
-
-  const Header = ({
-    title,
-    history = false,
-  }: {
-    title: string;
-    history?: boolean;
-  }) => {
-    return (
-      <header className="border-b border-slate-200 bg-white/95">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-3 py-4 sm:px-5">
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={handleBack}
-              className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-slate-100"
-            >
-              <ArrowLeft className="h-5 w-5 text-slate-900" />
-            </button>
-
-            <h1 className="text-xl font-bold text-slate-900 sm:text-3xl">
-              {title}
-            </h1>
-          </div>
-
-          {history && (
-            <button
-              type="button"
-              className="flex h-10 w-10 items-center justify-center rounded-full"
-            >
-              <History className="h-5 w-5 text-slate-900" />
-            </button>
-          )}
-        </div>
-      </header>
-    );
-  };
 
   /* =========================
      CLIENT CARD
@@ -825,8 +778,6 @@ const CashCollection = ({
 
     return (
       <div className="">
-        <Header title="Cash Collection" />
-
         <main className="mx-auto max-w-3xl px-2 py-4 sm:px-4">
           {/* Commission */}
 
@@ -843,30 +794,6 @@ const CashCollection = ({
 
           <Progress active={1} />
 
-          {/* Client */}
-
-          <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#fdeaea] text-[#df3c3c]">
-                <ClientIcon type={selectedClient.icon} />
-              </div>
-
-              <div className="flex-1">
-                <h2 className="text-xl font-bold text-[#172033]">
-                  {selectedDisplayName}
-                </h2>
-
-                <p className="mt-1 text-[#555b67]">
-                  {selectedClient.description} • Client Code:{" "}
-                  {selectedClient.code}
-                </p>
-              </div>
-
-              <span className="rounded-xl bg-[#e5f8ef] px-4 py-2 font-bold text-[#16a36d]">
-                0.04 Comm
-              </span>
-            </div>
-          </section>
 
           {/* Employee Code */}
 
@@ -919,8 +846,6 @@ const CashCollection = ({
 
     return (
       <div className="">
-        <Header title="Cash Collection" />
-
         <main className="mx-auto max-w-3xl px-2 py-4 sm:px-4">
           {/* Commission */}
 
@@ -1080,7 +1005,7 @@ const CashCollection = ({
 
     return (
       <div className="">
-        <Header title="Cash Collection" />
+
 
         <main className="mx-auto max-w-3xl px-2 py-4 sm:px-4">
           {/* Commission */}

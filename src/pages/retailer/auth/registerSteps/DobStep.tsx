@@ -28,7 +28,7 @@ const DobStep = () => {
             onChange={(event) =>
               setDateOfBirth(event.target.value)
             }
-            placeholder="DD/MM/YYYY"
+            placeholder="DD/MM/YYYY" name="dob"
             inputMode="numeric"
             className="h-[52px] w-full rounded-xl border border-[#dfe1e6] bg-[#fafbfd] pl-11 pr-5 text-sm font-medium text-[#172033] outline-none transition placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/10"
           />

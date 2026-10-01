@@ -99,6 +99,10 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setTransactionStatus("IDLE");
   };
 
+  const handlePrint = () => {
+    window.print();
+  };
+
   const formattedTime = `${Math.floor(timeLeft / 60)
     .toString()
     .padStart(2, "0")}:${(timeLeft % 60)
@@ -137,9 +141,92 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
 
       {/* Main Card */}
       <section className="hp-card rounded-3xl p-8 sm:p-10 bg-white shadow-sm border border-slate-100">
-        
-        <div className="mx-auto max-w-2xl">
-          {/* Form */}
+        {showReceipt && transactionStatus === "SUCCESS" ? (
+          <div className="mx-auto max-w-md animate-in fade-in zoom-in-95 duration-300">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-600">
+                  Payment Received
+                </p>
+
+                <h2 className="mt-1 text-xl font-bold text-slate-900">
+                  UPI Cash Receipt
+                </h2>
+              </div>
+
+              <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+            </div>
+
+            <div className="mt-5 rounded-xl bg-white p-4 border border-slate-200 shadow-sm">
+              <div className="flex justify-between border-b border-slate-200 pb-2 text-xs">
+                <span className="text-slate-500">Transaction ID</span>
+                <span className="font-semibold text-slate-900">
+                  {transactionId || "-"}
+                </span>
+              </div>
+
+              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
+                <span className="text-slate-500">Date</span>
+                <span className="font-semibold text-slate-900">
+                  {transactionDate?.toLocaleString("en-IN", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }) || "-"}
+                </span>
+              </div>
+
+              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
+                <span className="text-slate-500">Payment Via</span>
+                <span className="font-semibold text-slate-900">
+                  Amazon Pay
+                </span>
+              </div>
+
+              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
+                <span className="text-slate-500">Bank Ref. (RRN)</span>
+                <span className="font-semibold text-slate-900">
+                  429944251
+                </span>
+              </div>
+
+              <div className="flex justify-between pt-3 items-center">
+                <span className="text-sm font-bold text-slate-700">
+                  Amount
+                </span>
+                <span className="text-xl font-black text-[#7c3aed]">
+                  ₹{amount}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3 border border-emerald-100 flex items-center justify-center">
+              <p className="text-sm font-bold text-emerald-600">
+                Disburse Cash: ₹{amount}
+              </p>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 transition hover:bg-slate-50"
+              >
+                <Printer className="h-4 w-4" />
+                Print
+              </button>
+
+              <button
+                type="button"
+                onClick={resetForm}
+                className="flex h-11 flex-1 items-center justify-center rounded-xl bg-[#7c3aed] text-sm font-bold text-white transition hover:bg-[#6d28d9]"
+              >
+                New Transaction
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-2xl">
+            {/* Form */}
           <div>
             <div className="mb-5 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3e8ff]">
@@ -314,98 +401,9 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
               </div>
             )}
           </div>
-
-
-        </div>
-      </section>
-
-      {/* Receipt Modal */}
-      {showReceipt && transactionStatus === "SUCCESS" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-600">
-                  Payment Received
-                </p>
-
-                <h2 className="mt-1 text-xl font-bold text-slate-900">
-                  UPI Cash Receipt
-                </h2>
-              </div>
-
-              <CheckCircle2 className="h-7 w-7 text-emerald-500" />
-            </div>
-
-            <div className="mt-5 rounded-xl bg-[#f7f8fc] p-4">
-              <div className="flex justify-between border-b border-slate-200 pb-2 text-xs">
-                <span className="text-slate-500">Transaction ID</span>
-                <span className="font-semibold text-slate-900">
-                  {transactionId || "-"}
-                </span>
-              </div>
-
-              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
-                <span className="text-slate-500">Date</span>
-                <span className="font-semibold text-slate-900">
-                  {transactionDate?.toLocaleString("en-IN", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  }) || "-"}
-                </span>
-              </div>
-
-              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
-                <span className="text-slate-500">Payment Via</span>
-                <span className="font-semibold text-slate-900">
-                  Amazon Pay
-                </span>
-              </div>
-
-              <div className="flex justify-between border-b border-slate-200 py-2 text-xs">
-                <span className="text-slate-500">Bank Ref. (RRN)</span>
-                <span className="font-semibold text-slate-900">
-                  429944251
-                </span>
-              </div>
-
-              <div className="flex justify-between pt-2">
-                <span className="text-sm font-bold text-slate-700">
-                  Amount
-                </span>
-                <span className="text-lg font-bold text-[#7c3aed]">
-                  ₹{amount}
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 rounded-xl border border-[#08ae82]/20 bg-[#dcfce7] p-3 text-center">
-              <p className="text-xs font-bold text-[#08ae82]">
-                Disburse Cash: ₹{Number(amount).toLocaleString('en-IN')}
-              </p>
-            </div>
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                Print
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowReceipt(false)}
-                className="flex h-10 flex-1 items-center justify-center rounded-xl bg-[#7c3aed] text-xs font-bold text-white transition hover:bg-[#6d28d9]"
-              >
-                Close
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        )}
+      </section>
     </div>
   );
 };

@@ -170,7 +170,7 @@ const AadhaarStep = () => {
             value={formatAadhaar(aadhaarNumber)}
             onChange={handleAadhaarChange}
             placeholder="Enter Aadhaar number"
-            maxLength={14}
+            maxLength={14} name="aadhaar"
             className="h-[52px] w-full rounded-xl border border-[#dfe1e6] bg-[#fafbfd] pl-11 pr-5 text-sm font-medium tracking-wide text-[#172033] outline-none transition placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/10"
           />
         </div>
@@ -217,7 +217,7 @@ const AadhaarStep = () => {
       <input
         ref={aadhaarInputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/*,.pdf" name="aadhaarDocument"
         multiple
         onChange={handleAadhaarUpload}
         className="hidden"

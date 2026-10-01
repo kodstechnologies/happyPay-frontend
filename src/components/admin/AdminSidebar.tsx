@@ -5,8 +5,8 @@ interface Props { collapsed: boolean; mobileOpen: boolean; onToggle: () => void;
 const groups = [
   { label: "Overview", items: [{ label: "Dashboard", icon: LayoutDashboard, to: "/admin/dashboard" }] },
   { label: "Management", items: [{ label: "Retailers", icon: Store, to: "/admin/retailers" }, { label: "Transactions", icon: Activity, to: "/admin/transactions" }, { label: "Customers", icon: Users, to: "/admin/customers" }] },
-  { label: "Configuration", items: [{ label: "CMS Configuration", icon: Settings, to: "/admin/cms" }, { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" }] },
-  { label: "System", items: [{ label: "Audit Logs", icon: FileClock, to: "/admin/audit-logs" }, { label: "Notifications", icon: Bell, to: "/admin/notifications" }, { label: "Support", icon: Headphones, to: "/admin/support" }] },
+  { label: "Configuration", items: [{ label: "CMS Configuration", icon: Settings, to: "/admin/cms" }, { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" }, { label: "Banners", icon: Bell, to: "/admin/banners" }] },
+  { label: "System", items: [{ label: "Audit Logs", icon: FileClock, to: "/admin/audit-logs" }, { label: "Support", icon: Headphones, to: "/admin/support" }] },
 ];
 
 export default function AdminSidebar({ collapsed, mobileOpen, onToggle, onCloseMobile, onLogout }: Props) {

@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
+import { getFCMToken } from "../../../config/firebase";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowRight,
@@ -7,6 +9,7 @@ import {
   LockKeyhole,
   Check,
 } from "lucide-react";
+
 
 const RetailerLogin = () => {
   const navigate = useNavigate();
@@ -96,50 +99,51 @@ const RetailerLogin = () => {
   // LOGIN
   // ============================================================
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setError("");
 
     // Removed registered mobile check to allow any user
 
     if (otp.length !== 4) {
-      setError(
-        "Please enter the 4-digit OTP.",
-      );
+      setError("Please enter the 4-digit OTP.");
       return;
     }
 
-    if (otp !== "1234") {
-      setError(
-        "Invalid OTP. Please enter the correct OTP.",
-      );
-      return;
+    try {
+      // 1. Get the FCM Token
+      let fcmToken = null;
+      try {
+        fcmToken = await getFCMToken();
+        if (fcmToken) {
+          console.log("FCM Token retrieved:", fcmToken);
+          localStorage.setItem("fcmToken", fcmToken);
+        }
+      } catch (e) {
+        console.error("Failed to get FCM token", e);
+      }
+
+      // Mocking the backend call as requested
+      setTimeout(() => {
+        const dummyResponse = {
+          success: true,
+          data: {
+            accessToken: "dummy_retailer_token_12345",
+          }
+        };
+
+        if (dummyResponse.success && dummyResponse.data) {
+          localStorage.setItem("token", dummyResponse.data.accessToken);
+          localStorage.setItem("retailerMobile", mobile);
+          localStorage.setItem("role", "retailer");
+          
+          navigate("/retailer", { replace: true });
+        } else {
+          setError("Login failed");
+        }
+      }, 500);
+    } catch (err: any) {
+      setError(err.message || "An error occurred during login");
     }
-
-    /*
-     * Store the currently logged-in retailer mobile.
-     *
-     * Dashboard can use this value for retailer-specific
-     * daily 2FA tracking.
-     */
-
-    localStorage.setItem(
-      "retailerMobile",
-      mobile,
-    );
-
-    localStorage.setItem(
-      "token",
-      "dummy-retailer-token",
-    );
-
-    localStorage.setItem(
-      "role",
-      "retailer",
-    );
-
-    navigate("/retailer", {
-      replace: true,
-    });
   };
 
   // ============================================================

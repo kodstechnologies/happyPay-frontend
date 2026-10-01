@@ -16,6 +16,9 @@ import UpiCashPoint from "../pages/retailer/upi-cash-point/UpiCashPoint";
 import BBPS from "../pages/retailer/bbps/Bbps";
 import MicroAtm from "../pages/retailer/micro-atm/MicroAtm";
 import DistributorDashboard from "../pages/distributor/DistributorDashboard";
+import SettlementToBank from "../pages/retailer/settlement/SettlementToBank";
+import SettlementToRetailer from "../pages/retailer/settlement/SettlementToRetailer";
+import SettlementToDistributor from "../pages/retailer/settlement/SettlementToDistributor";
 
 // TRANSACTIONS
 import Transactions from "../pages/history/Transactions"
@@ -44,6 +47,7 @@ import AdminCustomers from "../pages/admin/customers/AdminCustomers";
 import AdminCommissions from "../pages/admin/commissions/AdminCommissions";
 import AdminCmsConfig from "../pages/admin/cms/AdminCmsConfig";
 import AdminNotifications from "../pages/admin/notifications/AdminNotifications";
+import AdminBanners from "../pages/admin/banners/AdminBanners";
 
 const Router: RouteObject[] = [
   // ADMIN AUTH
@@ -85,6 +89,7 @@ const Router: RouteObject[] = [
           { path: "transactions", element: <AdminTransactions /> },
           { path: "customers", element: <AdminCustomers /> },
           { path: "commissions", element: <AdminCommissions /> },
+          { path: "banners", element: <AdminBanners /> },
           { path: "cms", element: <AdminCmsConfig /> },
           { path: "profile", element: <AdminProfile /> },
           { path: "support", element: <AdminSupport /> },
@@ -146,6 +151,20 @@ const Router: RouteObject[] = [
           {
             path: "micro-atm",
             element: <MicroAtm />,
+          },
+
+          // SETTLEMENT SUB-ROUTES
+          {
+            path: "settlement/bank",
+            element: <SettlementToBank />,
+          },
+          {
+            path: "settlement/retailer",
+            element: <SettlementToRetailer />,
+          },
+          {
+            path: "settlement/distributor",
+            element: <SettlementToDistributor />,
           },
 
           // TRANSACTIONS

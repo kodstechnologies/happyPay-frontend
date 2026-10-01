@@ -74,7 +74,7 @@ const ShopDetailsStep = () => {
           />
 
           <input
-            id="shop-email"
+            id="shop-email" name="email"
             type="email"
             value={email}
             onChange={(event) => {
@@ -142,7 +142,7 @@ const ShopDetailsStep = () => {
           />
 
           <input
-            id="shop-name"
+            id="shop-name" name="shopName"
             type="text"
             value={shopName}
             onChange={(event) =>
@@ -164,6 +164,7 @@ const ShopDetailsStep = () => {
 
       <SelectField
         label="Shop Category"
+        name="shopCategory"
         value={category}
         onChange={setCategory}
         icon={<Shapes />}
@@ -176,6 +177,7 @@ const ShopDetailsStep = () => {
 
       <SelectField
         label="Property Type"
+        name="propertyType"
         value={propertyType}
         onChange={setPropertyType}
         icon={<Building2 />}
@@ -201,7 +203,7 @@ const ShopDetailsStep = () => {
           />
 
           <textarea
-            id="shop-address"
+            id="shop-address" name="shopAddress"
             value={address}
             onChange={(event) =>
               setAddress(event.target.value)
@@ -316,12 +318,14 @@ const ShopDetailsStep = () => {
 
 const SelectField = ({
   label,
+  name,
   value,
   onChange,
   icon,
   options,
 }: {
   label: string;
+  name?: string;
   value: string;
   onChange: (value: string) => void;
   icon: React.ReactNode;
@@ -343,6 +347,7 @@ const SelectField = ({
         {/* SELECT */}
 
         <select
+          name={name}
           value={value}
           onChange={(event) =>
             onChange(event.target.value)

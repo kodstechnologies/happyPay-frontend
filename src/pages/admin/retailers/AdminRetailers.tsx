@@ -1,4 +1,5 @@
 import { Eye, RefreshCw, Search, Store, MoreVertical, Ban, CheckCircle, XCircle } from "lucide-react";
+import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -30,6 +31,7 @@ export default function AdminRetailers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const PAGE_SIZE = 10;
 
   const handleRequestError = useCallback(
     (caught: unknown) => {
@@ -223,7 +225,7 @@ export default function AdminRetailers() {
               </thead>
 
               <tbody>
-                {items.map((item) => (
+                {items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => (
                   <tr key={item.id}>
                     <td className="px-5 py-4 font-bold text-[#315bd1]">
                       {item.id}
@@ -309,34 +311,14 @@ export default function AdminRetailers() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
-          <span>
-            Page {page} of {totalPages}
-          </span>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() =>
-                setPage((value) => value - 1)
-              }
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40"
-            >
-              Previous
-            </button>
-
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() =>
-                setPage((value) => value + 1)
-              }
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+        <div className="border-t border-slate-100 px-5 py-3">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={total}
+            pageSize={PAGE_SIZE}
+          />
         </div>
       </section>
     </div>

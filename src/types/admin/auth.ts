@@ -9,8 +9,7 @@ export interface AdminUser {
 }
 
 export interface AdminLoginRequest {
-  email?: string;
-  mobile?: string;
+  email: string;
   password: string;
   rememberMe?: boolean;
 }

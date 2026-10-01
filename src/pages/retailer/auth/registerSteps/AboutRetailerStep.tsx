@@ -49,7 +49,7 @@ const AboutRetailerStep = () => {
           />
 
           <input
-            id="retailer-full-name"
+            id="retailer-full-name" name="name"
             type="text"
             value={fullName}
             onChange={(event) =>
@@ -77,7 +77,7 @@ const AboutRetailerStep = () => {
         <input
           ref={selfieInputRef}
           type="file"
-          accept="image/*"
+          accept="image/*" name="selfie"
           onChange={handleSelfieUpload}
           className="hidden"
         />
@@ -137,6 +137,7 @@ const AboutRetailerStep = () => {
 
       <SelectField
         label="Gender"
+        name="gender"
         value={gender}
         onChange={setGender}
         icon={<UsersRound />}
@@ -153,6 +154,7 @@ const AboutRetailerStep = () => {
 
       <SelectField
         label="Marital Status"
+        name="maritalStatus"
         value={maritalStatus}
         onChange={setMaritalStatus}
         icon={<Heart />}
@@ -171,6 +173,7 @@ const AboutRetailerStep = () => {
 
       <SelectField
         label="Educational Qualification"
+        name="educationalQualification"
         value={education}
         onChange={setEducation}
         icon={<GraduationCap />}
@@ -193,6 +196,7 @@ const AboutRetailerStep = () => {
 
 interface SelectFieldProps {
   label: string;
+  name?: string;
   value: string;
   onChange: (value: string) => void;
   icon: React.ReactNode;
@@ -201,6 +205,7 @@ interface SelectFieldProps {
 
 const SelectField = ({
   label,
+  name,
   value,
   onChange,
   icon,
@@ -218,6 +223,7 @@ const SelectField = ({
         </div>
 
         <select
+          name={name}
           value={value}
           onChange={(event) =>
             onChange(event.target.value)

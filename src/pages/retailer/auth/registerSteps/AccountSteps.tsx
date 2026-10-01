@@ -148,7 +148,7 @@ const AccountStep = () => {
             />
 
             <input
-              id="registration-pan"
+              id="registration-pan" name="pan"
               type="text"
               value={pan}
               onChange={handlePanChange}
@@ -176,7 +176,7 @@ const AccountStep = () => {
           <input
             ref={panInputRef}
             type="file"
-            accept="image/*,.pdf"
+            accept="image/*,.pdf" name="panDocument"
             onChange={handlePanUpload}
             className="hidden"
           />
@@ -237,7 +237,7 @@ const AccountStep = () => {
           </span>
 
           <input
-            id="registration-mobile"
+            id="registration-mobile" name="mobile"
             type="tel"
             value={mobile}
             onChange={handleMobileChange}
@@ -245,10 +245,10 @@ const AccountStep = () => {
             maxLength={10}
             inputMode="numeric"
             autoComplete="tel"
-            disabled={otpVerified}
+            readOnly={otpVerified}
             className={`h-[58px] w-full rounded-xl border bg-[#fafbfd] pl-[82px] pr-12 text-[15px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
               otpVerified
-                ? "border-[#b9e8d4] bg-[#f4fcf8]"
+                ? "border-[#b9e8d4] bg-[#f4fcf8] cursor-not-allowed"
                 : mobile
                   ? "border-[#7c3aed]"
                   : "border-[#dfe3e9]"

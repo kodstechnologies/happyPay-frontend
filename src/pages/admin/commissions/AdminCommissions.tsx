@@ -1,32 +1,33 @@
 import { RefreshCw, Search, CircleDollarSign } from "lucide-react";
+import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
 
 const allCommissions = [
-  { id: "1", txName: "AePS Cash Withdraw", amountRange: "100 - 3000", commission: "0.43%" },
-  { id: "2", txName: "AePS Cash Withdraw", amountRange: "3001 - 10000", commission: "₹14.10/-" },
-  { id: "3", txName: "AePS Cash Deposit", amountRange: "100 - 3000", commission: "0.40%" },
-  { id: "4", txName: "AePS Cash Deposit", amountRange: "3001 - 7500", commission: "₹13.50/-" },
-  { id: "5", txName: "UPI Cash Point", amountRange: "100 - 3000", commission: "0.40%" },
-  { id: "6", txName: "UPI Cash Point", amountRange: "3001 - 5000", commission: "₹14.10/-" },
-  { id: "7", txName: "Mini Statement", amountRange: "Any", commission: "₹1.30/-" },
-  { id: "8", txName: "Micro ATM", amountRange: "100 - 3000", commission: "0.42%" },
-  { id: "9", txName: "Micro ATM", amountRange: "3001 - 7500", commission: "₹11.00/-" },
-  { id: "10", txName: "Micro ATM", amountRange: "7501 - 10000", commission: "₹13.70/-" },
-  { id: "11", txName: "Bank Account Opening (NSDL)", amountRange: "Any", commission: "₹100/-" },
-  { id: "12", txName: "Mobile Recharge (Jio)", amountRange: "Any", commission: "1.80%" },
-  { id: "13", txName: "Mobile Recharge (Airtel)", amountRange: "Any", commission: "2.10%" },
-  { id: "14", txName: "DTH Recharge", amountRange: "Any", commission: "5%" },
-  { id: "15", txName: "BBPS Electricity", amountRange: "Any", commission: "0.30%" },
-  { id: "16", txName: "DMT", amountRange: "100 - 1000", commission: "₹2.50/- (charge)" },
-  { id: "17", txName: "DMT", amountRange: "1001 - 2000", commission: "₹2.50/- (charge)" },
-  { id: "18", txName: "DMT", amountRange: "2001 - 3000", commission: "₹3.00/- (charge)" },
-  { id: "19", txName: "DMT", amountRange: "3001 - 4000", commission: "₹3.00/- (charge)" },
-  { id: "20", txName: "DMT", amountRange: "4001 - 5000", commission: "₹4.00/- (charge)" },
-  { id: "21", txName: "Payout (IMPS)", amountRange: "₹100 - ₹1000", commission: "₹3 + GST" },
-  { id: "22", txName: "Payout (IMPS)", amountRange: "₹1001 - ₹25000", commission: "₹5 + GST" },
-  { id: "23", txName: "Payout (IMPS)", amountRange: "₹25001 - ₹50000", commission: "₹7 + GST" },
-  { id: "24", txName: "Payout (NEFT)", amountRange: "Any", commission: "₹2 Per Tx" },
-  { id: "25", txName: "CMS", amountRange: "Any", commission: "0.10% - 0.32%" },
+  { id: "1", txName: "AePS Cash Withdraw", amountRange: "100 - 3000", commission: "0.43%", distributorCommission: "5%" },
+  { id: "2", txName: "AePS Cash Withdraw", amountRange: "3001 - 10000", commission: "₹14.10/-", distributorCommission: "5%" },
+  { id: "3", txName: "AePS Cash Deposit", amountRange: "100 - 3000", commission: "0.40%", distributorCommission: "5%" },
+  { id: "4", txName: "AePS Cash Deposit", amountRange: "3001 - 7500", commission: "₹13.50/-", distributorCommission: "5%" },
+  { id: "5", txName: "UPI Cash Point", amountRange: "100 - 3000", commission: "0.40%", distributorCommission: "5%" },
+  { id: "6", txName: "UPI Cash Point", amountRange: "3001 - 5000", commission: "₹14.10/-", distributorCommission: "5%" },
+  { id: "7", txName: "Mini Statement", amountRange: "Any", commission: "₹1.30/-", distributorCommission: "5%" },
+  { id: "8", txName: "Micro ATM", amountRange: "100 - 3000", commission: "0.42%", distributorCommission: "5%" },
+  { id: "9", txName: "Micro ATM", amountRange: "3001 - 7500", commission: "₹11.00/-", distributorCommission: "5%" },
+  { id: "10", txName: "Micro ATM", amountRange: "7501 - 10000", commission: "₹13.70/-", distributorCommission: "5%" },
+  { id: "11", txName: "Bank Account Opening (NSDL)", amountRange: "Any", commission: "₹100/-", distributorCommission: "5%" },
+  { id: "12", txName: "Mobile Recharge (Jio)", amountRange: "Any", commission: "1.80%", distributorCommission: "5%" },
+  { id: "13", txName: "Mobile Recharge (Airtel)", amountRange: "Any", commission: "2.10%", distributorCommission: "5%" },
+  { id: "14", txName: "DTH Recharge", amountRange: "Any", commission: "5%", distributorCommission: "5%" },
+  { id: "15", txName: "BBPS Electricity", amountRange: "Any", commission: "0.30%", distributorCommission: "5%" },
+  { id: "16", txName: "DMT", amountRange: "100 - 1000", commission: "₹2.50/- (charge)", distributorCommission: "5%" },
+  { id: "17", txName: "DMT", amountRange: "1001 - 2000", commission: "₹2.50/- (charge)", distributorCommission: "5%" },
+  { id: "18", txName: "DMT", amountRange: "2001 - 3000", commission: "₹3.00/- (charge)", distributorCommission: "5%" },
+  { id: "19", txName: "DMT", amountRange: "3001 - 4000", commission: "₹3.00/- (charge)", distributorCommission: "5%" },
+  { id: "20", txName: "DMT", amountRange: "4001 - 5000", commission: "₹4.00/- (charge)", distributorCommission: "5%" },
+  { id: "21", txName: "Payout (IMPS)", amountRange: "₹100 - ₹1000", commission: "₹3 + GST", distributorCommission: "5%" },
+  { id: "22", txName: "Payout (IMPS)", amountRange: "₹1001 - ₹25000", commission: "₹5 + GST", distributorCommission: "5%" },
+  { id: "23", txName: "Payout (IMPS)", amountRange: "₹25001 - ₹50000", commission: "₹7 + GST", distributorCommission: "5%" },
+  { id: "24", txName: "Payout (NEFT)", amountRange: "Any", commission: "₹2 Per Tx", distributorCommission: "5%" },
+  { id: "25", txName: "CMS", amountRange: "Any", commission: "0.10% - 0.32%", distributorCommission: "5%" },
 ];
 
 export default function AdminCommissions() {
@@ -38,6 +39,7 @@ export default function AdminCommissions() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const PAGE_SIZE = 10;
 
   const load = useCallback(() => {
     setLoading(true);
@@ -157,15 +159,22 @@ export default function AdminCommissions() {
                 <tr>
                   <th>Transaction Name</th>
                   <th>Amount Range</th>
-                  <th>Commission</th>
+                  <th>Retailer Commission</th>
+                  <th>Distributor Commission</th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((record) => (
+                {items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((record) => (
                   <tr key={record.id}>
                     <td className="font-bold text-[#315bd1]">{record.txName}</td>
                     <td className="font-medium text-slate-700">{record.amountRange}</td>
                     <td className="font-bold text-emerald-600">{record.commission}</td>
+                    <td>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-violet-50 text-violet-700 ring-1 ring-violet-200/60">
+                        {record.distributorCommission}
+                        <span className="font-medium text-violet-500">of Retailer</span>
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -173,28 +182,14 @@ export default function AdminCommissions() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-t border-slate-100 px-5 py-4 text-xs text-slate-500">
-          <span>
-            Page {page} of {totalPages}
-          </span>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((value) => value - 1)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((value) => value + 1)}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 font-bold disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
+        <div className="border-t border-slate-100 px-5 py-3">
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            totalItems={total}
+            pageSize={PAGE_SIZE}
+          />
         </div>
       </section>
     </div>

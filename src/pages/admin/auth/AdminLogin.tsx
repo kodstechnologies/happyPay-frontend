@@ -7,7 +7,6 @@ import { saveAdminSession } from "../../../utils/adminAuth";
 export default function AdminLogin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [mobile] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
@@ -18,13 +17,8 @@ export default function AdminLogin() {
     event.preventDefault();
     setError("");
 
-    if ((!email.trim() && !mobile.trim()) || !password) {
-      setError("Enter your email or mobile and password.");
-      return;
-    }
-
-    if (email.trim() && mobile.trim()) {
-      setError("Enter either email or mobile, not both.");
+    if (!email.trim() || !password) {
+      setError("Enter your email and password.");
       return;
     }
 
@@ -32,8 +26,7 @@ export default function AdminLogin() {
 
     try {
       const response = await loginAdmin({
-        email: email.trim() || undefined,
-        mobile: mobile.trim() || undefined,
+        email: email.trim(),
         password,
         rememberMe,
       });

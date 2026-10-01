@@ -2,7 +2,6 @@ import { useRef, useState } from "react";
 import {
   Camera,
   ChevronDown,
-  ChevronRight,
   FileBadge,
   FileText,
   Upload,
@@ -10,11 +9,17 @@ import {
 } from "lucide-react";
 
 const BusinessProofStep = () => {
+  const insideShopInputRef = useRef<HTMLInputElement | null>(null);
+  const outsideShopInputRef = useRef<HTMLInputElement | null>(null);
+  const shopLocationInputRef = useRef<HTMLInputElement | null>(null);
   const businessProofInputRef = useRef<HTMLInputElement | null>(null);
 
   const [businessProof, setBusinessProof] = useState("");
-  const [businessProofFile, setBusinessProofFile] =
-    useState<File | null>(null);
+  const [businessProofFile, setBusinessProofFile] = useState<File | null>(null);
+
+  const [insideShopFile, setInsideShopFile] = useState<File | null>(null);
+  const [outsideShopFile, setOutsideShopFile] = useState<File | null>(null);
+  const [shopLocationFile, setShopLocationFile] = useState<File | null>(null);
 
   const proofOptions = [
     "GST Certificate",
@@ -33,14 +38,24 @@ const BusinessProofStep = () => {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-
     if (file) {
       setBusinessProofFile(file);
     }
   };
 
-  const handlePhotoAction = (type: string) => {
-    console.log(`${type} photo action`);
+  const handleInsideShopUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setInsideShopFile(file);
+  };
+
+  const handleOutsideShopUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setOutsideShopFile(file);
+  };
+
+  const handleShopLocationUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) setShopLocationFile(file);
   };
 
   return (
@@ -48,14 +63,19 @@ const BusinessProofStep = () => {
       {/* INSIDE SHOP */}
       <button
         type="button"
-        onClick={() => handlePhotoAction("Inside Shop")}
-        className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        onClick={() => insideShopInputRef.current?.click()}
+        className={`group flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${
+          insideShopFile
+            ? "border-[#b9e8da] bg-[#f4fcf9]"
+            : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        }`}
       >
-        <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
-          <Camera
-            className="h-5 w-5 text-[#08ae82]"
-            strokeWidth={2.2}
-          />
+        <div className={`flex h-12 w-14 shrink-0 items-center justify-center rounded-xl ${insideShopFile ? "bg-[#e7f8f3]" : "bg-[#e7f8f3]"}`}>
+          {insideShopFile ? (
+            <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
+          ) : (
+            <Camera className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -63,30 +83,39 @@ const BusinessProofStep = () => {
             Inside Shop
           </h3>
 
-          <p className="mt-1 text-sm leading-5 text-[#8992a3]">
-            Take a photo of yourself inside the shop.
+          <p className={`mt-1 text-sm leading-5 truncate ${insideShopFile ? "font-medium text-[#08ae82]" : "text-[#8992a3]"}`}>
+            {insideShopFile ? insideShopFile.name : "Take a photo of yourself inside the shop."}
           </p>
         </div>
 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3] transition group-hover:bg-[#dcf5ed]">
-          <ChevronRight
-            className="h-4 w-4 text-[#08ae82]"
-            strokeWidth={2.5}
-          />
+          <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
         </div>
       </button>
+      <input
+        ref={insideShopInputRef}
+        type="file"
+        accept="image/*" name="shopInsidePhoto"
+        onChange={handleInsideShopUpload}
+        className="hidden"
+      />
 
       {/* OUTSIDE SHOP */}
       <button
         type="button"
-        onClick={() => handlePhotoAction("Outside Shop")}
-        className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        onClick={() => outsideShopInputRef.current?.click()}
+        className={`group flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${
+          outsideShopFile
+            ? "border-[#b9e8da] bg-[#f4fcf9]"
+            : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        }`}
       >
-        <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
-          <Camera
-            className="h-5 w-5 text-[#08ae82]"
-            strokeWidth={2.2}
-          />
+        <div className={`flex h-12 w-14 shrink-0 items-center justify-center rounded-xl ${outsideShopFile ? "bg-[#e7f8f3]" : "bg-[#e7f8f3]"}`}>
+          {outsideShopFile ? (
+            <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
+          ) : (
+            <Camera className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -94,30 +123,39 @@ const BusinessProofStep = () => {
             Outside Shop
           </h3>
 
-          <p className="mt-1 text-sm leading-5 text-[#8992a3]">
-            Take a clear photo of the shop exterior.
+          <p className={`mt-1 text-sm leading-5 truncate ${outsideShopFile ? "font-medium text-[#08ae82]" : "text-[#8992a3]"}`}>
+            {outsideShopFile ? outsideShopFile.name : "Take a clear photo of the shop exterior."}
           </p>
         </div>
 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3] transition group-hover:bg-[#dcf5ed]">
-          <ChevronRight
-            className="h-4 w-4 text-[#08ae82]"
-            strokeWidth={2.5}
-          />
+          <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
         </div>
       </button>
+      <input
+        ref={outsideShopInputRef}
+        type="file"
+        accept="image/*" name="shopOutsidePhoto"
+        onChange={handleOutsideShopUpload}
+        className="hidden"
+      />
 
       {/* SHOP LOCATION */}
       <button
         type="button"
-        onClick={() => handlePhotoAction("Shop Location")}
-        className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        onClick={() => shopLocationInputRef.current?.click()}
+        className={`group flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${
+          shopLocationFile
+            ? "border-[#b9e8da] bg-[#f4fcf9]"
+            : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        }`}
       >
-        <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
-          <Camera
-            className="h-5 w-5 text-[#08ae82]"
-            strokeWidth={2.2}
-          />
+        <div className={`flex h-12 w-14 shrink-0 items-center justify-center rounded-xl ${shopLocationFile ? "bg-[#e7f8f3]" : "bg-[#e7f8f3]"}`}>
+          {shopLocationFile ? (
+            <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
+          ) : (
+            <Camera className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
+          )}
         </div>
 
         <div className="min-w-0 flex-1">
@@ -125,18 +163,22 @@ const BusinessProofStep = () => {
             Shop Location
           </h3>
 
-          <p className="mt-1 text-sm leading-5 text-[#8992a3]">
-            Capture a photo showing the shop location.
+          <p className={`mt-1 text-sm leading-5 truncate ${shopLocationFile ? "font-medium text-[#08ae82]" : "text-[#8992a3]"}`}>
+            {shopLocationFile ? shopLocationFile.name : "Capture a photo showing the shop location."}
           </p>
         </div>
 
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3] transition group-hover:bg-[#dcf5ed]">
-          <ChevronRight
-            className="h-4 w-4 text-[#08ae82]"
-            strokeWidth={2.5}
-          />
+          <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
         </div>
       </button>
+      <input
+        ref={shopLocationInputRef}
+        type="file"
+        accept="image/*" name="shopLocationPhoto"
+        onChange={handleShopLocationUpload}
+        className="hidden"
+      />
 
       {/* ADDRESS / BUSINESS PROOF */}
       <div>
@@ -151,7 +193,7 @@ const BusinessProofStep = () => {
           />
 
           <select
-            value={businessProof}
+            name="businessProof" value={businessProof}
             onChange={(event) =>
               setBusinessProof(event.target.value)
             }
@@ -238,7 +280,7 @@ const BusinessProofStep = () => {
       <input
         ref={businessProofInputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/*,.pdf" name="businessProofDocument"
         onChange={handleBusinessProofUpload}
         className="hidden"
       />
