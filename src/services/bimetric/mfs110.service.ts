@@ -42,6 +42,7 @@ class MFS110Service {
       };
 
     } catch (error) {
+      console.error("Error discovering MFS110 RD Service:", error);
       return {
         success: false,
         status: null,
@@ -71,6 +72,7 @@ class MFS110Service {
       };
 
     } catch (error) {
+      console.error("Error getting MFS110 device information:", error);
       return {
         success: false,
         status: null,
@@ -143,6 +145,7 @@ class MFS110Service {
       };
 
     } catch (error) {
+      console.error("Error capturing fingerprint:", error);
       return {
         success: false,
         status: null,
