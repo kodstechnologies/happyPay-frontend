@@ -123,6 +123,24 @@ const RetailerRegister = () => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
 
+    // Ensure mobile is present even if input was readOnly or stored in localStorage
+    if (!formData.get("mobile")) {
+      const storedMobile =
+        localStorage.getItem("pendingRetailerMobile") ||
+        localStorage.getItem("retailerMobile");
+      if (storedMobile) {
+        formData.set("mobile", storedMobile);
+      }
+    }
+
+    // Ensure gender & maritalStatus have defaults if omitted
+    if (!formData.get("gender")) {
+      formData.set("gender", "Male");
+    }
+    if (!formData.get("maritalStatus")) {
+      formData.set("maritalStatus", "Single");
+    }
+
     // Mock ObjectIds for master data
     formData.set("shopCategory", "64d5ec49f1b2c8b1f8e4e1a1");
     formData.set("propertyType", "64d5ec49f1b2c8b1f8e4e1a2");
@@ -141,8 +159,10 @@ const RetailerRegister = () => {
       formData.set("dob", `${yyyy}-${mm}-${dd}`);
     }
 
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:7000";
+
     try {
-      const res = await fetch("http://localhost:7000/api/v1/auth/retailer/register", {
+      const res = await fetch(`${apiUrl}/api/v1/auth/retailer/register`, {
         method: "POST",
         body: formData,
       });
@@ -153,7 +173,7 @@ const RetailerRegister = () => {
         throw new Error(errorMsg);
       }
 
-      const pendingMobile = localStorage.getItem("pendingRetailerMobile");
+      const pendingMobile = localStorage.getItem("pendingRetailerMobile") || (formData.get("mobile") as string);
       if (pendingMobile) {
         localStorage.setItem("registeredRetailerMobile", pendingMobile);
         localStorage.removeItem("pendingRetailerMobile");
