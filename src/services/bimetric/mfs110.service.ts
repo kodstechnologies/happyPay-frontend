@@ -68,6 +68,8 @@ class MFS110Service {
         timeout: 5000,
       });
 
+      console.log("MFS110 device info response:", response.data);
+
       return {
         success: true,
         status: response.status,
@@ -129,6 +131,8 @@ class MFS110Service {
       });
 
       const pidXml = response.data;
+
+      console.log("MFS110 capture response:", pidXml);
 
       if (typeof pidXml !== "string") {
         return {
