@@ -1,7 +1,11 @@
 import axios from "axios";
 
 const RD_PORT = 11100;
-const RD_BASE_URL = `http://127.0.0.1:${RD_PORT}`;
+// In dev, requests go through Vite proxy (see vite.config.ts) to avoid CORS.
+const RD_BASE_URL =
+  import.meta.env.VITE_RD_SERVICE_URL ??
+  (import.meta.env.DEV ? "/rd-service" : `http://127.0.0.1:${RD_PORT}`);
+const USE_RD_REST_PROXY = import.meta.env.DEV && RD_BASE_URL.startsWith("/");
 
 export interface RDResponse {
   success: boolean;
@@ -18,8 +22,8 @@ class MFS110Service {
   async discover(): Promise<RDResponse> {
     try {
       const response = await axios({
-        method: "RDSERVICE",
-        url: `${RD_BASE_URL}/`,
+        method: USE_RD_REST_PROXY ? "GET" : "RDSERVICE",
+        url: USE_RD_REST_PROXY ? `${RD_BASE_URL}/discover` : `${RD_BASE_URL}/`,
         timeout: 3000,
       });
 
@@ -59,8 +63,8 @@ class MFS110Service {
   async getDeviceInfo(): Promise<RDResponse> {
     try {
       const response = await axios({
-        method: "GET",
-        url: `${RD_BASE_URL}/rd/info`,
+        method: USE_RD_REST_PROXY ? "GET" : "DEVICEINFO",
+        url: USE_RD_REST_PROXY ? `${RD_BASE_URL}/info` : `${RD_BASE_URL}/rd/info`,
         timeout: 5000,
       });
 
@@ -85,7 +89,11 @@ class MFS110Service {
   /**
    * 3. Capture fingerprint
    */
-  async capture(): Promise<RDResponse> {
+  async capture(wadh?: string): Promise<RDResponse> {
+    const safeWadh = (wadh || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;");
+    const wadhAttr = safeWadh ? `\n    wadh="${safeWadh}"` : "";
 
     const pidOptions = `
 <?xml version="1.0"?>
@@ -101,7 +109,7 @@ class MFS110Service {
     timeout="10000"
     pTimeout="20000"
     posh="UNKNOWN"
-    env="P"
+    env="P"${wadhAttr}
   />
   <CustOpts>
     <Param name="mantrakey" value="" />
@@ -111,8 +119,8 @@ class MFS110Service {
 
     try {
       const response = await axios({
-        method: "POST",
-        url: `${RD_BASE_URL}/rd/capture`,
+        method: USE_RD_REST_PROXY ? "POST" : "CAPTURE",
+        url: USE_RD_REST_PROXY ? `${RD_BASE_URL}/capture` : `${RD_BASE_URL}/rd/capture`,
         headers: {
           "Content-Type": "text/xml",
         },

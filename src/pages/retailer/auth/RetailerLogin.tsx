@@ -3,6 +3,11 @@ import { useState } from "react";
 import { getFCMToken } from "../../../config/firebase";
 import { useNavigate } from "react-router-dom";
 import {
+  sendRetailerLoginOtp,
+  verifyRetailerLoginOtp,
+} from "../../../services/api/retailer/retailerAuthApi";
+import { setTokens } from "../../../services/auth/token";
+import {
   ArrowRight,
   ShieldCheck,
   Smartphone,
@@ -19,8 +24,18 @@ const RetailerLogin = () => {
 
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [error, setError] = useState("");
+
+  const getDeviceId = () => {
+    const existing = localStorage.getItem("retailerDeviceId");
+    if (existing) return existing;
+
+    const deviceId = crypto.randomUUID();
+    localStorage.setItem("retailerDeviceId", deviceId);
+    return deviceId;
+  };
 
 
   const handleMobileChange = (
@@ -41,7 +56,7 @@ const RetailerLogin = () => {
   // SEND OTP
   // ============================================================
 
-  const handleSendOtp = () => {
+  const handleSendOtp = async () => {
     setError("");
 
     if (mobile.length !== 10) {
@@ -51,22 +66,17 @@ const RetailerLogin = () => {
       return;
     }
 
-    /*
-     * ==========================================================
-     * REGISTERED MOBILE CHECK
-     * ==========================================================
-     *
-     * Registration stores the completed retailer mobile as:
-     *
-     * registeredRetailerMobile
-     *
-     * Only that number is allowed to continue.
-     */
-
-    // Removed registered mobile check to allow any user
-
-    // Correct registered number.
-    setOtpSent(true);
+    try {
+      setSubmitting(true);
+      await sendRetailerLoginOtp(mobile);
+      setOtp("");
+      setOtpVerified(false);
+      setOtpSent(true);
+    } catch (err: any) {
+      setError(err.message || "Failed to send OTP");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // ============================================================
@@ -82,17 +92,7 @@ const RetailerLogin = () => {
 
     setOtp(value);
     setError("");
-
-    if (value.length === 4) {
-      if (value === "1234") {
-        setOtpVerified(true);
-      } else {
-        setOtpVerified(false);
-        setError("Invalid OTP. Please enter the correct OTP.");
-      }
-    } else {
-      setOtpVerified(false);
-    }
+    setOtpVerified(false);
   };
 
   // ============================================================
@@ -102,47 +102,46 @@ const RetailerLogin = () => {
   const handleLogin = async () => {
     setError("");
 
-    // Removed registered mobile check to allow any user
-
     if (otp.length !== 4) {
       setError("Please enter the 4-digit OTP.");
       return;
     }
 
     try {
-      // 1. Get the FCM Token
+      setSubmitting(true);
+
       let fcmToken = null;
       try {
         fcmToken = await getFCMToken();
         if (fcmToken) {
-          console.log("FCM Token retrieved:", fcmToken);
           localStorage.setItem("fcmToken", fcmToken);
         }
       } catch (e) {
         console.error("Failed to get FCM token", e);
       }
 
-      // Mocking the backend call as requested
-      setTimeout(() => {
-        const dummyResponse = {
-          success: true,
-          data: {
-            accessToken: "dummy_retailer_token_12345",
-          }
-        };
+      const response = await verifyRetailerLoginOtp({
+        mobile,
+        otp,
+        fcmToken,
+        deviceId: getDeviceId(),
+        platform: "web",
+        deviceName: navigator.platform || "Web browser",
+      });
 
-        if (dummyResponse.success && dummyResponse.data) {
-          localStorage.setItem("token", dummyResponse.data.accessToken);
-          localStorage.setItem("retailerMobile", mobile);
-          localStorage.setItem("role", "retailer");
-          
-          navigate("/retailer", { replace: true });
-        } else {
-          setError("Login failed");
-        }
-      }, 500);
+      const { accessToken, refreshToken, user } = response.data;
+      setTokens(accessToken, refreshToken);
+      localStorage.setItem("token", accessToken);
+      localStorage.setItem("retailerMobile", mobile);
+      localStorage.setItem("retailerUser", JSON.stringify(user));
+      localStorage.setItem("role", "retailer");
+      setOtpVerified(true);
+      navigate("/retailer", { replace: true });
     } catch (err: any) {
+      setOtpVerified(false);
       setError(err.message || "An error occurred during login");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -302,12 +301,9 @@ const RetailerLogin = () => {
 
                       <button
                         type="button"
-                        onClick={() => {
-                          setOtp("");
-                          setError("");
-                          setOtpVerified(false);
-                        }}
-                        className="text-[11px] font-semibold text-[#7c3aed] hover:underline"
+                        onClick={handleSendOtp}
+                        disabled={submitting}
+                        className="text-[11px] font-semibold text-[#7c3aed] hover:underline disabled:opacity-60"
                       >
                         Resend OTP
                       </button>
@@ -319,16 +315,19 @@ const RetailerLogin = () => {
                 <button
                   type="button"
                   onClick={otpSent ? handleLogin : handleSendOtp}
-                  className={`mt-7 flex h-[58px] w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white shadow-[0_12px_26px_rgba(49,91,209,0.22)] transition active:scale-[0.99] ${otpVerified
+                  disabled={submitting}
+                  className={`mt-7 flex h-[58px] w-full items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white shadow-[0_12px_26px_rgba(49,91,209,0.22)] transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 ${otpVerified
                     ? "bg-[#08ae82] hover:bg-[#079b74]"
                     : "bg-[#7c3aed] hover:bg-[#294fb8]"
                     }`}
                 >
-                  {otpVerified
-                    ? "Login to Retailer Portal"
-                    : otpSent
-                      ? "Verify & Continue"
-                      : "Continue with OTP"}
+                  {submitting
+                    ? "Please wait..."
+                    : otpVerified
+                      ? "Login to Retailer Portal"
+                      : otpSent
+                        ? "Verify & Continue"
+                        : "Continue with OTP"}
 
                   {otpVerified ? (
                     <Check className="h-4 w-4" strokeWidth={2.5} />
@@ -368,9 +367,11 @@ const RetailerLogin = () => {
                     </span>
                   </div>
 
-                  <p className="mt-3 text-center text-[10px] text-[#a1a8b5]">
-                    Demo OTP: 1234
-                  </p>
+                  {import.meta.env.DEV && (
+                    <p className="mt-3 text-center text-[10px] text-[#a1a8b5]">
+                      Demo OTP: 1234
+                    </p>
+                  )}
                 </div>
               </div>
             </section>

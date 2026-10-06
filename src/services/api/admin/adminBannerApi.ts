@@ -21,19 +21,32 @@ export function getAdminBanners() {
   return apiClient<Envelope<Banner[]>>(`/api/v1/banners`, { token: getAdminToken() ?? undefined, method: "GET" });
 }
 
-export function createAdminBanner(data: BannerFormData) {
+function bannerFormData(data: BannerFormData, image?: File | null) {
+  const body = new FormData();
+  body.append("title", data.title);
+  body.append("targetUrl", data.targetUrl || "");
+  body.append("position", data.position);
+  body.append("order", String(data.order));
+  body.append("isActive", String(data.isActive));
+  if (image) {
+    body.append("image", image);
+  }
+  return body;
+}
+
+export function createAdminBanner(data: BannerFormData, image: File) {
   return apiClient<Envelope<Banner>>(`/api/v1/banners`, { 
     token: getAdminToken() ?? undefined, 
     method: "POST",
-    body: JSON.stringify(data)
+    body: bannerFormData(data, image),
   });
 }
 
-export function updateAdminBanner(id: string, data: BannerFormData) {
+export function updateAdminBanner(id: string, data: BannerFormData, image?: File | null) {
   return apiClient<Envelope<Banner>>(`/api/v1/banners/${id}`, { 
     token: getAdminToken() ?? undefined, 
     method: "PUT",
-    body: JSON.stringify(data)
+    body: bannerFormData(data, image),
   });
 }
 

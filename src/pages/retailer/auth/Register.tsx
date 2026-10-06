@@ -89,7 +89,11 @@ const stepDescriptions = [
   "Add your bank account for payouts.",
 ];
 
-const RetailerRegister = () => {
+type RetailerRegisterProps = {
+  onExit?: () => void;
+};
+
+const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -180,6 +184,11 @@ const RetailerRegister = () => {
         localStorage.removeItem("retailerMobile");
       }
 
+      if (onExit) {
+        onExit();
+        return;
+      }
+
       navigate("/retailer/kyc-pending", { replace: true });
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -196,6 +205,11 @@ const RetailerRegister = () => {
 
       scrollToTop();
 
+      return;
+    }
+
+    if (onExit) {
+      onExit();
       return;
     }
 
@@ -463,7 +477,9 @@ const RetailerRegister = () => {
 
                       <span>
                         {currentStep === 0
-                          ? "Back to Login"
+                          ? onExit
+                            ? "Back"
+                            : "Back to Login"
                           : "Previous"}
                       </span>
                     </button>

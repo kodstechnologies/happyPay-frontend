@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { Plus, Search, Store, Phone, Clock, Activity, Eye, X } from "lucide-react";
-// import { useNavigate } from "react-router-dom";
+import RetailerRegister from "../retailer/auth/Register";
 
 interface Retailer {
   id: string;
@@ -57,14 +57,10 @@ const DUMMY_TRANSACTIONS: RetailerTransaction[] = [
 ];
 
 export default function DistributorDashboard() {
-  // const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
-  const [retailers, setRetailers] = useState<Retailer[]>(DUMMY_RETAILERS);
+  const [retailers] = useState<Retailer[]>(DUMMY_RETAILERS);
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null);
-  
-  // Add Retailer state
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newRetailer, setNewRetailer] = useState({ name: "", id: "", mobile: "", email: "" });
+  const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   const filteredRetailers = retailers.filter(
     (r) =>
@@ -88,25 +84,9 @@ export default function DistributorDashboard() {
     }
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRetailer.name || !newRetailer.id || !newRetailer.mobile) return;
-    
-    const retailer: Retailer = {
-      id: newRetailer.id,
-      name: newRetailer.name,
-      mobile: newRetailer.mobile,
-      registeredAt: new Date().toLocaleString("en-IN", { 
-        day: '2-digit', month: 'short', year: 'numeric', 
-        hour: '2-digit', minute: '2-digit', hour12: true 
-      }),
-      status: "Pending", // Default status for new additions
-    };
-    
-    setRetailers([retailer, ...retailers]);
-    setIsAddModalOpen(false);
-    setNewRetailer({ name: "", id: "", mobile: "", email: "" });
-  };
+  if (isRegisterOpen) {
+    return <RetailerRegister onExit={() => setIsRegisterOpen(false)} />;
+  }
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -117,7 +97,7 @@ export default function DistributorDashboard() {
         </div>
         
         <button 
-          onClick={() => setIsAddModalOpen(true)}
+          onClick={() => setIsRegisterOpen(true)}
           className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white shadow-md transition hover:bg-[#6d28d9]"
         >
           <Plus className="h-5 w-5" />
@@ -254,78 +234,6 @@ export default function DistributorDashboard() {
         </div>
       )}
 
-      {/* ADD RETAILER MODAL */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 sm:p-6 overflow-y-auto">
-          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-              <h2 className="text-xl font-bold text-slate-900">Add New Retailer</h2>
-              <button 
-                onClick={() => setIsAddModalOpen(false)}
-                className="rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 transition"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Retailer ID</label>
-                <input 
-                  type="text" 
-                  required
-                  value={newRetailer.id}
-                  onChange={e => setNewRetailer({...newRetailer, id: e.target.value})}
-                  placeholder="e.g. RET-10050"
-                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Retailer Name</label>
-                <input 
-                  type="text" 
-                  required
-                  value={newRetailer.name}
-                  onChange={e => setNewRetailer({...newRetailer, name: e.target.value})}
-                  placeholder="e.g. John Doe"
-                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Mobile Number</label>
-                <input 
-                  type="text" 
-                  required
-                  pattern="[0-9]{10}"
-                  value={newRetailer.mobile}
-                  onChange={e => setNewRetailer({...newRetailer, mobile: e.target.value})}
-                  placeholder="10-digit mobile number"
-                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600">Email Address</label>
-                <input 
-                  type="email"
-                  value={newRetailer.email}
-                  onChange={e => setNewRetailer({...newRetailer, email: e.target.value})}
-                  placeholder="retailer@example.com"
-                  className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white"
-                />
-              </div>
-
-              <div className="mt-6 pt-2">
-                <button 
-                  type="submit"
-                  className="flex h-12 w-full items-center justify-center rounded-xl bg-[#7c3aed] font-bold text-white transition hover:bg-[#6d28d9] shadow-md shadow-[#7c3aed]/20"
-                >
-                  Add Retailer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

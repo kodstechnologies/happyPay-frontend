@@ -27,6 +27,8 @@ export default function AdminBanners() {
     order: 0,
     isActive: true,
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
 
   const loadBanners = async () => {
     try {
@@ -66,6 +68,8 @@ export default function AdminBanners() {
         order: banner.order || 0,
         isActive: banner.isActive !== undefined ? banner.isActive : true,
       });
+      setImageFile(null);
+      setImagePreview(banner.imageUrl || "");
     } else {
       setEditingId(null);
       setFormData({
@@ -76,6 +80,8 @@ export default function AdminBanners() {
         order: 0,
         isActive: true,
       });
+      setImageFile(null);
+      setImagePreview("");
     }
     setIsModalOpen(true);
   };
@@ -83,10 +89,15 @@ export default function AdminBanners() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      if (!editingId && !imageFile) {
+        alert("Please upload a banner image.");
+        return;
+      }
+
       if (editingId) {
-        await updateAdminBanner(editingId, formData);
-      } else {
-        await createAdminBanner(formData);
+        await updateAdminBanner(editingId, formData, imageFile);
+      } else if (imageFile) {
+        await createAdminBanner(formData, imageFile);
       }
       setIsModalOpen(false);
       loadBanners();
@@ -174,15 +185,25 @@ export default function AdminBanners() {
               </div>
               
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Image URL</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Banner image</label>
                 <input
-                  type="url"
-                  required
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-                  placeholder="https://example.com/image.jpg"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  required={!editingId}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setImageFile(file);
+                    setImagePreview(file ? URL.createObjectURL(file) : formData.imageUrl);
+                  }}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-[#315bd1] file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-white"
                 />
+                {imagePreview && (
+                  <img
+                    src={imagePreview}
+                    alt="Banner preview"
+                    className="mt-3 h-28 w-full rounded-xl object-cover"
+                  />
+                )}
               </div>
 
               <div>

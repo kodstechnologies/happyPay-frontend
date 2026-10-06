@@ -10,11 +10,13 @@ export async function apiClient<T>(
 ): Promise<T> {
   const { token, ...fetchOptions } = options;
 
+  const isFormData = fetchOptions.body instanceof FormData;
+
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...fetchOptions,
 
     headers: {
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
 
       ...(token
         ? {
