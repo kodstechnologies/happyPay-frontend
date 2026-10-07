@@ -29,6 +29,7 @@ export interface BiometricPayload {
   qScore: string;
   nmPoints: string;
   sysid: string;
+  ts: string;
 }
 
 export interface TfaPayload extends BiometricPayload {
@@ -50,7 +51,9 @@ function attr(element: Element | null, name: string) {
   return element?.getAttribute(name) || "";
 }
 
-export function parsePidXml(xml: string): Omit<
+export function parsePidXml(
+  xml: string,
+): Omit<
   BiometricPayload,
   "outlet_id" | "referenceKey" | "latitude" | "longitude"
 > {
@@ -60,6 +63,19 @@ export function parsePidXml(xml: string): Omit<
   const skey = doc.querySelector("Skey");
   const hmac = doc.querySelector("Hmac");
   const data = doc.querySelector("Data");
+  const srno =
+    attr(device, "srno") ||
+    attr(resp, "srno") ||
+    device?.querySelector('Param[name="srno"]')?.getAttribute("value") ||
+    "";
+  const ts =
+    device?.querySelector('Param[name="ts"]')?.getAttribute("value") || "";
+  const sysid =
+    attr(device, "sysid") ||
+    attr(resp, "sysid") ||
+    device?.querySelector('Param[name="sysid"]')?.getAttribute("value") ||
+    resp?.querySelector('Param[name="sysid"]')?.getAttribute("value") ||
+    "";
 
   return {
     dc: attr(device, "dc"),
@@ -81,10 +97,12 @@ export function parsePidXml(xml: string): Omit<
     iType: attr(resp, "iType") || "0",
     pCount: attr(resp, "pCount") || "0",
     pType: attr(resp, "pType") || "0",
-    srno: attr(device, "srno") || attr(resp, "srno"),
+    srno: srno,
     qScore: attr(resp, "qScore"),
     nmPoints: attr(resp, "nmPoints"),
-    sysid: attr(device, "sysid"),
+    sysid: sysid,
+    // attr(device, "sysid"),
+    ts: ts,
   };
 }
 
@@ -140,7 +158,11 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
     if (typeof record.msg === "string" && record.msg.trim()) {
       prompt.message = record.msg;
     }
-    if (typeof record.outletId === "string" && record.outletId && !prompt.outletId) {
+    if (
+      typeof record.outletId === "string" &&
+      record.outletId &&
+      !prompt.outletId
+    ) {
       prompt.outletId = record.outletId;
     }
     if (typeof record.referenceKey === "string") {

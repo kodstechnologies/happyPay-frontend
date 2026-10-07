@@ -300,7 +300,7 @@ const Dashboard = () => {
         longitude: coords.longitude,
         ...parsePidXml(capture.data),
       });
-
+  console.log("doBioEkyc result",{ ...parsePidXml(capture.data)});
       setBioEkycResponse(result);
       setKycStep("Biometric eKYC response received.");
     } catch (error: any) {
