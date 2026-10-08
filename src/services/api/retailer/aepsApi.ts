@@ -166,7 +166,7 @@ export function doEkyc(payload: BiometricPayload) {
 }
 
 export function doBioEkyc(payload: BiometricPayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/aeps/do-bio-ekyc", {
+  return apiClient<Envelope<unknown>>("/api/v1/auth/do-bio-ekyc", {
     ...authOptions(),
     method: "POST",
     body: JSON.stringify(payload),
@@ -188,7 +188,7 @@ export function checkDoEkyc(outletId?: string) {
       ekyc: unknown;
       kycRequired: boolean;
     }>
-  >("/api/v1/aeps/do-ekyc", {
+  >("/api/v1/auth/check-ekyc", {
     ...authOptions(),
     method: "POST",
     body: JSON.stringify({ outlet_id: outletId || "" }),
