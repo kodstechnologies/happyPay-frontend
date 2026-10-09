@@ -426,7 +426,7 @@ export default function Transactions() {
             </div>
             <button
               type="button"
-              onClick={() => fetchTransactions(pagination.page)}
+              onClick={() => fetchPage(pagination.page)}
               className="font-bold underline hover:text-rose-950"
             >
               Retry

@@ -1,38 +1,33 @@
 import { useState, useEffect } from "react";
-
-interface RazorpayWindow extends Window {
-  Razorpay?: unknown;
-}
+import { loadRazorpayScript } from "../utils/razorpay";
 
 export const useRazorpay = () => {
   const [isLoaded, setIsLoaded] = useState(() => {
-    return typeof window !== "undefined" && Boolean((window as unknown as RazorpayWindow).Razorpay);
+    return typeof window !== "undefined" && Boolean(window.Razorpay);
   });
 
   useEffect(() => {
-    if (typeof window !== "undefined" && (window as unknown as RazorpayWindow).Razorpay) {
+    if (typeof window !== "undefined" && window.Razorpay) {
       return;
     }
 
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
+    let isMounted = true;
 
-    script.onload = () => {
-      setIsLoaded(true);
-    };
-
-    script.onerror = () => {
-      console.error("Razorpay SDK failed to load. Please check your internet connection.");
-      setIsLoaded(false);
-    };
-
-    document.body.appendChild(script);
+    loadRazorpayScript()
+      .then((loaded) => {
+        if (isMounted) {
+          setIsLoaded(Boolean(loaded));
+        }
+      })
+      .catch((error) => {
+        console.error("Razorpay SDK failed to load.", error);
+        if (isMounted) {
+          setIsLoaded(false);
+        }
+      });
 
     return () => {
-      if (document.body.contains(script)) {
-        document.body.removeChild(script);
-      }
+      isMounted = false;
     };
   }, []);
 
