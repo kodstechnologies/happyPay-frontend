@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useRoutes, useLocation } from "react-router-dom";
 import Router from "./routes/router";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 function App() {
   console.log("Router value:", Router);
@@ -17,7 +19,12 @@ function App() {
     }
   }, [location.pathname]);
 
-  return routing;
+  return (
+    <>
+      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+      {routing}
+    </>
+  );
 }
 
 export default App;

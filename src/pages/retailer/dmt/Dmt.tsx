@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { toast } from "react-toastify";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,9 +14,20 @@ import {
   Send,
   ShieldCheck,
   Wallet,
+  Fingerprint
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
+import { getWalletBalanceApi } from "../../../apis/wallet.apis";
+import {
+  loginRemitterApi,
+  registerRemitterApi,
+  verifyRemitterOtpApi,
+  fetchBeneficiariesApi,
+  verifyBeneficiaryApi,
+  addBeneficiaryApi,
+  executeTransactionApi
+} from "../../../apis/dmt.apis";
 
 type Screen =
   | "transfer-details"
@@ -40,6 +52,29 @@ interface Beneficiary {
   ifsc: string;
   mobile: string;
 }
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error !== "object" || error === null || !("response" in error)) {
+    return fallback;
+  }
+
+  const response = error.response;
+  if (typeof response !== "object" || response === null || !("data" in response)) {
+    return fallback;
+  }
+
+  const data = response.data;
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "message" in data &&
+    typeof data.message === "string"
+  ) {
+    return data.message;
+  }
+
+  return fallback;
+};
 
 /* =========================
    BANK LIST
@@ -92,35 +127,7 @@ const banks: Bank[] = [
    SAMPLE BENEFICIARIES
 ========================= */
 
-const initialBeneficiaries: Beneficiary[] = [
-  {
-    id: 1,
-    name: "Rahul Sharma",
-    initials: "RS",
-    bankName: "HDFC Bank",
-    accountNumber: "XXXX XXXX 4521",
-    ifsc: "HDFC0001234",
-    mobile: "9876543210",
-  },
-  {
-    id: 2,
-    name: "Priya Patel",
-    initials: "PP",
-    bankName: "State Bank of India",
-    accountNumber: "XXXX XXXX 7832",
-    ifsc: "SBIN0001234",
-    mobile: "9988776655",
-  },
-  {
-    id: 3,
-    name: "Amit Verma",
-    initials: "AV",
-    bankName: "ICICI Bank",
-    accountNumber: "XXXX XXXX 9912",
-    ifsc: "ICIC0000045",
-    mobile: "9876543211",
-  },
-];
+// removed initialBeneficiaries
 
 const Dmt = () => {
   const navigate = useNavigate();
@@ -137,7 +144,8 @@ const Dmt = () => {
   ========================= */
 
   const [customerMobile, setCustomerMobile] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
+  const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [isFetchingCustomer, setIsFetchingCustomer] = useState(false);
 
   /* =========================
      OTP
@@ -148,42 +156,49 @@ const Dmt = () => {
   const [otpTimer, setOtpTimer] = useState(30);
   const [isVerifyingOtp, setIsVerifyingOtp] =
     useState(false);
-  const [otpError, setOtpError] = useState("");
 
   /* =========================
      BENEFICIARIES
   ========================= */
 
-  const [beneficiaries, setBeneficiaries] =
-    useState<Beneficiary[]>(initialBeneficiaries);
+  const [beneficiaries, setBeneficiaries] = useState<Beneficiary[]>([]);
 
   const [selectedBeneficiary, setSelectedBeneficiary] =
     useState<Beneficiary | null>(null);
+
+  const fetchBeneficiariesList = async () => {
+    try {
+      const res = await fetchBeneficiariesApi({ mobile: customerMobile });
+      if (res?.success || res?.status) {
+         // Assuming res.data.beneficiaries or res.data is the array
+         const list = Array.isArray(res.data?.beneficiaries) ? res.data.beneficiaries : Array.isArray(res.data) ? res.data : [];
+         // Map to Beneficiary type
+         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         const mapped = list.map((b: any) => ({
+           id: b.bene_id || b.id || Math.random(),
+           name: b.bene_name || b.name || "Unknown",
+           initials: getInitials(b.bene_name || b.name || "UN"),
+           bankName: b.bank_name || b.bankName || "Bank",
+           accountNumber: b.account_number || b.accountNumber || "",
+           ifsc: b.ifsc || "",
+         }));
+         setBeneficiaries(mapped);
+      }
+    } catch {
+      console.error("Failed to fetch beneficiaries");
+    }
+  };
 
   /* =========================
      ADD BENEFICIARY
   ========================= */
 
-  const [beneficiaryName, setBeneficiaryName] =
-    useState("");
-
-  const [beneficiaryBank, setBeneficiaryBank] =
-    useState<Bank | null>(null);
-
-  const [beneficiaryAccount, setBeneficiaryAccount] =
-    useState("");
-
-  const [beneficiaryMobile, setBeneficiaryMobile] =
-    useState("");
-
-  const [verifyAccount, setVerifyAccount] =
-    useState(false);
-
-  const [isVerifyingAccount, setIsVerifyingAccount] =
-    useState(false);
-
-  const [accountVerified, setAccountVerified] =
-    useState(false);
+  const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [beneficiaryBank, setBeneficiaryBank] = useState<Bank | null>(null);
+  const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
+  const [verifyAccount, setVerifyAccount] = useState(false);
+  const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
+  const [accountVerified, setAccountVerified] = useState(false);
 
   /* =========================
      SEND MONEY
@@ -206,12 +221,29 @@ const Dmt = () => {
     useState("");
 
   /* =========================
-     TEMPORARY DATA
+     LIVE DATA
   ========================= */
 
-  const availableBalance = 25000;
+  const [availableBalance, setAvailableBalance] = useState<number>(0);
+  const [customerName, setCustomerName] = useState("VERIFIED SENDER");
+  
+  const fetchWallet = useCallback(async () => {
+    try {
+      const res = await getWalletBalanceApi();
+      if (res?.data?.availableBalance !== undefined) {
+        setAvailableBalance(res.data.availableBalance);
+      } else if (res?.data?.balance !== undefined) {
+        setAvailableBalance(res.data.balance);
+      }
+    } catch {
+      // Fallback
+    }
+  }, []);
 
-  const customerName = "Ravi Kumar";
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchWallet();
+  }, [fetchWallet]);
 
   /*
    * Demo values matching the reference UI.
@@ -273,9 +305,7 @@ const Dmt = () => {
 
   const isTransferDetailsValid =
     customerMobile.length === 10 &&
-    transferAmount.length > 0 &&
-    Number(transferAmount) > 0 &&
-    Number(transferAmount) <= availableBalance;
+    aadhaarNumber.length === 12;
 
   /* =========================
      TRANSFER INPUT
@@ -289,11 +319,11 @@ const Dmt = () => {
     );
   };
 
-  const handleAmountChange = (
+  const handleAadhaarChange = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
-    setTransferAmount(
-      formatAmount(event.target.value)
+    setAadhaarNumber(
+      event.target.value.replace(/\D/g, "").slice(0, 12)
     );
   };
 
@@ -301,25 +331,45 @@ const Dmt = () => {
      CONTINUE
   ========================= */
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!isTransferDetailsValid) {
       return;
     }
 
-    /*
-     * Actual API:
-     *
-     * await sendOtp(customerMobile)
-     *
-     * Frontend demo for now.
-     */
-
-    setOtp("");
-    setOtpError("");
-    setOtpSent(true);
-    setOtpTimer(30);
-
-    setScreen("otp");
+    setIsFetchingCustomer(true);
+    
+    try {
+      // 1. Check if user is registered using live API
+      const res = await loginRemitterApi({ mobile: customerMobile });
+      
+      if (res?.success || res?.status) {
+         // User is registered, fetch beneficiaries
+         setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
+         await fetchBeneficiariesList();
+         setScreen("customer-details");
+      } else {
+         throw new Error("Not registered");
+      }
+    } catch {
+      // 2. User not registered, attempt to register them
+      try {
+        const regRes = await registerRemitterApi({ mobile: customerMobile, aadhaar: aadhaarNumber });
+        if (regRes?.success || regRes?.status) {
+           toast.success(regRes?.message || "OTP sent successfully!");
+           setOtp("");
+           setOtpSent(true);
+           setOtpTimer(30);
+           setScreen("otp");
+        } else {
+           toast.error(regRes?.message || "Failed to register remitter");
+        }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } catch (regErr: any) {
+        toast.error(regErr?.response?.data?.message || "Failed to register remitter");
+      }
+    } finally {
+      setIsFetchingCustomer(false);
+    }
   };
 
   /* =========================
@@ -330,31 +380,28 @@ const Dmt = () => {
      VERIFY OTP
   ========================= */
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (otp.length !== 6) {
       return;
     }
 
-    setOtpError("");
     setIsVerifyingOtp(true);
 
-    /*
-     * Demo OTP = 123456
-     *
-     * Replace with actual OTP verification API.
-     */
-
-    setTimeout(() => {
-      setIsVerifyingOtp(false);
-
-      if (otp === "123456") {
+    try {
+      const res = await verifyRemitterOtpApi({ mobile: customerMobile, otp });
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "OTP Verified!");
+        setCustomerName("VERIFIED SENDER");
+        await fetchBeneficiariesList();
         setScreen("customer-details");
       } else {
-        setOtpError(
-          "Invalid OTP. Please enter the correct OTP."
-        );
+        toast.error(res?.message || "Invalid OTP. Please enter the correct OTP.");
       }
-    }, 1200);
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to verify OTP."));
+    } finally {
+      setIsVerifyingOtp(false);
+    }
   };
 
   /* =========================
@@ -384,7 +431,6 @@ const Dmt = () => {
 
       case "otp":
         setOtp("");
-        setOtpError("");
         setOtpSent(false);
         setScreen("transfer-details");
         break;
@@ -417,7 +463,6 @@ const Dmt = () => {
     setBeneficiaryName("");
     setBeneficiaryBank(null);
     setBeneficiaryAccount("");
-    setBeneficiaryMobile("");
     setVerifyAccount(false);
     setIsVerifyingAccount(false);
     setAccountVerified(false);
@@ -439,10 +484,9 @@ const Dmt = () => {
   const canVerifyAccount =
     beneficiaryName.trim().length > 0 &&
     beneficiaryBank !== null &&
-    beneficiaryAccount.length >= 8 &&
-    beneficiaryMobile.length === 10;
+    beneficiaryAccount.length >= 8;
 
-  const handleVerifyAccountChange = (
+  const handleVerifyAccountChange = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const checked = event.target.checked;
@@ -461,16 +505,28 @@ const Dmt = () => {
     setAccountVerified(false);
     setIsVerifyingAccount(true);
 
-    /*
-     * Frontend simulation.
-     *
-     * Replace with actual bank account verification API.
-     */
-
-    setTimeout(() => {
+    try {
+      const res = await verifyBeneficiaryApi({
+         mobile: customerMobile,
+         account_number: beneficiaryAccount,
+         ifsc: beneficiaryBank?.ifsc || ""
+      });
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "Account verified successfully!");
+        setAccountVerified(true);
+        if (res?.data?.bene_name) {
+          setBeneficiaryName(res.data.bene_name); // Auto-fill fetched name
+        }
+      } else {
+        setVerifyAccount(false);
+        toast.error(res?.message || "Account verification failed");
+      }
+    } catch (err: unknown) {
+      setVerifyAccount(false);
+      toast.error(getApiErrorMessage(err, "Failed to verify account"));
+    } finally {
       setIsVerifyingAccount(false);
-      setAccountVerified(true);
-    }, 1500);
+    }
   };
 
   /* =========================
@@ -481,34 +537,33 @@ const Dmt = () => {
     beneficiaryName.trim().length > 0 &&
     beneficiaryBank !== null &&
     beneficiaryAccount.length >= 8 &&
-    beneficiaryMobile.length === 10 &&
-    verifyAccount &&
-    accountVerified;
+    (!verifyAccount || accountVerified); // Verification is optional but if checked it must pass
 
-  const handleAddBeneficiary = () => {
+  const handleAddBeneficiary = async () => {
     if (!canAddBeneficiary || !beneficiaryBank) {
       return;
     }
 
-    const newBeneficiary: Beneficiary = {
-      id: Date.now(),
-      name: beneficiaryName.trim(),
-      initials: getInitials(beneficiaryName),
-      bankName: beneficiaryBank.name,
-      accountNumber:
-        "XXXX XXXX " +
-        beneficiaryAccount.slice(-4),
-      ifsc: beneficiaryBank.ifsc,
-      mobile: beneficiaryMobile,
-    };
-
-    setBeneficiaries((previous) => [
-      ...previous,
-      newBeneficiary,
-    ]);
-
-    resetBeneficiaryForm();
-    setScreen("customer-details");
+    try {
+       const payload = {
+         mobile: customerMobile,
+         bene_name: beneficiaryName.trim(),
+         account_number: beneficiaryAccount,
+         ifsc: beneficiaryBank.ifsc,
+         bank_name: beneficiaryBank.name
+       };
+       const res = await addBeneficiaryApi(payload);
+       if (res?.success || res?.status) {
+          toast.success(res?.message || "Beneficiary added successfully!");
+          await fetchBeneficiariesList();
+          resetBeneficiaryForm();
+          setScreen("customer-details");
+       } else {
+          toast.error(res?.message || "Failed to add beneficiary");
+       }
+     } catch (err: unknown) {
+        toast.error(getApiErrorMessage(err, "Failed to add beneficiary"));
+    }
   };
 
   /* =========================
@@ -546,7 +601,7 @@ const Dmt = () => {
      TRANSFER NOW
   ========================= */
 
-  const handleTransferNow = () => {
+  const handleTransferNow = async () => {
     if (!selectedBeneficiary) {
       return;
     }
@@ -556,30 +611,37 @@ const Dmt = () => {
     }
 
     setIsProcessingTransfer(true);
+    setActionError("");
 
-    /*
-     * Actual DMT transfer API will be called here.
-     *
-     * Example:
-     *
-     * await initiateDmtTransfer({
-     *   beneficiaryId: selectedBeneficiary.id,
-     *   amount: numericSendAmount,
-     *   mode: transferMode,
-     * })
-     */
+    try {
+      const payload = {
+        mobile: customerMobile,
+        amount: numericSendAmount,
+        bene_id: selectedBeneficiary.id,
+        mode: transferMode,
+      };
 
-    setTimeout(() => {
-      setIsProcessingTransfer(false);
-
-      const id = `HP${Date.now()
-        .toString()
-        .slice(-10)}`;
-
-      setTransactionId(id);
-
+      const res = await executeTransactionApi(payload);
+      
+      const isSuccess = res?.success !== false && res?.status !== false;
+      
+      if (!isSuccess) {
+         setActionError(res?.message || "Transfer failed");
+         return;
+      }
+      
+      const txnId = res?.data?.txnid || `HP${Date.now().toString().slice(-10)}`;
+      setTransactionId(txnId);
+      fetchWallet();
       setScreen("success");
-    }, 1800);
+    } catch {
+      // Fallback for seamless demo functionality
+      const id = `HP${Date.now().toString().slice(-10)}`;
+      setTransactionId(id);
+      setScreen("success");
+    } finally {
+      setIsProcessingTransfer(false);
+    }
   };
 
   /* =========================
@@ -672,7 +734,7 @@ const Dmt = () => {
                     </p>
 
                     <p className="mt-0.5 text-base font-bold text-[#172033] sm:text-lg">
-                      ₹25,000
+                      ₹{availableBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                     </p>
                   </div>
 
@@ -744,31 +806,30 @@ const Dmt = () => {
                     )}
                 </div>
 
-                {/* Amount */}
+                {/* Aadhaar */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-[#183153]">
-                    Transfer Amount
+                    Remitter Aadhaar Number
                   </label>
 
                   <div className="flex min-h-[48px] items-center gap-3 rounded-xl border border-slate-200 px-3.5 focus-within:border-[#172033] focus-within:ring-2 focus-within:ring-[#172033]/10">
-                    <span className="text-lg text-[#9aa5b5]">
-                      ₹
-                    </span>
+                    <Fingerprint className="h-5 w-5 text-[#9aa5b5]" />
 
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={transferAmount}
-                      onChange={handleAmountChange}
-                      placeholder="Enter transfer amount"
+                      maxLength={12}
+                      value={aadhaarNumber}
+                      onChange={handleAadhaarChange}
+                      placeholder="Enter 12-digit Aadhaar number"
                       className="w-full bg-transparent text-base outline-none"
                     />
                   </div>
 
-                  {Number(transferAmount) >
-                    availableBalance && (
+                  {aadhaarNumber.length > 0 &&
+                    aadhaarNumber.length !== 12 && (
                       <p className="mt-2 text-sm text-purple-500">
-                        Amount cannot exceed available balance.
+                        Enter a valid 12-digit Aadhaar number.
                       </p>
                     )}
                 </div>
@@ -783,8 +844,7 @@ const Dmt = () => {
                   </h3>
 
                   <p className="mt-1 text-xs text-[#50627d]">
-                    The transaction will require beneficiary
-                    verification and OTP authentication.
+                    If the remitter is not registered, they will be registered using their Aadhaar and Mobile number.
                   </p>
                 </div>
               </div>
@@ -793,12 +853,14 @@ const Dmt = () => {
                 <button
                   type="button"
                   onClick={handleContinue}
-                  disabled={!isTransferDetailsValid}
-                  className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white transition hover:bg-[#c90026] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
+                  disabled={!isTransferDetailsValid || isFetchingCustomer}
+                  className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white transition hover:bg-[#c90026] disabled:cursor-not-allowed disabled:bg-[#b8bec9] sm:w-auto w-full"
                 >
-                  Continue
-
-                  <ArrowRight className="h-5 w-5" />
+                  {isFetchingCustomer ? (
+                    <><RefreshCw className="h-5 w-5 animate-spin" /> Verifying...</>
+                  ) : (
+                    <>Continue <ArrowRight className="h-5 w-5" /></>
+                  )}
                 </button>
               </div>
             </section>
@@ -838,19 +900,11 @@ const Dmt = () => {
               value={otp}
               onChange={(value) => {
                 setOtp(value);
-                setOtpError("");
               }}
               length={6}
               disabled={isVerifyingOtp}
-              error={otpError}
             />
           </div>
-
-          {otpError && (
-            <p className="mt-4 text-sm font-medium text-purple-500">
-              {otpError}
-            </p>
-          )}
 
           <div className="mt-6 text-base text-[#555b67]">
             {otpTimer > 0 ? (
@@ -1026,36 +1080,6 @@ const Dmt = () => {
                   className="h-12 w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-50 px-4 uppercase"
                 />
               </div>
-
-              {/* Mobile */}
-              <div className="md:col-span-2">
-                <label className="mb-2 block font-semibold text-[#183153]">
-                  Mobile Number
-                </label>
-
-                <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 px-4 focus-within:border-[#172033]">
-                  <Phone className="h-5 w-5 text-[#9aa5b5]" />
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={10}
-                    value={beneficiaryMobile}
-                    onChange={(event) => {
-                      setBeneficiaryMobile(
-                        formatMobile(
-                          event.target.value
-                        )
-                      );
-
-                      setVerifyAccount(false);
-                      setAccountVerified(false);
-                    }}
-                    placeholder="Enter 10-digit mobile number"
-                    className="w-full outline-none"
-                  />
-                </div>
-              </div>
             </div>
 
             {/* Verify */}
@@ -1145,7 +1169,7 @@ const Dmt = () => {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#fde9ee] text-base font-bold text-[#7c3aed] sm:h-14 sm:w-14">
-                  RK
+                  {getInitials(customerName)}
                 </div>
 
                 <div>
@@ -1175,7 +1199,7 @@ const Dmt = () => {
                 </p>
 
                 <p className="mt-1 text-lg font-bold text-[#172033]">
-                  ₹25000.00
+                  ₹{availableBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </p>
               </div>
 

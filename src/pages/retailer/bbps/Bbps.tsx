@@ -1,6 +1,6 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
+import { toast } from "react-toastify";
 import {
-  ArrowDownToLine,
   ArrowLeft,
   ArrowRight,
   Banknote,
@@ -9,380 +9,218 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
-  FileText,
+  CreditCard,
+  Droplets,
+  Flame,
+  Fuel,
   GraduationCap,
   Hash,
   Landmark,
   Menu,
-  MessageCircle,
+  Phone,
   Printer,
   Receipt,
+  RefreshCw,
   Search,
   ShieldCheck,
-  Star,
-  TrendingUp,
+  Smartphone,
+  Tv,
   Wallet,
+  Wifi,
   X,
   Zap,
 } from "lucide-react";
+import {
+  getBbpsCategoriesApi,
+  getAllBillersApi,
+  viewBillApi,
+  payBillApi,
+  type BbpsCategoryItem,
+  type BillerItem,
+} from "../../../apis/bbps.apis";
+import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 
-type CategoryKey =
-  | "electricity"
-  | "water"
-  | "pipedGas"
-  | "lpgGas"
-  | "fastag"
-  | "insurance"
-  | "loan"
-  | "education"
-  | "municipal";
+// =============================================================
+// Interfaces & Types
+// =============================================================
 
-type StateName =
-  | "All States"
-  | "Delhi NCR"
-  | "Maharashtra"
-  | "Uttar Pradesh"
-  | "Karnataka"
-  | "Gujarat"
-  | "Tamil Nadu";
-
-type Biller = {
-  id: string;
-  name: string;
-  state: StateName;
-  commission: number;
-  fetchEnabled: boolean;
-};
-
-type Category = {
-  id: CategoryKey;
-  label: string;
-  icon: React.ReactNode;
-  iconBg: string;
-  iconColor: string;
-  badge?: string;
-};
-
-type BillDetails = {
+export interface BillDetails {
   customerName: string;
   billNumber: string;
   billDate: string;
   dueDate: string;
   billingPeriod: string;
   amount: number;
-};
+}
 
-const categories: Category[] = [
-  {
-    id: "electricity",
-    label: "Electricity",
-    icon: <Zap size={28} />,
-    iconBg: "bg-amber-50",
-    iconColor: "text-amber-500",
-    badge: "Instant",
-  },
-  {
-    id: "water",
-    label: "Water",
-    icon: <span className="text-[24px]">💧</span>,
-    iconBg: "bg-sky-50",
-    iconColor: "text-sky-500",
-  },
-  {
-    id: "pipedGas",
-    label: "Piped Gas",
-    icon: <span className="text-[24px]">🔥</span>,
-    iconBg: "bg-orange-50",
-    iconColor: "text-orange-500",
-  },
-  {
-    id: "lpgGas",
-    label: "LPG Gas",
-    icon: <Banknote size={27} />,
-    iconBg: "bg-rose-50",
-    iconColor: "text-rose-500",
-  },
-  {
-    id: "fastag",
-    label: "Fastag",
-    icon: <span className="text-[24px]">🚗</span>,
-    iconBg: "bg-emerald-50",
-    iconColor: "text-emerald-500",
-    badge: "Popular",
-  },
-  {
-    id: "insurance",
-    label: "Insurance",
-    icon: <ShieldCheck size={27} />,
-    iconBg: "bg-indigo-50",
-    iconColor: "text-indigo-500",
-  },
-  {
-    id: "loan",
-    label: "Loan EMI",
-    icon: <Wallet size={27} />,
-    iconBg: "bg-teal-50",
-    iconColor: "text-teal-500",
-  },
-  {
-    id: "education",
-    label: "Education",
-    icon: <GraduationCap size={27} />,
-    iconBg: "bg-pink-50",
-    iconColor: "text-pink-500",
-  },
-  {
-    id: "municipal",
-    label: "Municipal",
-    icon: <Building2 size={27} />,
-    iconBg: "bg-slate-100",
-    iconColor: "text-slate-500",
-  },
-];
+export interface CategoryVisualMeta {
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  badge?: string;
+  defaultInputLabel: string;
+  defaultInputPlaceholder: string;
+}
 
-const billersByCategory: Record<CategoryKey, Biller[]> = {
-  electricity: [
-    {
-      id: "bescom",
-      name: "Bangalore Electricity Supply Company (BESCOM)",
-      state: "Karnataka",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "tneb",
-      name: "Tamil Nadu Generation & Distribution Corporation",
-      state: "Tamil Nadu",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "bseb",
-      name: "Bihar State Electricity Board",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "uppcl",
-      name: "Uttar Pradesh Power Corporation Limited",
-      state: "Uttar Pradesh",
-      commission: 2,
-      fetchEnabled: true,
-    },
-  ],
+// =============================================================
+// Category Icon & Theme Resolver
+// =============================================================
 
-  water: [
-    {
-      id: "djb",
-      name: "Delhi Jal Board (DJB)",
-      state: "Delhi NCR",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "bwssb",
-      name: "Bangalore Water Supply & Sewerage Board",
-      state: "Karnataka",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "mjp",
-      name: "Maharashtra Jeevan Pradhikaran",
-      state: "Maharashtra",
-      commission: 2,
-      fetchEnabled: true,
-    },
-  ],
+const resolveCategoryMeta = (serviceName = ""): CategoryVisualMeta => {
+  const name = serviceName.toLowerCase();
 
-  pipedGas: [
-    {
-      id: "igl",
-      name: "Indraprastha Gas Limited (IGL)",
-      state: "Delhi NCR",
-      commission: 2.5,
-      fetchEnabled: true,
-    },
-    {
-      id: "mgl",
-      name: "Mahanagar Gas Limited (MGL)",
-      state: "Maharashtra",
-      commission: 2.5,
-      fetchEnabled: true,
-    },
-  ],
-
-  lpgGas: [
-    {
-      id: "indane",
-      name: "Indane Gas (Indian Oil)",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "bharatgas",
-      name: "Bharat Gas (BPCL)",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "hp",
-      name: "HP Gas",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-  ],
-
-  fastag: [
-    {
-      id: "icici-fastag",
-      name: "ICICI Bank FASTag",
-      state: "All States",
-      commission: 2.5,
-      fetchEnabled: true,
-    },
-    {
-      id: "hdfc-fastag",
-      name: "HDFC Bank FASTag",
-      state: "All States",
-      commission: 2.5,
-      fetchEnabled: true,
-    },
-  ],
-
-  insurance: [
-    {
-      id: "lic",
-      name: "Life Insurance Corporation of India (LIC)",
-      state: "All States",
-      commission: 5,
-      fetchEnabled: true,
-    },
-    {
-      id: "sbi-life",
-      name: "SBI Life Insurance",
-      state: "All States",
-      commission: 5,
-      fetchEnabled: true,
-    },
-  ],
-
-  loan: [
-    {
-      id: "hdfc-loan",
-      name: "HDFC Bank Loan",
-      state: "All States",
-      commission: 3,
-      fetchEnabled: true,
-    },
-    {
-      id: "icici-loan",
-      name: "ICICI Bank Loan",
-      state: "All States",
-      commission: 3,
-      fetchEnabled: true,
-    },
-  ],
-
-  education: [
-    {
-      id: "school-fee",
-      name: "ABC Education Services",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "university",
-      name: "National Education Payments",
-      state: "All States",
-      commission: 2,
-      fetchEnabled: true,
-    },
-  ],
-
-  municipal: [
-    {
-      id: "bbmp",
-      name: "Bruhat Bengaluru Mahanagara Palike (BBMP)",
-      state: "Karnataka",
-      commission: 2,
-      fetchEnabled: true,
-    },
-    {
-      id: "ndmc",
-      name: "New Delhi Municipal Council (NDMC)",
-      state: "Delhi NCR",
-      commission: 2,
-      fetchEnabled: true,
-    },
-  ],
-};
-
-const states: StateName[] = [
-  "All States",
-  "Delhi NCR",
-  "Maharashtra",
-  "Uttar Pradesh",
-  "Karnataka",
-  "Gujarat",
-  "Tamil Nadu",
-];
-
-const categoryFieldConfig: Record<
-  CategoryKey,
-  {
-    label: string;
-    placeholder: string;
-    secondLabel?: string;
-    secondPlaceholder?: string;
+  if (name.includes("electricity") || name.includes("power") || name.includes("bijli")) {
+    return {
+      icon: <Zap size={26} />,
+      iconBg: "bg-amber-50",
+      iconColor: "text-amber-500",
+      badge: "Instant",
+      defaultInputLabel: "Consumer Number / Account ID",
+      defaultInputPlaceholder: "Enter consumer number",
+    };
   }
-> = {
-  electricity: {
-    label: "Consumer Number",
-    placeholder: "Enter consumer number",
-  },
-  water: {
-    label: "K Number",
-    placeholder: "Enter K number",
-  },
-  pipedGas: {
-    label: "BP Number (Business Partner)",
-    placeholder: "Enter 10-digit BP Number",
-  },
-  lpgGas: {
-    label: "Registered Mobile Number",
-    placeholder: "Enter 10-digit mobile number",
-  },
-  fastag: {
-    label: "Vehicle Registration Number",
-    placeholder: "DL01AB1234",
-  },
-  insurance: {
-    label: "Policy Number",
-    placeholder: "Enter policy number",
-    secondLabel: "Date of Birth (DD/MM/YYYY)",
-    secondPlaceholder: "15/08/1988",
-  },
-  loan: {
-    label: "Loan Account Number",
-    placeholder: "Enter loan account number",
-  },
-  education: {
-    label: "Student / Registration Number",
-    placeholder: "Enter student number",
-  },
-  municipal: {
-    label: "Property / Consumer Number",
-    placeholder: "Enter property number",
-  },
-};
 
-const initialWalletBalance = 24580.5;
+  if (name.includes("water") || name.includes("jal") || name.includes("pani")) {
+    return {
+      icon: <Droplets size={26} />,
+      iconBg: "bg-sky-50",
+      iconColor: "text-sky-500",
+      defaultInputLabel: "Consumer Number / K Number",
+      defaultInputPlaceholder: "Enter K Number / RR Number",
+    };
+  }
+
+  if (name.includes("lpg") || name.includes("cylinder")) {
+    return {
+      icon: <Fuel size={26} />,
+      iconBg: "bg-rose-50",
+      iconColor: "text-rose-500",
+      badge: "Fast Booking",
+      defaultInputLabel: "Registered Mobile Number",
+      defaultInputPlaceholder: "Enter 10-digit mobile number",
+    };
+  }
+
+  if (name.includes("gas") || name.includes("piped")) {
+    return {
+      icon: <Flame size={26} />,
+      iconBg: "bg-orange-50",
+      iconColor: "text-orange-500",
+      defaultInputLabel: "BP Number (Business Partner)",
+      defaultInputPlaceholder: "Enter 10-digit BP Number",
+    };
+  }
+
+  if (name.includes("fastag") || name.includes("toll")) {
+    return {
+      icon: <Banknote size={26} />,
+      iconBg: "bg-emerald-50",
+      iconColor: "text-emerald-500",
+      badge: "Popular",
+      defaultInputLabel: "Vehicle Registration Number",
+      defaultInputPlaceholder: "e.g. DL01AB1234",
+    };
+  }
+
+  if (name.includes("life insurance") || name.includes("term insurance")) {
+    return {
+      icon: <ShieldCheck size={26} />,
+      iconBg: "bg-violet-50",
+      iconColor: "text-violet-500",
+      defaultInputLabel: "Policy Number",
+      defaultInputPlaceholder: "Enter insurance policy number",
+    };
+  }
+
+  if (name.includes("insurance")) {
+    return {
+      icon: <ShieldCheck size={26} />,
+      iconBg: "bg-indigo-50",
+      iconColor: "text-indigo-500",
+      defaultInputLabel: "Policy Number",
+      defaultInputPlaceholder: "Enter policy number",
+    };
+  }
+
+  if (name.includes("tax") || name.includes("municipal") || name.includes("nagar")) {
+    return {
+      icon: <Building2 size={26} />,
+      iconBg: "bg-slate-100",
+      iconColor: "text-slate-600",
+      defaultInputLabel: "Property / Assessment Number",
+      defaultInputPlaceholder: "Enter property number",
+    };
+  }
+
+  if (name.includes("credit card") || name.includes("card")) {
+    return {
+      icon: <CreditCard size={26} />,
+      iconBg: "bg-purple-50",
+      iconColor: "text-purple-600",
+      defaultInputLabel: "Credit Card Last 4 Digits / Mobile",
+      defaultInputPlaceholder: "Enter last 4 digits of card",
+    };
+  }
+
+  if (name.includes("loan") || name.includes("emi") || name.includes("finance")) {
+    return {
+      icon: <Wallet size={26} />,
+      iconBg: "bg-teal-50",
+      iconColor: "text-teal-600",
+      defaultInputLabel: "Loan Account Number (LAN)",
+      defaultInputPlaceholder: "Enter loan account number",
+    };
+  }
+
+  if (name.includes("broadband") || name.includes("internet") || name.includes("fiber")) {
+    return {
+      icon: <Wifi size={26} />,
+      iconBg: "bg-cyan-50",
+      iconColor: "text-cyan-600",
+      defaultInputLabel: "Account Number / User ID",
+      defaultInputPlaceholder: "Enter broadband account number",
+    };
+  }
+
+  if (name.includes("dth") || name.includes("cable") || name.includes("tv")) {
+    return {
+      icon: <Tv size={26} />,
+      iconBg: "bg-fuchsia-50",
+      iconColor: "text-fuchsia-600",
+      defaultInputLabel: "Subscriber ID / Smart Card Number",
+      defaultInputPlaceholder: "Enter subscriber ID",
+    };
+  }
+
+  if (name.includes("mobile") || name.includes("recharge") || name.includes("postpaid")) {
+    return {
+      icon: <Smartphone size={26} />,
+      iconBg: "bg-blue-50",
+      iconColor: "text-blue-600",
+      defaultInputLabel: "Mobile Number",
+      defaultInputPlaceholder: "Enter 10-digit mobile number",
+    };
+  }
+
+  if (name.includes("education") || name.includes("school") || name.includes("college")) {
+    return {
+      icon: <GraduationCap size={26} />,
+      iconBg: "bg-pink-50",
+      iconColor: "text-pink-600",
+      defaultInputLabel: "Student / Registration Number",
+      defaultInputPlaceholder: "Enter student roll number",
+    };
+  }
+
+  // Fallback
+  return {
+    icon: <Receipt size={26} />,
+    iconBg: "bg-blue-50",
+    iconColor: "text-blue-600",
+    defaultInputLabel: "Customer Account Number",
+    defaultInputPlaceholder: "Enter account identification number",
+  };
+};
 
 const formatCurrency = (value: number) =>
   `₹${value.toLocaleString("en-IN", {
@@ -390,245 +228,419 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 2,
   })}`;
 
-const getCategoryLabel = (id: CategoryKey) =>
-  categories.find((category) => category.id === id)?.label ?? "BBPS";
-
-const getDefaultBillAmount = (category: CategoryKey) => {
-  switch (category) {
-    case "electricity":
-      return 2808;
-    case "water":
-      return 1450;
-    case "pipedGas":
-      return 1161;
-    case "lpgGas":
-      return 1161;
-    case "fastag":
-      return 1818;
-    case "insurance":
-      return 835;
-    case "loan":
-      return 4250;
-    case "education":
-      return 3250;
-    case "municipal":
-      return 2100;
-    default:
-      return 1161;
-  }
-};
-
-const getFieldValue = (
-  category: CategoryKey,
-  values: Record<string, string>,
-): string => {
-  const config = categoryFieldConfig[category];
-  return values[config.label] ?? "";
-};
-
 const createBillNumber = () =>
-  `BR202609/${Math.floor(10000 + Math.random() * 89999)}`;
+  `BR${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}/${Math.floor(10000 + Math.random() * 89999)}`;
 
 const createReference = () =>
-  `BBP20260923${Math.floor(100000 + Math.random() * 899999)}`;
+  `BBP${new Date().getFullYear()}${Math.floor(100000 + Math.random() * 899999)}`;
 
 const createTransactionId = () =>
   `TXN${Math.floor(100000000 + Math.random() * 899999999)}`;
 
-const BBPS = () => {
-  const [selectedCategory, setSelectedCategory] =
-    useState<CategoryKey>("electricity");
+// =============================================================
+// Main BBPS Component
+// =============================================================
 
-  const [selectedBiller, setSelectedBiller] = useState<Biller>(
-    billersByCategory.electricity[0],
-  );
+const BBPS: React.FC = () => {
+  // Categories State from API (GET /api/v1/bbps/categories)
+  const [categories, setCategories] = useState<BbpsCategoryItem[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<BbpsCategoryItem | null>(null);
+  const [loadingCategories, setLoadingCategories] = useState(true);
+  const [categoryError, setCategoryError] = useState<string | null>(null);
 
-  const [selectedState, setSelectedState] =
-    useState<StateName>("All States");
+  // All Billers Master State from API (GET /api/v1/bbps/billers)
+  const [allBillers, setAllBillers] = useState<BillerItem[]>([]);
+  const [loadingBillers, setLoadingBillers] = useState(false);
 
+  // Active Category Biller State
+  const [selectedBiller, setSelectedBiller] = useState<BillerItem | null>(null);
   const [showBillerModal, setShowBillerModal] = useState(false);
-
   const [billerSearch, setBillerSearch] = useState("");
 
-  const [consumerValues, setConsumerValues] = useState<
-    Record<string, string>
-  >({});
-
+  // Form & Bill Details State
+  const [consumerValues, setConsumerValues] = useState<Record<string, string>>({});
   const [billDetails, setBillDetails] = useState<BillDetails | null>(null);
-
   const [paymentAmount, setPaymentAmount] = useState("");
-
   const [consent, setConsent] = useState(false);
-
-  const [screen, setScreen] = useState<
-    "form" | "bill" | "success"
-  >("form");
-
+  const [screen, setScreen] = useState<"form" | "bill" | "success">("form");
   const [isFetching, setIsFetching] = useState(false);
-
   const [isPaying, setIsPaying] = useState(false);
 
-  const [walletBalance, setWalletBalance] =
-    useState(initialWalletBalance);
-
+  // Wallet & Receipt State
+  const [walletBalance, setWalletBalance] = useState<number>(0);
   const [transactionId, setTransactionId] = useState("");
-
   const [bbpsReference, setBbpsReference] = useState("");
-
-  const [, setBillNumber] = useState("");
-
   const [paymentDate, setPaymentDate] = useState("");
-
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const currentCommission = selectedBiller.commission;
-
-  const filteredBillers = useMemo(() => {
-    const allBillers = billersByCategory[selectedCategory];
-
-    const stateFiltered =
-      selectedState === "All States"
-        ? allBillers
-        : allBillers.filter(
-            (biller) =>
-              biller.state === selectedState ||
-              biller.state === "All States",
-          );
-
-    if (!billerSearch.trim()) {
-      return stateFiltered;
+  // Fetch Wallet Balance
+  const fetchWallet = useCallback(async () => {
+    try {
+      const res = await getWalletBalanceApi();
+      if (res?.data?.availableBalance !== undefined) {
+        setWalletBalance(res.data.availableBalance);
+      } else if (res?.data?.balance !== undefined) {
+        setWalletBalance(res.data.balance);
+      }
+    } catch {
+      // Keep existing balance
     }
+  }, []);
 
-    return stateFiltered.filter((biller) =>
-      biller.name
-        .toLowerCase()
-        .includes(billerSearch.toLowerCase()),
+  // Fetch All Billers from Backend API (GET /api/v1/bbps/billers)
+  const fetchAllBillers = useCallback(async () => {
+    setLoadingBillers(true);
+    try {
+      const billersData = await getAllBillersApi();
+      setAllBillers(billersData);
+      return billersData;
+    } catch {
+      // toast.error is used elsewhere, silently fail master list here or keep old data
+      return [];
+    } finally {
+      setLoadingBillers(false);
+    }
+  }, []);
+
+  // Fetch Categories from Backend API (GET /api/v1/bbps/categories)
+  const fetchCategories = useCallback(async () => {
+    setLoadingCategories(true);
+    setCategoryError(null);
+
+    try {
+      const [categoriesData, billersData] = await Promise.all([
+        getBbpsCategoriesApi(),
+        fetchAllBillers(),
+      ]);
+
+      if (Array.isArray(categoriesData) && categoriesData.length > 0) {
+        setCategories(categoriesData);
+        const initialCategory = categoriesData[0];
+        setSelectedCategory(initialCategory);
+
+        // Filter and assign first biller for initial category
+        const initialMatching = billersData.filter((b) => {
+          const bType = b.service_type?.toLowerCase().trim() || "";
+          const cName = initialCategory.service_name?.toLowerCase().trim() || "";
+          return bType === cName || bType.includes(cName) || cName.includes(bType);
+        });
+
+        if (initialMatching.length > 0) {
+          setSelectedBiller(initialMatching[0]);
+        } else if (billersData.length > 0) {
+          setSelectedBiller(billersData[0]);
+        }
+      } else {
+        setCategoryError("No BBPS categories available.");
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to load BBPS categories";
+      setCategoryError(message);
+    } finally {
+      setLoadingCategories(false);
+    }
+  }, [fetchAllBillers]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchCategories();
+    fetchWallet();
+  }, [fetchCategories, fetchWallet]);
+
+  // Billers matching the currently selected category
+  const categoryBillers = useMemo(() => {
+    if (!selectedCategory) return [];
+
+    const cName = selectedCategory.service_name?.toLowerCase().trim() || "";
+
+    const matched = allBillers.filter((biller) => {
+      const bType = biller.service_type?.toLowerCase().trim() || "";
+      return bType === cName || bType.includes(cName) || cName.includes(bType);
+    });
+
+    // If specific matching has items, return them; otherwise return all billers as fallback
+    return matched.length > 0 ? matched : allBillers;
+  }, [allBillers, selectedCategory]);
+
+  // Filtered Billers for Modal search
+  const filteredBillers = useMemo(() => {
+    if (!billerSearch.trim()) {
+      return categoryBillers;
+    }
+    const q = billerSearch.toLowerCase().trim();
+    return categoryBillers.filter((biller) =>
+      biller.service_name?.toLowerCase().includes(q) ||
+      biller.opcode?.toLowerCase().includes(q)
     );
-  }, [selectedCategory, selectedState, billerSearch]);
+  }, [categoryBillers, billerSearch]);
 
-  const handleCategoryChange = (category: CategoryKey) => {
+  // Handle Category Click
+  const handleCategoryChange = (category: BbpsCategoryItem) => {
     setSelectedCategory(category);
-
-    const firstBiller = billersByCategory[category][0];
-
-    setSelectedBiller(firstBiller);
-    setSelectedState("All States");
     setBillerSearch("");
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
     setConsent(false);
+    setActionError(null);
     setScreen("form");
+
+    // Match billers for the selected category
+    const cName = category.service_name?.toLowerCase().trim() || "";
+    const matching = allBillers.filter((biller) => {
+      const bType = biller.service_type?.toLowerCase().trim() || "";
+      return bType === cName || bType.includes(cName) || cName.includes(bType);
+    });
+
+    if (matching.length > 0) {
+      setSelectedBiller(matching[0]);
+    } else if (allBillers.length > 0) {
+      setSelectedBiller(allBillers[0]);
+    } else {
+      setSelectedBiller(null);
+    }
   };
 
-  const handleBillerSelect = (biller: Biller) => {
+  const handleBillerSelect = (biller: BillerItem) => {
     setSelectedBiller(biller);
     setShowBillerModal(false);
     setBillerSearch("");
-
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
     setConsent(false);
+    setActionError(null);
     setScreen("form");
   };
 
-  const handleStateChange = (state: StateName) => {
-    setSelectedState(state);
-  };
-
-  const handleInputChange = (
-    field: string,
-    value: string,
-  ) => {
-    setConsumerValues((previous) => ({
-      ...previous,
+  const handleInputChange = (field: string, value: string) => {
+    setConsumerValues((prev) => ({
+      ...prev,
       [field]: value,
     }));
+    if (actionError) setActionError(null);
   };
 
-  const fetchBillDetails = () => {
-    const config = categoryFieldConfig[selectedCategory];
+  // Visual Meta for current category
+  const activeMeta = useMemo(() => {
+    return resolveCategoryMeta(selectedCategory?.service_name || "");
+  }, [selectedCategory]);
 
-    const primaryValue = getFieldValue(
-      selectedCategory,
-      consumerValues,
-    );
+  // Dynamic Field Labels based on currently selected Biller
+  const primaryFieldLabel = selectedBiller?.CUSTNO || activeMeta.defaultInputLabel;
+  const secondaryFieldLabel = selectedBiller?.FIELD1;
+  const mobileFieldLabel = selectedBiller?.REFMOBILENO;
 
-    if (!primaryValue.trim()) {
-      alert(`Please enter ${config.label}.`);
+  const handleFetchBill = async () => {
+    const primaryInput = consumerValues[primaryFieldLabel] || "";
+
+    if (!primaryInput.trim()) {
+      toast.error(`Please enter ${primaryFieldLabel}.`);
       return;
     }
 
-    if (
-      config.secondLabel &&
-      !consumerValues[config.secondLabel]?.trim()
-    ) {
-      alert(`Please enter ${config.secondLabel}.`);
+    if (secondaryFieldLabel && !consumerValues[secondaryFieldLabel]?.trim()) {
+      toast.error(`Please enter ${secondaryFieldLabel}.`);
+      return;
+    }
+
+    if (mobileFieldLabel && !consumerValues[mobileFieldLabel]?.trim()) {
+      toast.error(`Please enter ${mobileFieldLabel}.`);
       return;
     }
 
     setIsFetching(true);
 
-    window.setTimeout(() => {
-      const amount = getDefaultBillAmount(selectedCategory);
-
-      const details: BillDetails = {
-        customerName: "RAMESH CHANDRA SHARMA",
-        billNumber: createBillNumber(),
-        billDate: "09 Sep 2026",
-        dueDate: "30 Sep 2026",
-        billingPeriod: "01 Aug 2026 - 30 Sep 2026",
-        amount,
+    try {
+      const payload = {
+        biller_id: selectedBiller?.id,
+        operator: selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : undefined),
+        opcode: selectedBiller?.opcode,
+        canumber: primaryInput,
+        consumer_number: primaryInput,
+        ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
+        mobile: mobileFieldLabel ? consumerValues[mobileFieldLabel] : primaryInput,
+        mode: "online",
+        service_type: selectedBiller?.service_type || selectedCategory?.service_name,
+        customer_params: consumerValues,
       };
 
-      setBillDetails(details);
-      setPaymentAmount(amount.toFixed(2));
+      const res = await viewBillApi(payload);
+
+      // Extract bill data from possible nested response structures
+      const billData =
+        res?.data?.data ||
+        res?.data ||
+        res?.result ||
+        res;
+
+      const isProviderSuccess =
+        res?.success !== false &&
+        res?.status !== false &&
+        billData?.status !== false;
+
+      if (!isProviderSuccess) {
+        const errorMsg =
+          billData?.message ||
+          res?.message ||
+          "Unable to fetch bill details for the provided consumer account.";
+        toast.error(errorMsg);
+        return;
+      }
+
+      // Check for valid amount in response
+      const rawAmount =
+        billData?.amount ||
+        billData?.dueamount ||
+        billData?.bill_amount ||
+        billData?.due_amount ||
+        res?.amount;
+
+      if (rawAmount !== undefined && rawAmount !== null && rawAmount !== "") {
+        const fetchedAmount = Number(rawAmount) || 0;
+        const customerName =
+          billData?.name ||
+          billData?.customer_name ||
+          billData?.customername ||
+          billData?.consumer_name ||
+          "VERIFIED CONSUMER";
+        const billNumber =
+          billData?.billnumber ||
+          billData?.bill_number ||
+          billData?.bill_no ||
+          billData?.referenceid ||
+          createBillNumber();
+        const billDate =
+          billData?.billdate ||
+          billData?.bill_date ||
+          new Date().toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
+        const dueDate =
+          billData?.duedate ||
+          billData?.due_date ||
+          new Date(Date.now() + 15 * 86400000).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          });
+        const billingPeriod =
+          billData?.billperiod ||
+          billData?.billing_period ||
+          billData?.bill_month ||
+          "Current Cycle";
+
+        setBillDetails({
+          customerName,
+          billNumber,
+          billDate,
+          dueDate,
+          billingPeriod,
+          amount: fetchedAmount,
+        });
+        setPaymentAmount(fetchedAmount.toFixed(2));
+        setScreen("bill");
+      } else {
+        const fallbackMsg =
+          billData?.message ||
+          res?.message ||
+          "No outstanding dues found or unable to fetch bill details for this account.";
+        toast.error(fallbackMsg);
+      }
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Failed to connect to BBPS provider network. Please check details and try again.";
+      toast.error(errorMsg);
+    } finally {
       setIsFetching(false);
-      setScreen("bill");
-    }, 700);
+    }
   };
 
-  const handlePayNow = () => {
-    if (!billDetails) {
-      return;
-    }
+  // Pay Bill Action (POST /api/v1/bbps/pay-bill)
+  const handlePayBill = async () => {
+    if (!billDetails) return;
 
     if (!consent) {
-      alert(
-        "Please confirm that the customer has handed over cash and consented to the bill payment.",
+      toast.error("Please confirm customer consent to proceed with payment.");
+      return;
+    }
+
+    const payValue = parseFloat(paymentAmount);
+    if (isNaN(payValue) || payValue <= 0) {
+      toast.error("Please enter a valid payment amount.");
+      return;
+    }
+
+    if (payValue > walletBalance) {
+      toast.error(
+        `Insufficient wallet balance. Available: ${formatCurrency(walletBalance)}, Required: ${formatCurrency(payValue)}`
       );
-      return;
-    }
-
-    const amount = Number(paymentAmount);
-
-    if (!amount || amount <= 0) {
-      alert("Please enter a valid payment amount.");
-      return;
-    }
-
-    if (amount > walletBalance) {
-      alert("Insufficient wallet balance.");
       return;
     }
 
     setIsPaying(true);
 
-    window.setTimeout(() => {
-      const transaction = createTransactionId();
-      const reference = createReference();
-      const newBillNumber = billDetails.billNumber;
+    const primaryInput = consumerValues[primaryFieldLabel] || "";
 
-      const newWalletBalance =
-        walletBalance - amount + currentCommission;
+    try {
+      const payload = {
+        biller_id: selectedBiller?.id,
+        operator: selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : undefined),
+        opcode: selectedBiller?.opcode,
+        canumber: primaryInput,
+        consumer_number: primaryInput,
+        amount: payValue,
+        referenceid: createReference(),
+        reference_id: createReference(),
+        billnumber: billDetails.billNumber,
+        billdate: billDetails.billDate,
+        duedate: billDetails.dueDate,
+        ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
+        mobile: mobileFieldLabel ? consumerValues[mobileFieldLabel] : primaryInput,
+        latitude: "28.6139",
+        longitude: "77.2090",
+        service_type: selectedBiller?.service_type || selectedCategory?.service_name,
+        customer_params: consumerValues,
+      };
 
-      setWalletBalance(newWalletBalance);
+      const res = await payBillApi(payload);
 
-      setTransactionId(transaction);
-      setBbpsReference(reference);
-      setBillNumber(newBillNumber);
+      const payData = res?.data?.data || res?.data || res;
+      const isSuccess =
+        res?.success !== false &&
+        res?.status !== false &&
+        payData?.status !== false;
 
+      if (!isSuccess) {
+        const errorMsg =
+          payData?.message ||
+          res?.message ||
+          "Bill payment could not be processed by provider.";
+        toast.error(errorMsg);
+        return;
+      }
+
+      const returnedTxnId =
+        payData?.txnid ||
+        payData?.transaction_id ||
+        payData?.txn_id ||
+        createTransactionId();
+
+      const returnedRef =
+        payData?.operator_ref ||
+        payData?.rrn ||
+        payData?.referenceid ||
+        createReference();
+
+      setWalletBalance((prev) => Math.max(0, prev - payValue));
+      fetchWallet();
+      setTransactionId(String(returnedTxnId));
+      setBbpsReference(String(returnedRef));
       setPaymentDate(
         new Date().toLocaleString("en-IN", {
           day: "2-digit",
@@ -636,869 +648,660 @@ const BBPS = () => {
           year: "numeric",
           hour: "2-digit",
           minute: "2-digit",
-        }),
+          hour12: true,
+        })
       );
-
-      setIsPaying(false);
+      toast.success("Bill payment successfully completed!");
       setScreen("success");
-    }, 900);
+    } catch (err: unknown) {
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : "Payment failed due to provider connection error. Please try again.";
+      toast.error(errorMsg);
+    } finally {
+      setIsPaying(false);
+    }
   };
 
-  const resetPayment = () => {
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleNewPayment = () => {
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
     setConsent(false);
-    setTransactionId("");
-    setBbpsReference("");
-    setBillNumber("");
-    setPaymentDate("");
     setScreen("form");
   };
 
-  const openBillerModal = () => {
-    setBillerSearch("");
-    setShowBillerModal(true);
-  };
-
-  const renderHeader = () => (
-    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex h-[68px] max-w-[960px] items-center justify-between px-4 sm:px-6">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              if (screen === "success") {
-                setScreen("bill");
-                return;
-              }
-
-              if (screen === "bill") {
-                setScreen("form");
-                return;
-              }
-
-              window.history.back();
-            }}
-            className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-slate-100"
-            aria-label="Go back"
-          >
-            <ArrowLeft size={25} className="text-slate-800" />
-          </button>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">
-                Bharat BillPay (BBPS)
-              </h1>
-
-              <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-bold text-[#7c3aed]">
-                NPCI
-              </span>
-            </div>
-
-            <p className="hidden text-xs text-slate-500 sm:block">
-              Bill payment & collection services
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen((value) => !value)}
-          className="rounded-lg p-2 hover:bg-slate-100"
-        >
-          <Menu size={22} />
-        </button>
-      </div>
-
-      {mobileMenuOpen && (
-        <div className="border-t border-slate-100 bg-white px-4 py-3">
-          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-            <div className="flex items-center gap-3">
-              <Wallet
-                size={20}
-                className="text-[#7c3aed]"
-              />
-              <span className="text-sm text-slate-600">
-                Retailer Wallet
-              </span>
-            </div>
-
-            <strong className="text-[#7c3aed]">
-              {formatCurrency(walletBalance)}
-            </strong>
-          </div>
-        </div>
-      )}
-    </header>
-  );
-
-  const renderCategorySection = () => (
-    <section>
-      <h2 className="mb-4 text-lg font-bold text-slate-900">
-        Select Biller Category
-      </h2>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-5">
-        {categories.map((category) => {
-          const active =
-            selectedCategory === category.id;
-
-          return (
-            <button
-              key={category.id}
-              type="button"
-              onClick={() =>
-                handleCategoryChange(category.id)
-              }
-              className={`relative flex min-h-[112px] flex-col items-center justify-center rounded-2xl border-2 bg-white px-2 py-4 transition ${
-                active
-                  ? "border-[#7c3aed] bg-[#faf5ff] shadow-sm"
-                  : "border-slate-200 hover:border-slate-300"
-              }`}
-            >
-              {category.badge && (
-                <span className="absolute right-2 top-2 rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                  {category.badge}
-                </span>
-              )}
-
-              <div
-                className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl ${category.iconBg} ${category.iconColor}`}
-              >
-                {category.icon}
-              </div>
-
-              <span
-                className={`text-sm font-medium ${
-                  active
-                    ? "text-[#7c3aed]"
-                    : "text-slate-800"
-                }`}
-              >
-                {category.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-
-  const renderBillerSelector = () => (
-    <section className="mt-8">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-900">
-          Select Operator / Biller
-        </h2>
-
-        <button
-          type="button"
-          onClick={openBillerModal}
-          className="text-sm font-semibold text-[#7c3aed]"
-        >
-          Change State ({selectedState})
-        </button>
-      </div>
-
-      <button
-        type="button"
-        onClick={openBillerModal}
-        className="flex w-full items-center justify-between rounded-2xl border-2 border-slate-300 bg-white p-4 text-left hover:border-[#7c3aed]"
-      >
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-[#7c3aed]">
-            <Landmark size={28} />
-          </div>
-
-          <div className="min-w-0">
-            <p className="truncate text-base font-bold text-slate-900 sm:text-lg">
-              {selectedBiller.name}
-            </p>
-
-            <p className="mt-1 text-sm font-medium text-emerald-600">
-              {selectedBiller.state} • Comm:{" "}
-              {formatCurrency(
-                selectedBiller.commission,
-              )}
-            </p>
-          </div>
-        </div>
-
-        <ChevronDown
-          size={25}
-          className="shrink-0 text-slate-800"
-        />
-      </button>
-    </section>
-  );
-
-  const renderConsumerForm = () => {
-    const config = categoryFieldConfig[selectedCategory];
-
-    return (
-      <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <h2 className="mb-6 text-xl font-bold text-slate-900">
-          Enter Consumer Details
-        </h2>
-
-        <div
-          className={
-            config.secondLabel
-              ? "grid gap-5 md:grid-cols-2"
-              : "grid gap-5"
-          }
-        >
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-slate-900">
-              {config.label}
-            </label>
-
-            <div className="relative">
-              <Hash
-                size={23}
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7c3aed]"
-              />
-
-              <input
-                type="text"
-                value={
-                  consumerValues[config.label] ?? ""
-                }
-                onChange={(event) =>
-                  handleInputChange(
-                    config.label,
-                    event.target.value,
-                  )
-                }
-                placeholder={config.placeholder}
-                className="h-16 w-full rounded-2xl border-2 border-slate-200 bg-slate-50 pl-14 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#7c3aed] focus:bg-white"
-              />
-            </div>
-          </div>
-
-          {config.secondLabel && (
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-900">
-                {config.secondLabel}
-              </label>
-
-              <div className="relative">
-                <CalendarDays
-                  size={23}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-[#7c3aed]"
-                />
-
-                <input
-                  type="text"
-                  value={
-                    consumerValues[
-                      config.secondLabel
-                    ] ?? ""
-                  }
-                  onChange={(event) =>
-                    handleInputChange(
-                      config.secondLabel!,
-                      event.target.value,
-                    )
-                  }
-                  placeholder={
-                    config.secondPlaceholder
-                  }
-                  className="h-16 w-full rounded-2xl border-2 border-slate-200 bg-slate-50 pl-14 pr-4 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#7c3aed] focus:bg-white"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={fetchBillDetails}
-          disabled={isFetching}
-          className="mt-7 flex h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <ArrowDownToLine size={25} />
-
-          {isFetching
-            ? "Fetching Bill Details..."
-            : "Fetch Bill Details"}
-        </button>
-      </section>
-    );
-  };
-
-  const renderFormScreen = () => (
-    <>
-      <div className="mb-7 rounded-2xl border border-[#e9ddff] bg-[#faf7ff] p-5">
-        <div className="flex items-start gap-3">
-          <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-white">
-            <Receipt size={18} />
-          </div>
-
-          <div>
-            <h2 className="font-bold text-slate-900">
-              BBPS Bill Payment
-            </h2>
-
-            <p className="mt-1 text-sm leading-6 text-slate-600">
-              Pay utility bills, insurance, FASTag,
-              education fees and other BBPS services with
-              instant receipt generation.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {renderCategorySection()}
-      {renderBillerSelector()}
-      {renderConsumerForm()}
-    </>
-  );
-
-  const renderBillDetails = () => {
-    if (!billDetails) {
-      return null;
-    }
-
-    return (
-      <div className="space-y-6">
-        <section className="rounded-2xl border-2 border-[#ddd1f7] bg-white p-5 shadow-sm">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-500">
-                <Receipt size={28} />
-              </div>
-
-              <div>
-                <h2 className="text-lg font-bold text-[#7c3aed]">
-                  Bill Details Fetched
-                </h2>
-
-                <p className="text-sm text-slate-600">
-                  {selectedBiller.name}
-                </p>
-              </div>
-            </div>
-
-            <span className="rounded-lg bg-amber-100 px-3 py-2 text-xs font-bold text-amber-700">
-              UNPAID
-            </span>
-          </div>
-
-          <div className="my-5 border-t border-slate-200" />
-
-          <div className="space-y-4">
-            <BillRow
-              label="Customer Name"
-              value={billDetails.customerName}
-              strong
-            />
-
-            <BillRow
-              label="Bill Number"
-              value={billDetails.billNumber}
-              strong
-            />
-
-            <BillRow
-              label="Bill Date"
-              value={billDetails.billDate}
-            />
-
-            <BillRow
-              label="Due Date"
-              value={billDetails.dueDate}
-              valueClass="text-red-600"
-            />
-
-            <BillRow
-              label="Billing Period"
-              value={billDetails.billingPeriod}
-            />
-          </div>
-
-          <div className="my-5 border-t border-slate-200" />
-
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-lg font-bold text-slate-900">
-              Total Amount Due
-            </span>
-
-            <span className="text-2xl font-bold text-[#7c3aed]">
-              {formatCurrency(billDetails.amount)}
-            </span>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="mb-5 text-xl font-bold text-slate-900">
-            Payment Amount
-          </h2>
-
-          <div className="relative">
-            <span className="absolute left-5 top-1/2 -translate-y-1/2 text-3xl font-bold text-[#7c3aed]">
-              ₹
-            </span>
-
-            <input
-              type="number"
-              value={paymentAmount}
-              onChange={(event) =>
-                setPaymentAmount(event.target.value)
-              }
-              className="h-24 w-full rounded-2xl border-2 border-slate-200 bg-slate-50 pl-20 pr-5 text-4xl font-bold text-slate-900 outline-none focus:border-[#7c3aed] focus:bg-white"
-            />
-          </div>
-
-          <p className="mt-2 text-center text-sm text-slate-600">
-            Full bill amount mandatory for this biller
-          </p>
-
-          <div className="mt-5 flex items-center justify-between rounded-2xl bg-[#f3f4fa] px-5 py-4">
-            <div className="flex items-center gap-3">
-              <Wallet
-                size={22}
-                className="text-[#7c3aed]"
-              />
-
-              <span className="text-sm text-slate-700 sm:text-base">
-                Retailer Wallet Balance:
-              </span>
-            </div>
-
-            <strong className="text-[#7c3aed]">
-              {formatCurrency(walletBalance)}
-            </strong>
-          </div>
-
-          <div className="mt-5 flex items-center gap-2 text-base font-semibold text-emerald-600">
-            <Star size={20} fill="currentColor" />
-            Commission to earn: +{" "}
-            {formatCurrency(currentCommission)}{" "}
-            (Instant Credit)
-          </div>
-        </section>
-
-        <label className="flex cursor-pointer items-start gap-3 px-1">
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(event) =>
-              setConsent(event.target.checked)
-            }
-            className="mt-1 h-5 w-5 accent-[#24478f]"
-          />
-
-          <span className="text-sm leading-6 text-slate-600">
-            I confirm customer has handed over cash and
-            consented to clear this bill via BBPS.
-          </span>
-        </label>
-
-        <button
-          type="button"
-          onClick={handlePayNow}
-          disabled={isPaying}
-          className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <Wallet size={25} />
-
-          {isPaying
-            ? "Processing Payment..."
-            : `Pay Now (${formatCurrency(
-                Number(paymentAmount || 0),
-              )})`}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setScreen("form")}
-          className="flex w-full items-center justify-center gap-2 py-3 font-semibold text-[#7c3aed]"
-        >
-          Change Biller / Consumer ID
-        </button>
-      </div>
-    );
-  };
-
-  const renderSuccessScreen = () => {
-    const amount = Number(paymentAmount || 0);
-
-    const consumerLabel =
-      categoryFieldConfig[selectedCategory].label;
-
-    const consumerValue =
-      consumerValues[consumerLabel] || "N/A";
-
-    return (
-      <div className="space-y-5">
-        <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full border-4 border-emerald-200 bg-emerald-50 text-emerald-500">
-            <CheckCircle2 size={58} />
-          </div>
-
-          <h2 className="text-3xl font-bold text-emerald-500">
-            Bill Payment Successful!
-          </h2>
-
-          <p className="mt-2 text-lg text-slate-700">
-            {formatCurrency(amount)} paid to{" "}
-            {selectedBiller.name}
-          </p>
-        </div>
-
-        <section className="rounded-3xl bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] p-6 text-white shadow-md">
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white/20">
-              <Wallet size={30} />
-            </div>
-
-            <div>
-              <p className="text-lg font-bold">
-                Retailer Wallet Debited:{" "}
-                {formatCurrency(amount)}
-              </p>
-
-              <p className="mt-1 text-sm text-white/80">
-                Customer cash collected. Updated Wallet
-                Balance: {formatCurrency(walletBalance)}
-              </p>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border-2 border-emerald-200 bg-emerald-50/70 p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-500">
-                <TrendingUp size={30} />
-              </div>
-
-              <div>
-                <p className="text-base text-slate-700">
-                  BBPS Retailer Commission
-                </p>
-
-                <p className="mt-1 text-xl font-bold text-emerald-600">
-                  + {formatCurrency(currentCommission)}
-                  <span className="ml-1 text-sm">
-                    (Credited Instantly to Wallet)
-                  </span>
-                </p>
-              </div>
-            </div>
-
-            <CheckCircle2
-              size={32}
-              className="text-emerald-500"
-            />
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <CheckCircle2
-                size={30}
-                className="text-emerald-500"
-              />
-
-              <h2 className="text-xl font-bold text-slate-900">
-                BBPS Bill Receipt
-              </h2>
-            </div>
-
-            <span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-[#7c3aed]">
-              BHARAT BILLPAY
-            </span>
-          </div>
-
-          <div className="my-5 border-t border-slate-200" />
-
-          <div className="space-y-5">
-            <ReceiptRow
-              label="BBPS Ref. Number"
-              value={bbpsReference}
-            />
-
-            <ReceiptRow
-              label="Biller Txn ID"
-              value={transactionId}
-            />
-
-            <ReceiptRow
-              label="Customer Name"
-              value="RAMESH CHANDRA SHARMA"
-            />
-
-            <ReceiptRow
-              label={
-                selectedCategory === "fastag"
-                  ? "Vehicle Registration Number"
-                  : consumerLabel
-              }
-              value={consumerValue}
-            />
-
-            <ReceiptRow
-              label="Biller / Board"
-              value={selectedBiller.name}
-            />
-
-            <ReceiptRow
-              label="Category"
-              value={getCategoryLabel(selectedCategory)}
-            />
-
-            <ReceiptRow
-              label="Amount Paid"
-              value={formatCurrency(amount)}
-              valueClass="font-bold"
-            />
-
-            <ReceiptRow
-              label="Retailer Commission"
-              value={`+ ${formatCurrency(
-                currentCommission,
-              )}`}
-              valueClass="font-bold text-emerald-500"
-            />
-
-            <ReceiptRow
-              label="Retailer Wallet Balance"
-              value={formatCurrency(walletBalance)}
-              valueClass="font-bold"
-            />
-
-            <ReceiptRow
-              label="Date & Time"
-              value={paymentDate}
-            />
-
-            <ReceiptRow
-              label="Payment Mode"
-              value="BBPS • Wallet Debit"
-            />
-          </div>
-        </section>
-
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            type="button"
-            onClick={() => {
-              alert("WhatsApp receipt sharing initiated.");
-            }}
-            className="flex h-16 items-center justify-center gap-2 rounded-2xl border-2 border-emerald-500 bg-white font-bold text-emerald-600 hover:bg-emerald-50"
-          >
-            <MessageCircle size={23} />
-            WhatsApp
-          </button>
-
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="flex h-16 items-center justify-center gap-2 rounded-2xl border-2 border-slate-300 bg-white font-bold text-[#7c3aed] hover:bg-slate-50"
-          >
-            <Printer size={23} />
-            Print Receipt
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={resetPayment}
-          className="flex h-16 w-full items-center justify-center gap-3 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-md hover:bg-[#6d28d9]"
-        >
-          <span className="text-3xl leading-none">
-            +
-          </span>
-          New Bill Payment
-        </button>
-      </div>
-    );
-  };
-
   return (
-    <div className="min-h-screen bg-[#f5f7fc] text-slate-900">
-      {renderHeader()}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100/60 to-slate-50 text-slate-800 pb-16 font-sans">
+      {/* =========================================================
+          Top Header
+      ========================================================= */}
+      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-md shadow-xs">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20">
+              <Receipt size={22} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+                  Bharat Bill Payment System
+                </h1>
+                <span className="rounded-md bg-blue-50 border border-blue-200 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+                  BBPS Live
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Official NPCI Biller Network Integration
+              </p>
+            </div>
+          </div>
 
-      <main className="mx-auto w-full max-w-[960px] px-4 py-5 pb-10 sm:px-6 lg:px-8">
-        {screen === "form" && renderFormScreen()}
-
-        {screen === "bill" && (
-          <>
-            <div className="mb-5 flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-3.5 py-1.5 shadow-2xs">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
+                <Wallet size={15} />
+              </div>
+              <div>
+                <span className="block text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">
+                  Wallet Balance
+                </span>
+                <span className="text-sm font-black text-emerald-950">
+                  {formatCurrency(walletBalance)}
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={() => setScreen("form")}
-                className="font-semibold text-[#7c3aed]"
+                onClick={fetchWallet}
+                title="Refresh Wallet Balance"
+                className="ml-1 text-emerald-700 hover:text-emerald-950 transition"
               >
-                BBPS
+                <RefreshCw size={13} />
               </button>
-
-              <ArrowRight size={16} />
-
-              <span>Bill Details</span>
             </div>
 
-            {renderBillDetails()}
-          </>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+            >
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* =========================================================
+          Main Content Container
+      ========================================================= */}
+      <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
+        {/* Loading Categories Skeleton */}
+        {loadingCategories && (
+          <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {[...Array(10)].map((_, i) => (
+              <div
+                key={i}
+                className="h-24 animate-pulse rounded-2xl border border-slate-200 bg-white p-4"
+              >
+                <div className="h-10 w-10 rounded-xl bg-slate-200 mb-2" />
+                <div className="h-4 w-20 rounded bg-slate-200" />
+              </div>
+            ))}
+          </div>
         )}
 
-        {screen === "success" && (
-          <>
-            <div className="mb-5 flex items-center gap-2 text-sm text-slate-500">
-              <span className="font-semibold text-[#7c3aed]">
-                BBPS
+        {/* Error Loading Categories */}
+        {categoryError && (
+          <div className="mb-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-center">
+            <p className="text-sm font-semibold text-rose-800">{categoryError}</p>
+            <button
+              type="button"
+              onClick={fetchCategories}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-rose-700"
+            >
+              <RefreshCw size={13} /> Retry Loading Categories
+            </button>
+          </div>
+        )}
+
+        {/* Dynamic Categories Grid */}
+        {!loadingCategories && categories.length > 0 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3.5">
+              <div>
+                <h2 className="text-base font-bold text-slate-900">
+                  Select Utility Category
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Choose a category to view live billers and make instant payments
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-slate-500">
+                {categories.length} Categories Live
               </span>
-
-              <ArrowRight size={16} />
-
-              <span>Payment Successful</span>
             </div>
 
-            {renderSuccessScreen()}
-          </>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+              {categories.map((cat) => {
+                const isSelected = selectedCategory?.id === cat.id;
+                const meta = resolveCategoryMeta(cat.service_name);
+
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat)}
+                    className={`group relative flex flex-col items-start justify-between rounded-2xl border p-4 text-left transition-all duration-200 ${
+                      isSelected
+                        ? "border-blue-600 bg-white shadow-md shadow-blue-500/10 ring-2 ring-blue-500/20"
+                        : "border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs"
+                    }`}
+                  >
+                    {meta.badge && (
+                      <span className="absolute top-3 right-3 rounded-full bg-blue-500 px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider text-white shadow-xs">
+                        {meta.badge}
+                      </span>
+                    )}
+
+                    <div
+                      className={`flex h-12 w-12 items-center justify-center rounded-xl transition-transform duration-200 group-hover:scale-105 ${meta.iconBg} ${meta.iconColor}`}
+                    >
+                      {meta.icon}
+                    </div>
+
+                    <div className="mt-4">
+                      <span
+                        className={`block text-xs font-bold transition-colors ${
+                          isSelected ? "text-blue-700" : "text-slate-800 group-hover:text-slate-900"
+                        }`}
+                      >
+                        {cat.service_name}
+                      </span>
+                      <span className="block text-[11px] text-slate-400 font-medium">
+                        Live Fetch
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================
+            Active Stage Screens
+        ========================================================= */}
+        {selectedCategory && (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Main Interactive Panel (8 Cols) */}
+            <div className="lg:col-span-8">
+              {/* Screen 1: Dynamic Biller & Consumer Form */}
+              {screen === "form" && (
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-11 w-11 items-center justify-center rounded-xl ${activeMeta.iconBg} ${activeMeta.iconColor}`}
+                      >
+                        {activeMeta.icon}
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-slate-900">
+                          {selectedCategory.service_name}
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          {categoryBillers.length} biller operators available
+                        </p>
+                      </div>
+                    </div>
+
+                    {selectedBiller?.opcode && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-700">
+                        Opcode: {selectedBiller.opcode}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Error Notification Alert */}
+                  {actionError && (
+                    <div className="mt-4 flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-800">
+                      <div className="flex items-start gap-2.5">
+                        <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-rose-500 shrink-0" />
+                        <div>
+                          <strong className="font-bold">Notice: </strong>
+                          <span>{actionError}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActionError(null)}
+                        className="text-rose-500 hover:text-rose-700 font-bold ml-2"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mt-6 space-y-5">
+                    {/* Biller Selector Button */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        Select Biller Operator
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowBillerModal(true)}
+                        className="flex h-12 w-full items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-4 text-left text-sm font-semibold text-slate-800 transition hover:border-blue-400 hover:bg-white focus:outline-none"
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <Landmark size={18} className="text-slate-400 shrink-0" />
+                          <span className="truncate">
+                            {selectedBiller?.service_name || "Select Biller"}
+                          </span>
+                        </div>
+                        <ChevronDown size={18} className="text-slate-400 shrink-0 ml-2" />
+                      </button>
+                    </div>
+
+                    {/* Primary Dynamic Input Field (CUSTNO) */}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                        {primaryFieldLabel}
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                          <Hash size={17} />
+                        </div>
+                        <input
+                          type="text"
+                          value={consumerValues[primaryFieldLabel] || ""}
+                          onChange={(e) =>
+                            handleInputChange(primaryFieldLabel, e.target.value)
+                          }
+                          placeholder={`Enter ${primaryFieldLabel}`}
+                          className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Secondary Field (FIELD1 - e.g. DOB) */}
+                    {secondaryFieldLabel && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                          {secondaryFieldLabel}
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                            <CalendarDays size={17} />
+                          </div>
+                          <input
+                            type="text"
+                            value={consumerValues[secondaryFieldLabel] || ""}
+                            onChange={(e) =>
+                              handleInputChange(secondaryFieldLabel, e.target.value)
+                            }
+                            placeholder={`Enter ${secondaryFieldLabel} (e.g. DD/MM/YYYY)`}
+                            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile Field (REFMOBILENO) */}
+                    {mobileFieldLabel && mobileFieldLabel !== primaryFieldLabel && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                          {mobileFieldLabel} (For SMS Receipt)
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                            <Phone size={17} />
+                          </div>
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            value={consumerValues[mobileFieldLabel] || ""}
+                            onChange={(e) =>
+                              handleInputChange(mobileFieldLabel, e.target.value)
+                            }
+                            placeholder="Enter 10-digit mobile number"
+                            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fetch Bill Action Button */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        disabled={isFetching}
+                        onClick={handleFetchBill}
+                        className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold text-white shadow-md shadow-blue-500/25 transition hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60"
+                      >
+                        {isFetching ? (
+                          <>
+                            <RefreshCw size={17} className="animate-spin" /> Fetching Live Bill...
+                          </>
+                        ) : (
+                          <>
+                            Fetch Live Bill <ArrowRight size={17} />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Screen 2: Bill Presentation & Payment Confirmation */}
+              {screen === "bill" && billDetails && (
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-5">
+                    <button
+                      type="button"
+                      onClick={() => setScreen("form")}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900"
+                    >
+                      <ArrowLeft size={16} /> Back to Details
+                    </button>
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1 text-xs font-bold text-emerald-700">
+                      Bill Fetched
+                    </span>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5 space-y-3">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Biller Operator</span>
+                        <span className="font-bold text-slate-900">{selectedBiller?.service_name}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Customer Name</span>
+                        <span className="font-bold text-slate-900">
+                          {billDetails.customerName}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Bill Number</span>
+                        <span className="font-mono font-bold text-slate-800">
+                          {billDetails.billNumber}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Due Date</span>
+                        <span className="font-bold text-rose-600">
+                          {billDetails.dueDate}
+                        </span>
+                      </div>
+                      <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
+                        <span className="text-sm font-bold text-slate-800">Total Payable Amount</span>
+                        <span className="text-xl font-black text-blue-700">
+                          {formatCurrency(billDetails.amount)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Customer Consent Checkbox */}
+                    <div className="rounded-xl border border-slate-200 p-4 bg-white">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={consent}
+                          onChange={(e) => setConsent(e.target.checked)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-xs text-slate-600 font-medium leading-relaxed">
+                          I confirm that customer consent and cash/funds have been collected for this utility bill payment.
+                        </span>
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isPaying || !consent}
+                      onClick={handlePayBill}
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-sm font-bold text-white shadow-md shadow-emerald-500/20 transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+                    >
+                      {isPaying ? (
+                        <>
+                          <RefreshCw size={17} className="animate-spin" /> Processing Payment...
+                        </>
+                      ) : (
+                        <>
+                          Pay {formatCurrency(parseFloat(paymentAmount) || billDetails.amount)} Now
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Screen 3: Transaction Receipt */}
+              {screen === "success" && billDetails && (
+                <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 text-center print:border-none print:shadow-none">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4">
+                    <Check size={32} />
+                  </div>
+
+                  <h3 className="text-xl font-black text-slate-900">
+                    Bill Payment Successful!
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Your transaction has been settled via Bharat BillPay.
+                  </p>
+
+                  <div className="my-6 rounded-2xl border border-slate-100 bg-slate-50 p-5 text-left text-xs space-y-2.5">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Transaction ID</span>
+                      <span className="font-mono font-bold text-slate-900">{transactionId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">BBPS Reference</span>
+                      <span className="font-mono font-bold text-slate-900">{bbpsReference}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Biller Operator</span>
+                      <span className="font-bold text-slate-900">{selectedBiller?.service_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Opcode</span>
+                      <span className="font-mono font-bold text-slate-700">{selectedBiller?.opcode}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Customer Name</span>
+                      <span className="font-bold text-slate-900">{billDetails.customerName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Payment Date & Time</span>
+                      <span className="font-semibold text-slate-800">{paymentDate}</span>
+                    </div>
+                    <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center">
+                      <span className="text-sm font-bold text-slate-800">Amount Paid</span>
+                      <span className="text-lg font-black text-emerald-600">
+                        {formatCurrency(parseFloat(paymentAmount) || billDetails.amount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 justify-center print:hidden">
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+                    >
+                      <Printer size={15} /> Print Receipt
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleNewPayment}
+                      className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-700 shadow-sm transition"
+                    >
+                      <Receipt size={15} /> Pay Another Bill
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Right Side Trust & Operator Details Panel (4 Cols) */}
+            <div className="lg:col-span-4 space-y-6">
+              {/* Selected Operator Card */}
+              {selectedBiller && (
+                <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+                      <Landmark size={20} />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900">
+                        Active Biller Operator
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Opcode: {selectedBiller.opcode}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 border-t border-slate-100 pt-3 text-xs space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Service Type</span>
+                      <span className="font-bold text-slate-800">
+                        {selectedBiller.service_type}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Consumer Field</span>
+                      <span className="font-semibold text-slate-700">
+                        {primaryFieldLabel}
+                      </span>
+                    </div>
+                    {selectedBiller.FIELD1 && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Secondary Field</span>
+                        <span className="font-semibold text-slate-700">
+                          {selectedBiller.FIELD1}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* BBPS Trust Card */}
+              <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <ShieldCheck size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900">
+                      BBPS Assured Payment
+                    </h4>
+                    <p className="text-[11px] text-slate-500">
+                      NPCI National Biller Switch
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-600 space-y-2.5 leading-relaxed">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Instant bill dues verification direct from utility provider.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Real-time digital payment acknowledgment & receipt.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <CheckCircle2 size={14} className="text-emerald-500 shrink-0 mt-0.5" />
+                    <span>Instant commission credited to your retailer wallet.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </main>
 
+      {/* =========================================================
+          Biller Selection Modal
+      ========================================================= */}
       {showBillerModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 sm:items-center sm:p-6"
-          onClick={() => setShowBillerModal(false)}
-        >
-          <div
-            className="max-h-[88vh] w-full overflow-hidden rounded-t-[32px] bg-[#f8f8ff] sm:max-w-[720px] sm:rounded-[32px]"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
-          >
-            <div className="flex justify-center pt-4">
-              <div className="h-1.5 w-16 rounded-full bg-slate-300" />
-            </div>
-
-            <div className="flex items-center justify-between px-6 pb-4 pt-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="relative w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Select Biller /{" "}
-                  {getCategoryLabel(selectedCategory)} Board
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Choose a biller to continue
+                <h3 className="text-base font-bold text-slate-900">
+                  Select {selectedCategory?.service_name} Operator
+                </h3>
+                <p className="text-xs text-slate-500">
+                  {filteredBillers.length} operators available in network
                 </p>
               </div>
-
               <button
                 type="button"
-                onClick={() =>
-                  setShowBillerModal(false)
-                }
-                className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-slate-200"
+                onClick={() => setShowBillerModal(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
-            <div className="overflow-x-auto px-6 pb-2">
-              <div className="flex min-w-max gap-3">
-                {states.map((state) => {
-                  const active =
-                    selectedState === state;
-
-                  return (
-                    <button
-                      key={state}
-                      type="button"
-                      onClick={() =>
-                        handleStateChange(state)
-                      }
-                      className={`flex h-14 items-center gap-2 rounded-xl border-2 px-5 text-sm font-medium transition ${
-                        active
-                          ? "border-[#7c3aed] bg-[#7c3aed] text-white"
-                          : "border-slate-300 bg-white text-slate-600 hover:border-[#7c3aed]"
-                      }`}
-                    >
-                      {active && <Check size={18} />}
-                      {state}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="px-6 py-4">
+            {/* Search Input */}
+            <div className="mt-4">
               <div className="relative">
                 <Search
-                  size={24}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500"
+                  size={16}
+                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
                 />
-
                 <input
                   type="text"
                   value={billerSearch}
-                  onChange={(event) =>
-                    setBillerSearch(
-                      event.target.value,
-                    )
-                  }
-                  placeholder="Search biller by name..."
-                  className="h-16 w-full rounded-2xl border-2 border-slate-200 bg-white pl-14 pr-4 text-base outline-none placeholder:text-slate-400 focus:border-[#7c3aed]"
+                  onChange={(e) => setBillerSearch(e.target.value)}
+                  placeholder="Search operator name or opcode..."
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-xs font-semibold text-slate-800 outline-none focus:border-blue-600 focus:bg-white"
                 />
               </div>
             </div>
 
-            <div className="max-h-[55vh] overflow-y-auto px-6 pb-8">
-              {filteredBillers.length > 0 ? (
-                filteredBillers.map((biller, index) => (
+            {/* Billers List */}
+            <div className="mt-4 max-h-80 overflow-y-auto divide-y divide-slate-100 pr-1">
+              {loadingBillers ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  <RefreshCw size={20} className="animate-spin mx-auto mb-2" />
+                  Loading billers from BBPS network...
+                </div>
+              ) : filteredBillers.length > 0 ? (
+                filteredBillers.map((biller) => (
                   <button
                     key={biller.id}
                     type="button"
-                    onClick={() =>
-                      handleBillerSelect(biller)
-                    }
-                    className={`flex w-full items-center gap-4 py-5 text-left ${
-                      index !==
-                      filteredBillers.length - 1
-                        ? "border-b border-slate-200"
-                        : ""
-                    }`}
+                    onClick={() => handleBillerSelect(biller)}
+                    className="flex w-full items-center justify-between py-3 px-2.5 text-left hover:bg-blue-50/60 rounded-xl transition group"
                   >
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#eef1fb] text-[#7c3aed]">
-                      <Receipt size={27} />
+                    <div className="pr-3">
+                      <span className="block text-xs font-bold text-slate-800 group-hover:text-blue-700">
+                        {biller.service_name}
+                      </span>
+                      <span className="block text-[10px] font-semibold text-slate-400">
+                        Input: {biller.CUSTNO || "Consumer ID"}
+                        {biller.FIELD1 ? ` | Secondary: ${biller.FIELD1}` : ""}
+                      </span>
                     </div>
-
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-slate-700 sm:text-lg">
-                        {biller.name}
-                      </p>
-
-                      <p className="mt-1 text-sm text-emerald-600">
-                        {biller.state} • Fetch Enabled •
-                        Comm{" "}
-                        {formatCurrency(
-                          biller.commission,
-                        )}
-                      </p>
-                    </div>
+                    <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5 shrink-0">
+                      #{biller.opcode}
+                    </span>
                   </button>
                 ))
               ) : (
-                <div className="py-12 text-center">
-                  <FileText
-                    size={45}
-                    className="mx-auto text-slate-300"
-                  />
-
-                  <p className="mt-4 font-semibold text-slate-600">
-                    No biller found
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    Try another state or search term.
-                  </p>
+                <div className="py-8 text-center text-xs text-slate-400">
+                  No billers found for "{billerSearch}".
                 </div>
               )}
             </div>
@@ -1508,57 +1311,5 @@ const BBPS = () => {
     </div>
   );
 };
-
-type BillRowProps = {
-  label: string;
-  value: string;
-  strong?: boolean;
-  valueClass?: string;
-};
-
-const BillRow = ({
-  label,
-  value,
-  strong = false,
-  valueClass = "",
-}: BillRowProps) => (
-  <div className="flex items-start justify-between gap-5">
-    <span className="text-sm text-slate-500 sm:text-base">
-      {label}
-    </span>
-
-    <span
-      className={`text-right text-sm text-slate-800 sm:text-base ${
-        strong ? "font-bold" : ""
-      } ${valueClass}`}
-    >
-      {value}
-    </span>
-  </div>
-);
-
-type ReceiptRowProps = {
-  label: string;
-  value: string;
-  valueClass?: string;
-};
-
-const ReceiptRow = ({
-  label,
-  value,
-  valueClass = "",
-}: ReceiptRowProps) => (
-  <div className="flex items-start justify-between gap-5">
-    <span className="max-w-[48%] text-sm text-slate-500 sm:text-base">
-      {label}
-    </span>
-
-    <span
-      className={`max-w-[52%] text-right text-sm text-slate-800 sm:text-base ${valueClass}`}
-    >
-      {value}
-    </span>
-  </div>
-);
 
 export default BBPS;
