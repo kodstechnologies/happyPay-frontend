@@ -414,7 +414,6 @@ const Dmt = () => {
     }
 
     setOtp("");
-    setOtpError("");
     setOtpTimer(30);
     setOtpSent(true);
   };
@@ -611,7 +610,6 @@ const Dmt = () => {
     }
 
     setIsProcessingTransfer(true);
-    setActionError("");
 
     try {
       const payload = {
@@ -626,7 +624,7 @@ const Dmt = () => {
       const isSuccess = res?.success !== false && res?.status !== false;
       
       if (!isSuccess) {
-         setActionError(res?.message || "Transfer failed");
+         toast.error(res?.message || "Transfer failed");
          return;
       }
       
@@ -650,11 +648,10 @@ const Dmt = () => {
 
   const handleAnotherTransaction = () => {
     setCustomerMobile("");
-    setTransferAmount("");
+    setSendAmount("");
     setOtp("");
     setOtpSent(false);
     setOtpTimer(30);
-    setOtpError("");
 
     setSelectedBeneficiary(null);
 

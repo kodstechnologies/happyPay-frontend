@@ -383,7 +383,6 @@ const BBPS: React.FC = () => {
     setBillDetails(null);
     setPaymentAmount("");
     setConsent(false);
-    setActionError(null);
     setScreen("form");
 
     // Match billers for the selected category
@@ -410,7 +409,6 @@ const BBPS: React.FC = () => {
     setBillDetails(null);
     setPaymentAmount("");
     setConsent(false);
-    setActionError(null);
     setScreen("form");
   };
 
@@ -419,7 +417,6 @@ const BBPS: React.FC = () => {
       ...prev,
       [field]: value,
     }));
-    if (actionError) setActionError(null);
   };
 
   // Visual Meta for current category
@@ -867,25 +864,6 @@ const BBPS: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Error Notification Alert */}
-                  {actionError && (
-                    <div className="mt-4 flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-xs text-rose-800">
-                      <div className="flex items-start gap-2.5">
-                        <span className="mt-0.5 inline-block h-2 w-2 rounded-full bg-rose-500 shrink-0" />
-                        <div>
-                          <strong className="font-bold">Notice: </strong>
-                          <span>{actionError}</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActionError(null)}
-                        className="text-rose-500 hover:text-rose-700 font-bold ml-2"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  )}
 
                   <div className="mt-6 space-y-5">
                     {/* Biller Selector Button */}
