@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Fingerprint,
   Send,
@@ -17,10 +17,13 @@ import {
   ReceiptIndianRupee,
   Clock3,
   XCircle,
-
+  RefreshCw,
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
+import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi } from "../../apis/wallet.apis";
+import { loadRazorpayScript } from "../../utils/razorpay";
 import { useNavigate } from "react-router-dom";
+
 import { apiClient } from "../../services/api/client";
 import { getToken } from "../../utils/auth";
 import { mfs110Service } from "../../services/bimetric/mfs110.service";
@@ -162,6 +165,10 @@ const Dashboard = () => {
 
   const [walletBalance, setWalletBalanceState] =
     useState(getWalletBalance);
+  const [isFetchingBalance, setIsFetchingBalance] =
+    useState(false);
+  const [isAddingMoney, setIsAddingMoney] =
+    useState(false);
 
   const [showAddMoneyModal, setShowAddMoneyModal] =
     useState(false);
@@ -192,16 +199,65 @@ const Dashboard = () => {
   const [bioEkycResponse, setBioEkycResponse] = useState<unknown>(null);
   const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
   const [kycStep, setKycStep] = useState("Calling eKYC...");
-  
+
+  const fetchLiveBalance = useCallback(async (showLoader = false) => {
+    if (showLoader) setIsFetchingBalance(true);
+    try {
+      const res = await getWalletBalanceApi();
+      if (res && res.success && res.data) {
+        const liveBal = Number(res.data.balance || 0);
+        setWalletBalanceState(liveBal);
+        setWalletBalance(liveBal);
+      }
+    } catch (err) {
+      console.error("Failed to fetch wallet balance on dashboard:", err);
+    } finally {
+      setIsFetchingBalance(false);
+    }
+  }, []);
+
   useEffect(() => {
+    let isMounted = true;
+    const loadLiveBalance = async () => {
+      setIsFetchingBalance(true);
+      try {
+        const res = await getWalletBalanceApi();
+        if (isMounted && res?.success && res.data) {
+          const liveBal = Number(res.data.balance || 0);
+          setWalletBalanceState(liveBal);
+          setWalletBalance(liveBal);
+        }
+      } catch (err) {
+        console.error("Failed to fetch wallet balance on dashboard:", err);
+      } finally {
+        if (isMounted) {
+          setIsFetchingBalance(false);
+        }
+      }
+    };
+
+    loadLiveBalance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
     const fetchBanners = async () => {
       try {
-        const response = await apiClient<any>("/api/v1/banners", { method: "GET" });
-        if (response.success && response.data) {
+        interface BannerApiResponseItem {
+          order?: number;
+          imageUrl?: string;
+        }
+        const response = await apiClient<BannerApiResponseItem[]>("/api/v1/banners", { method: "GET" });
+        if (isMounted && response?.success && Array.isArray(response.data)) {
           // Sort by order and map to imageUrl
-          const sorted = response.data
-            .sort((a: any, b: any) => a.order - b.order)
-            .map((b: any) => b.imageUrl);
+          const sorted = [...response.data]
+            .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+            .map((b) => b.imageUrl)
+            .filter((url): url is string => Boolean(url));
           
           if (sorted.length > 0) {
             setBanners(sorted);
@@ -215,14 +271,20 @@ const Dashboard = () => {
         }
       } catch (err) {
         console.error("Failed to fetch banners", err);
-        setBanners([
-          "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80",
-          "https://images.unsplash.com/photo-1616077168079-7e09a6a4c2f2?auto=format&fit=crop&q=80",
-        ]);
+        if (isMounted) {
+          setBanners([
+            "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80",
+            "https://images.unsplash.com/photo-1616077168079-7e09a6a4c2f2?auto=format&fit=crop&q=80",
+          ]);
+        }
       }
     };
     
     fetchBanners();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -387,30 +449,109 @@ const Dashboard = () => {
      ADD MONEY
   ========================================================= */
 
-  const handleAddMoney = () => {
+  const handleAddMoney = async () => {
     const numericAmount = Number(addMoneyAmount);
 
     if (!numericAmount || numericAmount <= 0) {
       return;
     }
 
-    setWalletBalanceState((previous) => {
-      const nextBalance =
-        previous + numericAmount;
+    setIsAddingMoney(true);
+    try {
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        alert("Failed to load Razorpay SDK. Please check your internet connection.");
+        setIsAddingMoney(false);
+        return;
+      }
 
-      setWalletBalance(nextBalance);
+      const initiateRes = await initiatePaymentApi(numericAmount, "add_wallet");
+      if (!initiateRes.success) {
+        alert(initiateRes.message || "Failed to initiate payment");
+        setIsAddingMoney(false);
+        return;
+      }
 
-      return nextBalance;
-    });
+      const orderData = initiateRes.data;
+      const storedUser = (() => {
+        try {
+          return JSON.parse(localStorage.getItem("retailerUser") || "{}");
+        } catch {
+          return {};
+        }
+      })();
 
-    setLastAddedAmount(numericAmount);
-    setShowAddMoneyModal(false);
-    setAddMoneyAmount("500");
-    setShowMoneyAddedToast(true);
+      interface RazorpayPaymentSuccess {
+        razorpay_payment_id: string;
+        razorpay_order_id: string;
+        razorpay_signature: string;
+      }
 
-    window.setTimeout(() => {
-      setShowMoneyAddedToast(false);
-    }, 3500);
+      interface RazorpayPaymentFailure {
+        error?: {
+          description?: string;
+        };
+      }
+
+      const options = {
+        key: import.meta.env.VITE_RAZORPAY_KEY_ID || "rzp_test_ThS2jwQQemeVvp",
+        amount: orderData.amount,
+        currency: orderData.currency || "INR",
+        name: "Happy Pay",
+        description: "Wallet Topup",
+        order_id: orderData.orderId,
+        handler: async function (response: RazorpayPaymentSuccess) {
+          try {
+            const verifyRes = await verifyPaymentApi(
+              response.razorpay_order_id,
+              response.razorpay_payment_id,
+              response.razorpay_signature,
+              "add_wallet"
+            );
+
+            if (verifyRes.success) {
+              setLastAddedAmount(numericAmount);
+              setShowAddMoneyModal(false);
+              setAddMoneyAmount("500");
+              setShowMoneyAddedToast(true);
+              await fetchLiveBalance(false);
+              window.setTimeout(() => {
+                setShowMoneyAddedToast(false);
+              }, 3500);
+            } else {
+              alert(verifyRes.message || "Payment verification failed");
+            }
+          } catch (error: unknown) {
+            console.error("Payment verification error:", error);
+            const axiosErr = error as { response?: { data?: { message?: string } } };
+            const backendErr = axiosErr?.response?.data;
+            alert(backendErr?.message || "Error verifying payment with server.");
+          }
+        },
+        prefill: {
+          name: storedUser.fullName || storedUser.name || "Retailer",
+          email: storedUser.email || "retailer@happypay.com",
+          contact: storedUser.mobile || localStorage.getItem("retailerMobile") || "9999999999",
+        },
+        theme: {
+          color: "#8b5cf6",
+        },
+      };
+
+      const RazorpayConstructor = (window as unknown as { Razorpay: new (opts: typeof options) => { on: (event: string, cb: (res: RazorpayPaymentFailure) => void) => void; open: () => void } }).Razorpay;
+      const rzp = new RazorpayConstructor(options);
+      rzp.on("payment.failed", function (response: RazorpayPaymentFailure) {
+        alert(response.error?.description || "Payment failed");
+      });
+      rzp.open();
+    } catch (error: unknown) {
+      console.error("Add money flow error:", error);
+      const axiosErr = error as { response?: { data?: { message?: string } } };
+      const backendErr = axiosErr?.response?.data;
+      alert(backendErr?.message || "Something went wrong during payment initiation.");
+    } finally {
+      setIsAddingMoney(false);
+    }
   };
 
   const handleAmountChange = (
@@ -688,6 +829,15 @@ const Dashboard = () => {
                           aria-label={showBalance ? "Hide balance" : "Show balance"}
                         >
                           {showBalance ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fetchLiveBalance(true)}
+                          disabled={isFetchingBalance}
+                          title="Refresh Balance"
+                          className="text-[#8066b5] transition hover:text-[#63449b] disabled:opacity-50"
+                        >
+                          <RefreshCw className={`h-3.5 w-3.5 ${isFetchingBalance ? "animate-spin text-[#63449b]" : ""}`} />
                         </button>
                       </div>
                       <h2 className="mt-1 text-2xl font-bold tracking-tight text-[#5b21b6] sm:text-3xl">
@@ -984,17 +1134,18 @@ const Dashboard = () => {
                 onClick={handleAddMoney}
                 disabled={
                   !addMoneyAmount ||
-                  Number(addMoneyAmount) <= 0
+                  Number(addMoneyAmount) <= 0 ||
+                  isAddingMoney
                 }
                 className="mt-4 flex h-10 w-full items-center justify-center rounded-xl bg-[#315bd1] text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Add ₹
-                {addMoneyAmount
-                  ? Number(
-                      addMoneyAmount,
-                    ).toLocaleString("en-IN")
-                  : "0"}{" "}
-                to Wallet
+                {isAddingMoney
+                  ? "Processing..."
+                  : `Add ₹${
+                      addMoneyAmount
+                        ? Number(addMoneyAmount).toLocaleString("en-IN")
+                        : "0"
+                    } to Wallet`}
               </button>
 
               <button

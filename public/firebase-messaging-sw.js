@@ -3,12 +3,13 @@ importScripts('https://www.gstatic.com/firebasejs/10.8.1/firebase-messaging-comp
 
 // TODO: Replace with your actual Firebase project configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_STORAGE_BUCKET",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+ apiKey: "AIzaSyCTtRFKG6xyp-Be_rkL2-kTMAbJrVAIo4A",
+  authDomain: "happypay-5ecc8.firebaseapp.com",
+  projectId: "happypay-5ecc8",
+  storageBucket: "happypay-5ecc8.firebasestorage.app",
+  messagingSenderId: "365178653696",
+  appId: "1:365178653696:web:0c3250ec730e398cc09ce5",
+  measurementId: "G-KNTGF0DNDN"
 };
 
 firebase.initializeApp(firebaseConfig);

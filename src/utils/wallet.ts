@@ -1,5 +1,5 @@
 const WALLET_BALANCE_KEY = "happyPayRetailerWalletBalance";
-const DEFAULT_WALLET_BALANCE = 24580.5;
+const DEFAULT_WALLET_BALANCE = 0;
 
 export function getWalletBalance(): number {
   const stored = Number(localStorage.getItem(WALLET_BALANCE_KEY));
