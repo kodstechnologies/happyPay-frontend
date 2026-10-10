@@ -2,6 +2,7 @@ import { apiClient } from "../client";
 import { getToken } from "../../../utils/auth";
 
 export interface BiometricPayload {
+  userId?: string;
   outlet_id: string;
   referenceKey: string;
   latitude: string;
@@ -203,7 +204,7 @@ export function verifyTfa(payload: TfaPayload) {
   });
 }
 
-export function checkDoEkyc(outletId?: string) {
+export function checkDoEkyc(outletId?: string, userId?: string) {
   return apiClient<
     Envelope<{
       provider: unknown;
@@ -213,7 +214,10 @@ export function checkDoEkyc(outletId?: string) {
   >("/api/v1/auth/check-ekyc", {
     ...authOptions(),
     method: "POST",
-    body: JSON.stringify({ outlet_id: outletId || "" }),
+    body: JSON.stringify({
+      outlet_id: outletId || "",
+      userId: userId || "",
+    }),
   });
 }
 

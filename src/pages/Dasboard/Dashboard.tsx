@@ -251,8 +251,8 @@ const Dashboard = () => {
           order?: number;
           imageUrl?: string;
         }
-        const response = await apiClient<BannerApiResponseItem[]>("/api/v1/banners", { method: "GET" });
-        if (isMounted && response && Array.isArray(response)) {
+        const response = await apiClient<{ success?: boolean; data?: BannerApiResponseItem[] }>("/api/v1/banners", { method: "GET" });
+        if (isMounted && response?.success && Array.isArray(response.data)) {
           // Sort by order and map to imageUrl
           const sorted = [...response]
             .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
@@ -296,8 +296,10 @@ const Dashboard = () => {
       try {
         const storedUser = JSON.parse(
           localStorage.getItem("retailerUser") || "{}",
-        ) as { outletId?: string };
-        const status = await checkDoEkyc(storedUser.outletId);
+        ) as { id?: string; _id?: string; userId?: string; outletId?: string };
+
+        const userId = storedUser.id || storedUser._id || storedUser.userId;
+        const status = await checkDoEkyc(storedUser.outletId, userId);
         if (cancelled) return;
 
         setDoEkycResponse(status);
@@ -355,14 +357,20 @@ const Dashboard = () => {
 
       setKycStep("Fingerprint captured. Calling biometric eKYC...");
 
+      const storedUser = JSON.parse(
+        localStorage.getItem("retailerUser") || "{}",
+      ) as { id?: string; _id?: string; userId?: string; outletId?: string };
+      const userId = storedUser.id || storedUser._id || storedUser.userId;
+
       const result = await doBioEkyc({
-        outlet_id: ekycPrompt.outletId,
+        userId,
+        outlet_id: ekycPrompt.outletId || storedUser.outletId || "",
         referenceKey: ekycPrompt.referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
         ...parsePidXml(capture.data),
       });
-  console.log("doBioEkyc result",{ ...parsePidXml(capture.data)});
+      console.log("doBioEkyc result", { ...parsePidXml(capture.data) });
       setBioEkycResponse(result);
       setKycStep("Biometric eKYC response received.");
     } catch (error: any) {
