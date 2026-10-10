@@ -252,9 +252,9 @@ const Dashboard = () => {
           imageUrl?: string;
         }
         const response = await apiClient<BannerApiResponseItem[]>("/api/v1/banners", { method: "GET" });
-        if (isMounted && response?.success && Array.isArray(response.data)) {
+        if (isMounted && response && Array.isArray(response)) {
           // Sort by order and map to imageUrl
-          const sorted = [...response.data]
+          const sorted = [...response]
             .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
             .map((b) => b.imageUrl)
             .filter((url): url is string => Boolean(url));

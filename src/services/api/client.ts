@@ -20,8 +20,8 @@ export async function apiClient<T>(
 
       ...(token
         ? {
-            Authorization: `Bearer ${token}`,
-          }
+          Authorization: `Bearer ${token}`,
+        }
         : {}),
 
       ...fetchOptions.headers,
