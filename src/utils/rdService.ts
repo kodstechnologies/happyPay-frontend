@@ -3,7 +3,7 @@ import { checkDeviceStatus, captureBiometric } from "../apis/bioKyc";
 export interface RDDeviceResponse {
   success: boolean;
   message: string;
-  data: string | null;
+  data: string;
 }
 
 export interface ActiveDevice {
@@ -36,12 +36,12 @@ class RDService {
         const response = await checkDeviceStatus(port);
         if (response.status >= 200 && response.status < 300) {
           const deviceInfo = response.data;
-          
+
           if (typeof deviceInfo === "string" && deviceInfo.includes("RDService")) {
             // Extract the 'info' attribute for the device name (e.g. info="Mantra MFS100")
             const match = deviceInfo.match(/info="([^"]+)"/i);
             const deviceName = match ? match[1] : `Unknown Device (Port ${port})`;
-            
+
             activeDevices.push({ port, name: deviceName });
           }
         }
@@ -67,7 +67,7 @@ class RDService {
       const response = await captureBiometric(port, RDService.getPidOptions());
 
       const pidData = response.data;
-      
+
       // Basic validation to ensure the device actually captured something
       if (typeof pidData === "string" && pidData.includes('errCode="0"')) {
         return { success: true, message: "Fingerprint captured successfully", data: pidData };
