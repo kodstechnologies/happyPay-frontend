@@ -51,6 +51,9 @@ export interface BillDetails {
   dueDate: string;
   billingPeriod: string;
   amount: number;
+  partialPayAllow?: string | boolean;
+  customerId?: string;
+  rawDetails?: Record<string, unknown>;
 }
 
 export interface CategoryVisualMeta {
@@ -479,115 +482,48 @@ const BBPS: React.FC = () => {
         paymentAmount.trim() ||
         "0";
 
+      // 6 Required BBPS parameters
       const payload = {
-        // 6 Required BBPS parameters
         REFMOBILENO: refMobileNo,
         AMT: amtValue,
         CUSTNO: custNo,
         orderid: randomOrderId,
         opcode: opcode,
         service_id: serviceId,
-
-        // Backward-compatible aliases & optional fields
-        biller_id: selectedBiller?.id,
-        operator: opcode,
-        canumber: custNo,
-        consumer_number: custNo,
-        amount: amtValue,
-        referenceid: randomOrderId,
-        ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
-        ad2: consumerValues["ad2"] || consumerValues["field2"] || undefined,
-        ad3: consumerValues["ad3"] || consumerValues["field3"] || undefined,
-        mobile: refMobileNo,
-        mode: "online",
-        service_type: selectedBiller?.service_type || selectedCategory?.service_name,
-        customer_params: consumerValues,
       };
 
       const res = await viewBillApi(payload);
 
-      // Extract bill data from possible nested response structures
-      const billData =
-        res?.data?.data ||
-        res?.data ||
-        res?.result ||
-        res;
+      // Extract bill_details from response
+      const billDetailsObj = res?.data?.bill_details || res?.data;
 
-      const isProviderSuccess =
-        res?.success !== false &&
-        res?.status !== false &&
-        billData?.status !== false;
-
-      if (!isProviderSuccess) {
-        const errorMsg =
-          billData?.message ||
-          res?.message ||
-          "Unable to fetch bill details for the provided consumer account.";
-        toast.error(errorMsg);
+      if (!billDetailsObj || res?.success === false) {
+        toast.error(res?.message || "Unable to fetch bill details for the provided consumer account.");
         return;
       }
 
-      // Check for valid amount in response
-      const rawAmount =
-        billData?.amount ||
-        billData?.dueamount ||
-        billData?.bill_amount ||
-        billData?.due_amount ||
-        res?.amount;
+      // Exact field names from API response
+      const customerName = billDetailsObj["Customer Name"] || "VERIFIED CONSUMER";
+      const billNumber = billDetailsObj["Bill Number"] || createBillNumber();
+      const billDate = billDetailsObj["Bill Date"] || "";
+      const dueDate = billDetailsObj["Bill Due Date"] || "";
+      const amount = Number(billDetailsObj["Bill Amount"]) || 0;
+      const billingPeriod = billDetailsObj["DUEFROMTO"] || "";
+      const customerId = billDetailsObj["Customer ID / Account ID"] || custNo;
+      const partialPayAllow = billDetailsObj["Partial Pay Allow"];
 
-      if (rawAmount !== undefined && rawAmount !== null && rawAmount !== "") {
-        const fetchedAmount = Number(rawAmount) || 0;
-        const customerName =
-          billData?.name ||
-          billData?.customer_name ||
-          billData?.customername ||
-          billData?.consumer_name ||
-          "VERIFIED CONSUMER";
-        const billNumber =
-          billData?.billnumber ||
-          billData?.bill_number ||
-          billData?.bill_no ||
-          billData?.referenceid ||
-          createBillNumber();
-        const billDate =
-          billData?.billdate ||
-          billData?.bill_date ||
-          new Date().toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          });
-        const dueDate =
-          billData?.duedate ||
-          billData?.due_date ||
-          new Date(Date.now() + 15 * 86400000).toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          });
-        const billingPeriod =
-          billData?.billperiod ||
-          billData?.billing_period ||
-          billData?.bill_month ||
-          "Current Cycle";
-
-        setBillDetails({
-          customerName,
-          billNumber,
-          billDate,
-          dueDate,
-          billingPeriod,
-          amount: fetchedAmount,
-        });
-        setPaymentAmount(fetchedAmount.toFixed(2));
-        setScreen("bill");
-      } else {
-        const fallbackMsg =
-          billData?.message ||
-          res?.message ||
-          "No outstanding dues found or unable to fetch bill details for this account.";
-        toast.error(fallbackMsg);
-      }
+      setBillDetails({
+        customerName: String(customerName).trim(),
+        billNumber: String(billNumber).trim(),
+        billDate: String(billDate).trim(),
+        dueDate: String(dueDate).trim(),
+        billingPeriod: String(billingPeriod).trim(),
+        amount,
+        customerId: String(customerId).trim(),
+        partialPayAllow,
+      });
+      setPaymentAmount(amount.toFixed(2));
+      setScreen("bill");
     } catch (err: unknown) {
       const errorMsg =
         err instanceof Error
@@ -655,23 +591,13 @@ const BBPS: React.FC = () => {
         opcode: opcode,
         service_id: serviceId,
 
-        // Payment details & backward-compatible fields
+        // Payment details
         amount: payValue,
-        biller_id: selectedBiller?.id,
-        operator: opcode,
-        canumber: custNo,
-        consumer_number: custNo,
-        referenceid: createReference(),
-        reference_id: createReference(),
         billnumber: billDetails.billNumber,
         billdate: billDetails.billDate,
         duedate: billDetails.dueDate,
-        ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
-        mobile: refMobileNo,
         latitude: "28.6139",
         longitude: "77.2090",
-        service_type: selectedBiller?.service_type || selectedCategory?.service_name,
-        customer_params: consumerValues,
       };
 
       const res = await payBillApi(payload);
@@ -1074,10 +1000,24 @@ const BBPS: React.FC = () => {
                           {billDetails.customerName}
                         </span>
                       </div>
+                      {billDetails.customerId && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Customer / Account ID</span>
+                          <span className="font-mono font-bold text-slate-900">
+                            {billDetails.customerId}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex justify-between text-xs">
                         <span className="text-slate-500 font-medium">Bill Number</span>
                         <span className="font-mono font-bold text-slate-800">
                           {billDetails.billNumber}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500 font-medium">Bill Date</span>
+                        <span className="font-medium text-slate-700">
+                          {billDetails.billDate}
                         </span>
                       </div>
                       <div className="flex justify-between text-xs">
@@ -1086,6 +1026,22 @@ const BBPS: React.FC = () => {
                           {billDetails.dueDate}
                         </span>
                       </div>
+                      {billDetails.billingPeriod && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Billing Period</span>
+                          <span className="font-medium text-slate-700">
+                            {billDetails.billingPeriod}
+                          </span>
+                        </div>
+                      )}
+                      {billDetails.partialPayAllow !== undefined && billDetails.partialPayAllow !== "" && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-500 font-medium">Partial Pay Allowed</span>
+                          <span className="font-bold text-slate-800">
+                            {String(billDetails.partialPayAllow)}
+                          </span>
+                        </div>
+                      )}
                       <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
                         <span className="text-sm font-bold text-slate-800">Total Payable Amount</span>
                         <span className="text-xl font-black text-blue-700">

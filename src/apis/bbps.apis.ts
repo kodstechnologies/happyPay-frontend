@@ -42,59 +42,28 @@ export interface BillerListResponse {
 }
 
 export interface ViewBillPayload {
-  // Required BBPS parameters
-  REFMOBILENO?: string;
-  AMT?: string | number;
-  CUSTNO?: string;
-  orderid?: string;
-  opcode?: string;
-  service_id?: string | number;
-
-  // Backward-compatible aliases & optional fields
-  biller_id?: string | number;
-  operator?: string;
-  canumber?: string;
-  consumer_number?: string;
-  ad1?: string;
-  ad2?: string;
-  ad3?: string;
-  mobile?: string;
-  referenceid?: string;
-  mode?: string;
-  service_type?: string;
-  customer_params?: Record<string, string>;
+  REFMOBILENO: string;
+  AMT: string | number;
+  CUSTNO: string;
+  orderid: string;
+  opcode: string;
+  service_id: string | number;
   [key: string]: unknown;
 }
 
-
 export interface PayBillPayload {
-  // Required BBPS parameters
-  REFMOBILENO?: string;
-  AMT?: string | number;
-  CUSTNO?: string;
-  orderid?: string;
-  opcode?: string;
-  service_id?: string | number;
-
-  // Payment details & backward-compatible aliases
+  REFMOBILENO: string;
+  AMT: string | number;
+  CUSTNO: string;
+  orderid: string;
+  opcode: string;
+  service_id: string | number;
   amount: number;
-  biller_id?: string | number;
-  operator?: string;
-  canumber?: string;
-  consumer_number?: string;
-  referenceid?: string;
-  reference_id?: string;
-  latitude?: string;
-  longitude?: string;
   billnumber?: string;
   billdate?: string;
   duedate?: string;
-  ad1?: string;
-  ad2?: string;
-  ad3?: string;
-  mobile?: string;
-  service_type?: string;
-  customer_params?: Record<string, string>;
+  latitude?: string;
+  longitude?: string;
   [key: string]: unknown;
 }
 
