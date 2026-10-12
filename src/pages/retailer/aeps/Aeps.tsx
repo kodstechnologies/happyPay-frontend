@@ -513,6 +513,12 @@ const Aeps = () => {
   const [isCapturingRetailer, setIsCapturingRetailer] =
     useState(false);
 
+  const [isVerifyingTfa, setIsVerifyingTfa] =
+    useState(false);
+
+  const [capturedPidData, setCapturedPidData] =
+    useState<string>("");
+
   const [retailerAuthenticated, setRetailerAuthenticated] =
     useState(false);
 
@@ -696,6 +702,7 @@ const Aeps = () => {
       .slice(0, 12);
 
     setRetailerAadhaar(value);
+    setCapturedPidData("");
     setTfaError("");
   };
 
@@ -721,7 +728,78 @@ const Aeps = () => {
    * ============================================================
    */
 
-  const handleRetailerBiometric = async (): Promise<void> => {
+  /*
+   * Step 1: Scan Biometric Device & Capture Fingerprint
+   */
+  const handleScanAndCaptureBiometric = async (): Promise<void> => {
+    if (retailerAadhaar.length !== 12) {
+      setTfaError(
+        "Please enter a valid 12-digit Aadhaar number before scanning."
+      );
+      return;
+    }
+
+    setIsCapturingRetailer(true);
+    setTfaError("");
+    setTfaStatusMessage("");
+
+    try {
+      let targetPort = selectedDevicePort;
+
+      // If no device is currently selected or scanned, scan and auto-select
+      if (targetPort === null || availableDevices.length === 0) {
+        setIsScanningDevices(true);
+        setWithdrawalDeviceName("Scanning devices...");
+        const devices = await rdService.scanAllDevices();
+        setAvailableDevices(devices);
+        setIsScanningDevices(false);
+
+        if (devices.length > 0) {
+          targetPort = devices[0].port;
+          setSelectedDevicePort(devices[0].port);
+          setWithdrawalDeviceName(devices[0].name);
+        } else {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("No device found");
+          throw new Error(
+            "No Biometric Device found. Please connect your USB RD Service scanner and retry."
+          );
+        }
+      }
+
+      // Call RD Service API to capture fingerprint
+      const captureResult =
+        await rdService.captureFingerprint(targetPort);
+
+      if (!captureResult.success || !captureResult.data) {
+        throw new Error(
+          captureResult.message ||
+          "Failed to capture fingerprint from device."
+        );
+      }
+
+      setCapturedPidData(captureResult.data);
+      setTfaStatusMessage(
+        "Fingerprint captured successfully! Click 'VERIFY 2FA' below to authenticate."
+      );
+    } catch (error: unknown) {
+      console.error("Biometric capture failed:", error);
+      setCapturedPidData("");
+      setTfaError(
+        getErrorMessage(
+          error,
+          "Failed to capture fingerprint from device. Please check scanner connection."
+        )
+      );
+    } finally {
+      setIsCapturingRetailer(false);
+    }
+  };
+
+  /*
+   * Step 2: Verify TFA API call using captured biometric data
+   */
+  const handleVerifyTfa = async (): Promise<void> => {
     if (retailerAadhaar.length !== 12) {
       setTfaError(
         "Please enter a valid 12-digit Aadhaar number."
@@ -729,14 +807,14 @@ const Aeps = () => {
       return;
     }
 
-    if (selectedDevicePort === null) {
+    if (!capturedPidData) {
       setTfaError(
-        "Please select a connected biometric device first."
+        "Please scan and capture fingerprint first."
       );
       return;
     }
 
-    setIsCapturingRetailer(true);
+    setIsVerifyingTfa(true);
     setTfaError("");
     setTfaStatusMessage("");
 
@@ -776,23 +854,11 @@ const Aeps = () => {
       // The provider indicates that daily 2FA is not required.
       if (currentActcode !== "LOGINREQUIRED") {
         setRetailerAuthenticated(true);
+        setCapturedPidData("");
         setTfaStatusMessage(
           "Daily 2FA is completed or not required for today."
         );
         return;
-      }
-
-      // Capture the retailer's fingerprint.
-      const captureResult =
-        await rdService.captureFingerprint(
-          selectedDevicePort
-        );
-
-      if (!captureResult.success) {
-        throw new Error(
-          captureResult.message ||
-          "Failed to capture fingerprint."
-        );
       }
 
       // Obtain geolocation coordinates.
@@ -825,12 +891,8 @@ const Aeps = () => {
         );
       });
 
-      if (!captureResult.data) {
-        throw new Error("No biometric data received from device.");
-      }
-
-      // Parse the RD Service PID XML.
-      const pidData = parsePidXml(captureResult.data);
+      // Parse the captured RD Service PID XML.
+      const pidData = parsePidXml(capturedPidData);
 
       // Send the biometric data for TFA verification.
       const payload: TfaPayload = {
@@ -849,6 +911,7 @@ const Aeps = () => {
       console.log("verifyTfa response:", result);
 
       setRetailerAuthenticated(true);
+      setCapturedPidData("");
       setTfaError("");
       setTfaStatusMessage(
         "TFA verified successfully."
@@ -867,7 +930,7 @@ const Aeps = () => {
         )
       );
     } finally {
-      setIsCapturingRetailer(false);
+      setIsVerifyingTfa(false);
     }
   };
 
@@ -1460,7 +1523,7 @@ const Aeps = () => {
                 maxLength={12}
                 value={retailerAadhaar}
                 onChange={handleRetailerAadhaarChange}
-                disabled={isCapturingRetailer || retailerAuthenticated}
+                disabled={isCapturingRetailer || isVerifyingTfa || retailerAuthenticated}
                 placeholder="Enter 12-digit Aadhaar number"
                 className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
               />
@@ -1491,7 +1554,7 @@ const Aeps = () => {
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Place your finger on Mantra MFS100 scanner
+              Place your finger on {withdrawalDeviceName || "the biometric"} scanner
             </p>
 
             <div className="mx-auto mt-5 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-[#172033]" />
@@ -1530,15 +1593,67 @@ const Aeps = () => {
         )}
 
         {!retailerAuthenticated && !isCapturingRetailer && (
-          <button
-            type="button"
-            onClick={handleRetailerBiometric}
-            disabled={retailerAadhaar.length !== 12 || !selectedDevicePort}
-            className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <Fingerprint className="h-5 w-5" />
-            PROCEED FOR BIOMETRIC AUTH
-          </button>
+          <>
+            {!capturedPidData ? (
+              <button
+                type="button"
+                onClick={handleScanAndCaptureBiometric}
+                disabled={retailerAadhaar.length !== 12 || isScanningDevices}
+                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Fingerprint className="h-5 w-5" />
+                {isScanningDevices
+                  ? "SCANNING BIOMETRIC DEVICES..."
+                  : "SCAN DEVICE & CAPTURE BIOMETRIC"}
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
+                      <Check className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-bold text-emerald-900">
+                        Biometric Fingerprint Captured
+                      </p>
+                      <p className="text-xs text-emerald-700">
+                        Device: {withdrawalDeviceName} · Ready for TFA verification
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleScanAndCaptureBiometric}
+                    disabled={isVerifyingTfa}
+                    className="text-xs font-bold text-purple-700 underline hover:text-purple-900"
+                  >
+                    Recapture
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleVerifyTfa}
+                  disabled={isVerifyingTfa || retailerAadhaar.length !== 12}
+                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isVerifyingTfa ? (
+                    <>
+                      <RefreshCw className="h-5 w-5 animate-spin" />
+                      VERIFYING 2FA...
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="h-5 w-5" />
+                      VERIFY 2FA
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </>
         )}
       </>
     );
