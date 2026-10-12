@@ -35,68 +35,96 @@ export const getDeviceInfo = async (port: number) => {
   return response;
 };
 
+// export const captureBiometric = async (
+//   port: number,
+//   pidOptions: string
+// ) => {
+//   const url = `http://127.0.0.1:${port}/rd/capture`;
+
+//   try {
+//     console.log(`Attempting biometric capture on ${url}...`);
+    
+//     const response = await axios({
+//       method: "POST",
+//       url,
+//       data: pidOptions,
+//       timeout: 30000,
+//       headers: {
+//         "Content-Type": "text/xml",
+//         Accept: "*/*",
+//         "User-Agent": "RDServiceClient/1.0",
+//       },
+//       responseType: "text",
+//     });
+
+//     console.log(`Capture response from port ${port}:`, { 
+//       status: response.status, 
+//       dataLength: response.data?.length,
+//       hasData: !!response.data
+//     });
+
+//     return response;
+//   } catch (error) {
+//     console.error(`Capture failed on port ${port}:`, error);
+    
+//     // Try alternative endpoint if primary fails
+//     const altUrl = `http://127.0.0.1:${port}/capture`;
+//     console.log(`Trying alternative endpoint: ${altUrl}...`);
+    
+//     try {
+//       const altResponse = await axios({
+//         method: "POST",
+//         url: altUrl,
+//         data: pidOptions,
+//         timeout: 30000,
+//         headers: {
+//           "Content-Type": "text/xml",
+//           Accept: "*/*",
+//           "User-Agent": "RDServiceClient/1.0",
+//         },
+//         responseType: "text",
+//       });
+
+//       console.log(`Alternative capture response from port ${port}:`, { 
+//         status: altResponse.status, 
+//         dataLength: altResponse.data?.length 
+//       });
+
+//       return altResponse;
+//     } catch (altError) {
+//       console.error(`Alternative capture also failed on port ${port}:`, altError);
+//       throw altError;
+//     }
+//   }
+// };
+
+
+
+
+
+
+
 export const captureBiometric = async (
   port: number,
   pidOptions: string
 ) => {
-  const url = `http://127.0.0.1:${port}/rd/capture`;
-
-  try {
-    console.log(`Attempting biometric capture on ${url}...`);
-    
-    const response = await axios({
-      method: "POST",
-      url,
-      data: pidOptions,
-      timeout: 30000,
-      headers: {
-        "Content-Type": "text/xml",
-        Accept: "*/*",
-        "User-Agent": "RDServiceClient/1.0",
-      },
-      responseType: "text",
-    });
-
-    console.log(`Capture response from port ${port}:`, { 
-      status: response.status, 
-      dataLength: response.data?.length,
-      hasData: !!response.data
-    });
-
-    return response;
-  } catch (error) {
-    console.error(`Capture failed on port ${port}:`, error);
-    
-    // Try alternative endpoint if primary fails
-    const altUrl = `http://127.0.0.1:${port}/capture`;
-    console.log(`Trying alternative endpoint: ${altUrl}...`);
-    
-    try {
-      const altResponse = await axios({
-        method: "POST",
-        url: altUrl,
-        data: pidOptions,
-        timeout: 30000,
-        headers: {
-          "Content-Type": "text/xml",
-          Accept: "*/*",
-          "User-Agent": "RDServiceClient/1.0",
-        },
-        responseType: "text",
-      });
-
-      console.log(`Alternative capture response from port ${port}:`, { 
-        status: altResponse.status, 
-        dataLength: altResponse.data?.length 
-      });
-
-      return altResponse;
-    } catch (altError) {
-      console.error(`Alternative capture also failed on port ${port}:`, altError);
-      throw altError;
-    }
-  }
+  return axios({
+    method: "CAPTURE",
+    url: `https://127.0.0.1:${port}/rd/capture`,
+    data: pidOptions,
+    timeout: 30000,
+    headers: {
+      "Content-Type": "text/xml",
+    },
+    responseType: "text",
+  });
 };
+
+
+
+
+
+
 
 
 
