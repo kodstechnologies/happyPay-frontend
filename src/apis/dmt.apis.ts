@@ -1,4 +1,13 @@
 import api from "../config/axiosInstance";
+import type { ExtractedBiometricData } from "../utils/biometric";
+
+export interface RemitterEkycPayload extends ExtractedBiometricData {
+  mobile: string;
+  txnid: string;
+  latitude: string | number;
+  longitude: string | number;
+  referenceKey?: string;
+}
 
 export interface RemitterPayload {
   mobile: string;
@@ -69,6 +78,14 @@ export const registerRemitterApi = async (payload: RegisterRemitterPayload) => {
  */
 export const verifyRemitterOtpApi = async (payload: VerifyRemitterOtpPayload) => {
   const response = await api.post("/api/v1/dmt/register-remitter-verify", payload);
+  return response.data;
+};
+
+/**
+ * 3.1 Perform Remitter eKYC
+ */
+export const remitterEkycApi = async (payload: RemitterEkycPayload) => {
+  const response = await api.post("/api/v1/dmt/remitter-ekyc", payload);
   return response.data;
 };
 

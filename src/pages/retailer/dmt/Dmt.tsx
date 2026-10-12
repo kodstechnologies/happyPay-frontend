@@ -21,10 +21,13 @@ import {
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
+import { mfs110Service } from "../../../services/bimetric/mfs110.service";
+import { extractBiometricData } from "../../../utils/biometric";
 import {
   loginRemitterApi,
   registerRemitterApi,
   verifyRemitterOtpApi,
+  remitterEkycApi,
   fetchBeneficiariesApi,
   verifyAccountApi,
   verifyBeneficiaryApi,
@@ -84,6 +87,10 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
   }
 
   return fallback;
+};
+
+const generateClientTxnId = (prefix = "EKYC"): string => {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
 };
 
 /* =========================
@@ -242,6 +249,13 @@ const Dmt = () => {
   const [isInitiatingDelete, setIsInitiatingDelete] = useState<boolean>(false);
   const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
+
+  /* Remitter eKYC & Biometric State */
+  const [isRemitterEkycDone, setIsRemitterEkycDone] = useState<boolean>(true);
+  const [showDoKycModal, setShowDoKycModal] = useState<boolean>(false);
+  const [isCapturingBiometric, setIsCapturingBiometric] = useState<boolean>(false);
+  const [kycStep, setKycStep] = useState<string>("Ready to scan fingerprint.");
+  const [kycError, setKycError] = useState<string>("");
 
   /* Dynamic Bank List from /api/v1/auth/banks (API only) */
   const [liveBanks, setLiveBanks] = useState<Bank[]>([]);
@@ -465,6 +479,7 @@ const Dmt = () => {
       }
 
       // Existing verified remitter -> Skip registration
+      setIsRemitterEkycDone(true);
       toast.success(res?.message || "Remitter verified successfully");
       setCustomerName(resData?.name || resData?.remitterName || "VERIFIED SENDER");
       await fetchBeneficiariesList();
@@ -510,6 +525,21 @@ const Dmt = () => {
       });
 
       if (res?.success || res?.status) {
+        const nextKey =
+          res?.data?.referenceKey ||
+          res?.referenceKey ||
+          "";
+        if (nextKey) {
+          saveReferenceKey(nextKey);
+        }
+
+        const msg = String(res?.data?.msg || res?.message || "").toLowerCase();
+        if (msg.includes("kyc")) {
+          setIsRemitterEkycDone(false);
+        } else {
+          setIsRemitterEkycDone(true);
+        }
+
         toast.success(res?.message || "Remitter registered and verified successfully!");
         setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
         await fetchBeneficiariesList();
@@ -859,6 +889,92 @@ const Dmt = () => {
       toast.error(getApiErrorMessage(err, "Failed to delete beneficiary"));
     } finally {
       setIsVerifyingDeleteOtp(false);
+    }
+  };
+
+  /* =========================
+     REMITTER BIOMETRIC EKYC
+  ========================= */
+
+  const handleCaptureBiometricAndDoKyc = async () => {
+    setKycError("");
+    setIsCapturingBiometric(true);
+    setKycStep("Initializing Mantra biometric device...");
+
+    try {
+      // 1. Capture fingerprint from RD service
+      setKycStep("Please place finger on scanner...");
+      const capture = await mfs110Service.capture();
+      if (!capture.success || !capture.data) {
+        const errorMsg = capture.message || "Fingerprint capture failed. Please check device connection.";
+        setKycError(errorMsg);
+        setKycStep("Capture failed.");
+        toast.error(errorMsg);
+        return;
+      }
+
+      setKycStep("Fingerprint captured. Parsing biometric data...");
+
+      // 2. Parse PID XML using reusable extractBiometricData utility
+      const biometricData = extractBiometricData(capture.data);
+
+      if (biometricData.errCode && biometricData.errCode !== "0") {
+        const errorMsg = `Device error (${biometricData.errCode}): ${biometricData.errInfo || "Failed to capture fingerprint"}`;
+        setKycError(errorMsg);
+        setKycStep("Device error.");
+        toast.error(errorMsg);
+        return;
+      }
+
+      // 3. Geolocation
+      setKycStep("Acquiring location coordinates...");
+      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve({ latitude: "28.7041", longitude: "77.1025" });
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }),
+          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
+          { timeout: 4000 }
+        );
+      });
+
+      // 4. Generate unique txnid
+      const clientTxnId = generateClientTxnId("EKYC");
+      const currentRefKey =
+        referenceKeyRef.current ||
+        activeReferenceKey ||
+        sessionStorage.getItem("dmt_remitter_ref_key") ||
+        "";
+
+      setKycStep("Submitting remitter eKYC to bank provider...");
+
+      // 5. Call remitterEkycApi
+      const res = await remitterEkycApi({
+        ...biometricData,
+        mobile: customerMobile,
+        txnid: clientTxnId,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        ...(currentRefKey ? { referenceKey: currentRefKey } : {}),
+      });
+
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "Remitter eKYC completed successfully!");
+        setIsRemitterEkycDone(true);
+        setShowDoKycModal(false);
+      } else {
+        const errorMsg = res?.message || "eKYC verification failed";
+        setKycError(errorMsg);
+        toast.error(errorMsg);
+      }
+    } catch (err: unknown) {
+      const errorMsg = getApiErrorMessage(err, "Failed to perform remitter eKYC");
+      setKycError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setIsCapturingBiometric(false);
     }
   };
 
@@ -1585,11 +1701,25 @@ const Dmt = () => {
                 </div>
               </div>
 
-              <div className="flex w-fit items-center gap-2 rounded-xl bg-[#09b878] px-3.5 py-2.5 text-xs font-bold">
-                <Check className="h-5 w-5" />
-
-                eKYC Verified
-              </div>
+              {isRemitterEkycDone ? (
+                <div className="flex w-fit items-center gap-2 rounded-xl bg-[#09b878] px-3.5 py-2.5 text-xs font-bold text-white">
+                  <Check className="h-4 w-4" />
+                  eKYC Verified
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKycError("");
+                    setKycStep("Ready to scan fingerprint.");
+                    setShowDoKycModal(true);
+                  }}
+                  className="flex w-fit items-center gap-2 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6d28d9]"
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  Do KYC
+                </button>
+              )}
             </div>
 
             <div className="my-4 h-px bg-[#f6d6dc]" />
@@ -1771,6 +1901,105 @@ const Dmt = () => {
                       className="rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
                     >
                       {isVerifyingDeleteOtp ? "Deleting..." : "Delete Beneficiary"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Do KYC Biometric Modal */}
+          {showDoKycModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-[#7c3aed]">
+                      <Fingerprint className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Remitter Biometric eKYC</h3>
+                      <p className="text-[11px] text-slate-500">Mantra MFS110 RD Service</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isCapturingBiometric}
+                    onClick={() => {
+                      if (!isCapturingBiometric) {
+                        setShowDoKycModal(false);
+                        setKycError("");
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <div className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs">
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-500">Remitter Name:</span>
+                      <span className="font-semibold text-slate-900">{customerName}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-500">Mobile Number:</span>
+                      <span className="font-semibold text-slate-900">+91 {customerMobile}</span>
+                    </div>
+                    {aadhaarNumber && (
+                      <div className="flex justify-between py-1">
+                        <span className="text-slate-500">Aadhaar Number:</span>
+                        <span className="font-semibold text-slate-900">
+                          XXXX-XXXX-{aadhaarNumber.slice(-4)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Fingerprint Scanner Visual */}
+                  <div className="my-6 flex flex-col items-center text-center">
+                    <div
+                      className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 ${
+                        isCapturingBiometric
+                          ? "bg-purple-100 text-[#7c3aed] ring-4 ring-purple-200 animate-pulse"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      <Fingerprint className="h-10 w-10" />
+                    </div>
+
+                    <p className="mt-3 text-xs font-medium text-slate-600">
+                      {kycStep}
+                    </p>
+
+                    {kycError && (
+                      <div className="mt-3 rounded-lg bg-rose-50 p-2.5 text-xs text-rose-600 border border-rose-100">
+                        {kycError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      disabled={isCapturingBiometric}
+                      onClick={() => {
+                        setShowDoKycModal(false);
+                        setKycError("");
+                      }}
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isCapturingBiometric}
+                      onClick={handleCaptureBiometricAndDoKyc}
+                      className="flex items-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#6d28d9] disabled:opacity-50"
+                    >
+                      <Fingerprint className="h-4 w-4" />
+                      {isCapturingBiometric ? "Capturing..." : "Scan Fingerprint"}
                     </button>
                   </div>
                 </div>

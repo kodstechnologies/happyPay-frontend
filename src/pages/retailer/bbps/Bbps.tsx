@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import {
   getBbpsCategoriesApi,
-  getAllBillersApi,
+  getBillersByCategoryNameApi,
   viewBillApi,
   payBillApi,
   type BbpsCategoryItem,
@@ -278,8 +278,8 @@ const BBPS: React.FC = () => {
   const [loadingCategories, setLoadingCategories] = useState(true);
   const [categoryError, setCategoryError] = useState<string | null>(null);
 
-  // All Billers Master State from API (GET /api/v1/bbps/billers)
-  const [allBillers, setAllBillers] = useState<BillerItem[]>([]);
+  // Category Billers State from API (POST /api/v1/bbps/billers/by-category)
+  const [categoryBillers, setCategoryBillers] = useState<BillerItem[]>([]);
   const [loadingBillers, setLoadingBillers] = useState(false);
 
   // Active Category Biller State
@@ -317,16 +317,21 @@ const BBPS: React.FC = () => {
     }
   }, []);
 
-  // Fetch All Billers from Backend API (GET /api/v1/bbps/billers)
-  const fetchAllBillers = useCallback(async () => {
+  // Fetch Billers dynamically by Category Name (POST /api/v1/bbps/billers/by-category)
+  const fetchBillersForCategory = useCallback(async (categoryName: string) => {
+    if (!categoryName) return;
     setLoadingBillers(true);
     try {
-      const billersData = await getAllBillersApi();
-      setAllBillers(billersData);
-      return billersData;
+      const billers = await getBillersByCategoryNameApi(categoryName);
+      setCategoryBillers(billers);
+      if (billers.length > 0) {
+        setSelectedBiller(billers[0]);
+      } else {
+        setSelectedBiller(null);
+      }
     } catch {
-      // toast.error is used elsewhere, silently fail master list here or keep old data
-      return [];
+      setCategoryBillers([]);
+      setSelectedBiller(null);
     } finally {
       setLoadingBillers(false);
     }
@@ -338,28 +343,15 @@ const BBPS: React.FC = () => {
     setCategoryError(null);
 
     try {
-      const [categoriesData, billersData] = await Promise.all([
-        getBbpsCategoriesApi(),
-        fetchAllBillers(),
-      ]);
+      const categoriesData = await getBbpsCategoriesApi();
 
       if (Array.isArray(categoriesData) && categoriesData.length > 0) {
         setCategories(categoriesData);
         const initialCategory = categoriesData[0];
         setSelectedCategory(initialCategory);
 
-        // Filter and assign first biller for initial category
-        const initialMatching = billersData.filter((b) => {
-          const bType = b.service_type?.toLowerCase().trim() || "";
-          const cName = initialCategory.service_name?.toLowerCase().trim() || "";
-          return bType === cName || bType.includes(cName) || cName.includes(bType);
-        });
-
-        if (initialMatching.length > 0) {
-          setSelectedBiller(initialMatching[0]);
-        } else if (billersData.length > 0) {
-          setSelectedBiller(billersData[0]);
-        }
+        // Fetch sub-category billers for the first selected category
+        await fetchBillersForCategory(initialCategory.service_name);
       } else {
         setCategoryError("No BBPS categories available.");
       }
@@ -370,28 +362,13 @@ const BBPS: React.FC = () => {
     } finally {
       setLoadingCategories(false);
     }
-  }, [fetchAllBillers]);
+  }, [fetchBillersForCategory]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchCategories();
     fetchWallet();
   }, [fetchCategories, fetchWallet]);
-
-  // Billers matching the currently selected category
-  const categoryBillers = useMemo(() => {
-    if (!selectedCategory) return [];
-
-    const cName = selectedCategory.service_name?.toLowerCase().trim() || "";
-
-    const matched = allBillers.filter((biller) => {
-      const bType = biller.service_type?.toLowerCase().trim() || "";
-      return bType === cName || bType.includes(cName) || cName.includes(bType);
-    });
-
-    // If specific matching has items, return them; otherwise return all billers as fallback
-    return matched.length > 0 ? matched : allBillers;
-  }, [allBillers, selectedCategory]);
 
   // Filtered Billers for Modal search
   const filteredBillers = useMemo(() => {
@@ -415,20 +392,8 @@ const BBPS: React.FC = () => {
     setConsent(false);
     setScreen("form");
 
-    // Match billers for the selected category
-    const cName = category.service_name?.toLowerCase().trim() || "";
-    const matching = allBillers.filter((biller) => {
-      const bType = biller.service_type?.toLowerCase().trim() || "";
-      return bType === cName || bType.includes(cName) || cName.includes(bType);
-    });
-
-    if (matching.length > 0) {
-      setSelectedBiller(matching[0]);
-    } else if (allBillers.length > 0) {
-      setSelectedBiller(allBillers[0]);
-    } else {
-      setSelectedBiller(null);
-    }
+    // Dynamically fetch billers/sub-categories for this category name
+    fetchBillersForCategory(category.service_name);
   };
 
   const handleBillerSelect = (biller: BillerItem) => {

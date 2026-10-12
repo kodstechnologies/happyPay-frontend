@@ -130,6 +130,30 @@ export const getBillersByCategoryIdApi = async (
 };
 
 /**
+ * Fetch billers by category name (POST /api/v1/bbps/billers/by-category)
+ */
+export const getBillersByCategoryNameApi = async (
+  catname: string
+): Promise<BillerItem[]> => {
+  try {
+    const response = await api.post("/api/v1/bbps/billers/by-category", {
+      catname,
+    });
+    const rootData = response.data;
+    const data =
+      rootData?.data?.billers ||
+      rootData?.data ||
+      rootData?.billers ||
+      rootData ||
+      [];
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error("[BBPS] Failed to fetch billers by category name:", err);
+    return [];
+  }
+};
+
+/**
  * Fetch live bill details
  */
 export const viewBillApi = async (payload: ViewBillPayload) => {
