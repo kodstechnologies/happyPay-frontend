@@ -15,6 +15,16 @@ export interface VerifyRemitterOtpPayload extends RemitterPayload {
   referenceKey?: string;
 }
 
+export interface AddBeneficiaryPayload {
+  bankId: string | number;
+  outletid: string | number;
+  name: string;
+  ifsc: string;
+  accountNumber: string;
+  beneficiaryMobile: string;
+  remitterMobile: string;
+}
+
 export interface BeneficiaryPayload extends RemitterPayload {
   bene_id?: string | number;
   bene_name?: string;
@@ -84,7 +94,7 @@ export const verifyAccountApi = verifyBeneficiaryApi;
 /**
  * 6. Add Beneficiary
  */
-export const addBeneficiaryApi = async (payload: BeneficiaryPayload) => {
+export const addBeneficiaryApi = async (payload: AddBeneficiaryPayload) => {
   const response = await api.post("/api/v1/dmt/add-beneficiary", payload);
   return response.data;
 };
