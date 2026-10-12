@@ -825,6 +825,10 @@ const Aeps = () => {
         );
       });
 
+      if (!captureResult.data) {
+        throw new Error("No biometric data received from device.");
+      }
+
       // Parse the RD Service PID XML.
       const pidData = parsePidXml(captureResult.data);
 
@@ -836,8 +840,8 @@ const Aeps = () => {
         referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        ts: pidData.ts || new Date().toISOString(),
         ...pidData,
+        ts: pidData.ts || new Date().toISOString(),
       };
 
       const result = await verifyTfa(payload);
