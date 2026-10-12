@@ -81,6 +81,90 @@ interface ReceiptData {
   transactions: Transaction[];
 }
 
+// interface AepsLoginStatusData {
+//   actcode?: string;
+//   provider?: {
+//     actcode?: string;
+//     data?: {
+//       actcode?: string;
+//     };
+//   } | null;
+// }
+
+// interface AepsLoginStatusResponse {
+//   data?: AepsLoginStatusData;
+// }
+
+interface ApiErrorLike {
+  message?: string;
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+}
+
+const getErrorMessage = (
+  error: unknown,
+  fallback: string
+): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  if (typeof error === "object" && error !== null) {
+    const apiError = error as ApiErrorLike;
+
+    return (
+      apiError.response?.data?.message ||
+      apiError.message ||
+      fallback
+    );
+  }
+
+  return fallback;
+};
+
+const isRecord = (
+  value: unknown
+): value is Record<string, unknown> => {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value)
+  );
+};
+
+const extractActcode = (response: unknown): string => {
+  if (!isRecord(response)) {
+    return "";
+  }
+
+  const data = isRecord(response.data)
+    ? response.data
+    : undefined;
+
+  if (!data) {
+    return "";
+  }
+
+  const provider = isRecord(data.provider)
+    ? data.provider
+    : undefined;
+
+  const providerData =
+    provider && isRecord(provider.data)
+      ? provider.data
+      : undefined;
+
+  const value =
+    providerData?.actcode ??
+    provider?.actcode ??
+    data.actcode;
+
+  return typeof value === "string" ? value : "";
+};
+
 /*
  * ============================================================
  * BANK LIST
@@ -426,48 +510,105 @@ const Aeps = () => {
     () => storedRetailer?.aadhaarNumber || storedRetailer?.aadhaar || ""
   );
 
-  const [isCapturingRetailer, setIsCapturingRetailer] = useState(false);
-  const [retailerAuthenticated, setRetailerAuthenticated] = useState(false);
-  const [actcode, setActcode] = useState<string>("");
-  const [isCheckingLoginStatus, setIsCheckingLoginStatus] = useState<boolean>(true);
-  const [tfaError, setTfaError] = useState<string>("");
-  const [tfaStatusMessage, setTfaStatusMessage] = useState<string>("");
+  const [isCapturingRetailer, setIsCapturingRetailer] =
+    useState(false);
 
-  const fetchLoginStatus = async () => {
-    setIsCheckingLoginStatus(true);
-    setTfaError("");
+  const [retailerAuthenticated, setRetailerAuthenticated] =
+    useState(false);
+
+  const [actcode, setActcode] = useState("");
+
+  const [isCheckingLoginStatus, setIsCheckingLoginStatus] =
+    useState(true);
+
+  const [tfaError, setTfaError] = useState("");
+
+  const [tfaStatusMessage, setTfaStatusMessage] =
+    useState("");
+
+  const fetchLoginStatus = async (): Promise<void> => {
     try {
-      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const outletId = stored.outletId || stored.outletid || "";
-      const res = await checkAepsLoginStatus(outletId);
+      const stored = JSON.parse(
+        localStorage.getItem("retailerUser") || "{}"
+      );
 
-      const providerData = res?.data?.provider as any;
-      const extractedActcode =
-        providerData?.data?.actcode ||
-        providerData?.actcode ||
-        (res?.data as any)?.actcode ||
-        "";
+      const outletId =
+        stored.outletId || stored.outletid || "";
 
-      setActcode(extractedActcode);
-
-      if (extractedActcode && extractedActcode !== "LOGINREQUIRED") {
-        setRetailerAuthenticated(true);
-        setTfaStatusMessage("Daily 2FA is completed / not required for today.");
-      } else if (extractedActcode === "LOGINREQUIRED") {
-        setTfaStatusMessage("Daily 2FA authentication is required. Please verify with Aadhaar and fingerprint.");
+      if (!outletId) {
+        setRetailerAuthenticated(false);
+        setActcode("");
+        setTfaStatusMessage("");
+        setTfaError(
+          "Outlet ID is missing. Please check your retailer account."
+        );
+        return;
       }
-    } catch (err: any) {
-      console.error("Failed to check AEPS login status:", err);
-      setTfaError(err.message || "Failed to check AEPS login status");
+
+      const response = await checkAepsLoginStatus(outletId);
+      const currentActcode = extractActcode(response);
+
+      setActcode(currentActcode);
+
+      if (!currentActcode) {
+        setRetailerAuthenticated(false);
+        setTfaStatusMessage("");
+        setTfaError(
+          "Unable to determine AEPS login status. Please refresh and try again."
+        );
+        return;
+      }
+
+      if (currentActcode === "LOGINREQUIRED") {
+        setRetailerAuthenticated(false);
+        setTfaError("");
+        setTfaStatusMessage(
+          "Daily 2FA authentication is required. Verify using Aadhaar and fingerprint."
+        );
+        return;
+      }
+
+      setRetailerAuthenticated(true);
+      setTfaError("");
+      setTfaStatusMessage(
+        "Daily 2FA is completed or not required for today."
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Failed to check AEPS login status:",
+        error
+      );
+
+      setRetailerAuthenticated(false);
+      setTfaStatusMessage("");
+      setTfaError(
+        getErrorMessage(
+          error,
+          "Failed to check AEPS login status."
+        )
+      );
     } finally {
       setIsCheckingLoginStatus(false);
     }
   };
 
-  useEffect(() => {
-    fetchLoginStatus();
-  }, []);
+  const handleRefreshLoginStatus = (): void => {
+    setIsCheckingLoginStatus(true);
+    setTfaError("");
+    void fetchLoginStatus();
+  };
 
+  // useEffect(() => {
+  //   void fetchLoginStatus();
+  // }, []);
+
+  useEffect(() => {
+    const checkStatus = async () => {
+      await fetchLoginStatus();
+    };
+
+    void checkStatus();
+  }, []);
   /*
    * Customer Aadhaar
    */
@@ -580,79 +721,119 @@ const Aeps = () => {
    * ============================================================
    */
 
-  const handleRetailerBiometric = async () => {
+  const handleRetailerBiometric = async (): Promise<void> => {
     if (retailerAadhaar.length !== 12) {
-      setTfaError("Please enter a valid 12-digit Aadhaar number");
+      setTfaError(
+        "Please enter a valid 12-digit Aadhaar number."
+      );
       return;
     }
 
-    if (!selectedDevicePort) {
-      setTfaError("Please select a connected biometric device first");
+    if (selectedDevicePort === null) {
+      setTfaError(
+        "Please select a connected biometric device first."
+      );
       return;
     }
 
     setIsCapturingRetailer(true);
     setTfaError("");
+    setTfaStatusMessage("");
 
     try {
-      // Step 1: Ensure actcode is available
-      let currentActcode = actcode;
-      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const outletId = stored.outletId || stored.outletid || "";
+      const stored = JSON.parse(
+        localStorage.getItem("retailerUser") || "{}"
+      );
+
+      const outletId =
+        stored.outletId || stored.outletid || "";
+
       const referenceKey = stored.referenceKey || "";
 
+      if (!outletId) {
+        throw new Error(
+          "Outlet ID is missing. Please check your retailer account."
+        );
+      }
+
+      let currentActcode = actcode;
+
+      // Refresh login status if actcode is not available.
       if (!currentActcode) {
-        const statusRes = await checkAepsLoginStatus(outletId);
-        const providerData = statusRes?.data?.provider as any;
-        currentActcode =
-          providerData?.data?.actcode ||
-          providerData?.actcode ||
-          (statusRes?.data as any)?.actcode ||
-          "";
+        const statusResponse =
+          await checkAepsLoginStatus(outletId);
+
+        currentActcode = extractActcode(statusResponse);
         setActcode(currentActcode);
       }
 
-      // If actcode is not LOGINREQUIRED, 2FA verification is not required
-      if (currentActcode && currentActcode !== "LOGINREQUIRED") {
+      if (!currentActcode) {
+        throw new Error(
+          "Unable to determine AEPS login status. Please refresh and try again."
+        );
+      }
+
+      // The provider indicates that daily 2FA is not required.
+      if (currentActcode !== "LOGINREQUIRED") {
         setRetailerAuthenticated(true);
-        setIsCapturingRetailer(false);
+        setTfaStatusMessage(
+          "Daily 2FA is completed or not required for today."
+        );
         return;
       }
 
-      // Step 2: Capture fingerprint with connected RD Service
-      const captureResult = await rdService.captureFingerprint(selectedDevicePort);
+      // Capture the retailer's fingerprint.
+      const captureResult =
+        await rdService.captureFingerprint(
+          selectedDevicePort
+        );
+
       if (!captureResult.success) {
-        throw new Error(captureResult.message || "Failed to capture fingerprint");
+        throw new Error(
+          captureResult.message ||
+          "Failed to capture fingerprint."
+        );
       }
 
-      // Step 3: Get Geolocation coordinates
-      const coords = await new Promise<{ latitude: string; longitude: string }>(
-        (resolve) => {
-          if (!navigator.geolocation) {
-            resolve({ latitude: "0", longitude: "0" });
-            return;
-          }
-          navigator.geolocation.getCurrentPosition(
-            (pos) =>
-              resolve({
-                latitude: String(pos.coords.latitude),
-                longitude: String(pos.coords.longitude),
-              }),
-            () => resolve({ latitude: "0", longitude: "0" }),
-            { timeout: 5000 },
-          );
-        },
-      );
+      // Obtain geolocation coordinates.
+      const coords = await new Promise<{
+        latitude: string;
+        longitude: string;
+      }>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve({
+            latitude: "0",
+            longitude: "0",
+          });
+          return;
+        }
 
-      // Step 4: Parse biometric XML
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: String(position.coords.latitude),
+              longitude: String(position.coords.longitude),
+            });
+          },
+          () => {
+            resolve({
+              latitude: "0",
+              longitude: "0",
+            });
+          },
+          { timeout: 5000 }
+        );
+      });
+
+      // Parse the RD Service PID XML.
       const pidData = parsePidXml(captureResult.data);
 
-      // Step 5: Call verifyTfa API with actcode
+      // Send the biometric data for TFA verification.
       const payload: TfaPayload = {
-        actcode: currentActcode || "LOGINREQUIRED",
+        actcode: currentActcode,
         aadhaar: retailerAadhaar,
         outlet_id: outletId,
-        referenceKey: referenceKey,
+        referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
         ts: pidData.ts || new Date().toISOString(),
@@ -660,14 +841,27 @@ const Aeps = () => {
       };
 
       const result = await verifyTfa(payload);
+
       console.log("verifyTfa response:", result);
 
       setRetailerAuthenticated(true);
-      setTfaStatusMessage("TFA verified successfully");
-    } catch (err: any) {
-      console.error("Retailer 2FA verification failed:", err);
-      const errMsg = err?.message || "Biometric 2FA verification failed. Please try again.";
-      setTfaError(errMsg);
+      setTfaError("");
+      setTfaStatusMessage(
+        "TFA verified successfully."
+      );
+    } catch (error: unknown) {
+      console.error(
+        "Retailer 2FA verification failed:",
+        error
+      );
+
+      setRetailerAuthenticated(false);
+      setTfaError(
+        getErrorMessage(
+          error,
+          "Biometric 2FA verification failed. Please try again."
+        )
+      );
     } finally {
       setIsCapturingRetailer(false);
     }
@@ -1121,7 +1315,7 @@ const Aeps = () => {
 
                 <button
                   type="button"
-                  onClick={fetchLoginStatus}
+                  onClick={handleRefreshLoginStatus}
                   disabled={isCheckingLoginStatus}
                   title="Refresh Login Status"
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-600 hover:bg-purple-50 disabled:opacity-50"
@@ -1273,6 +1467,12 @@ const Aeps = () => {
         {tfaError && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
             {tfaError}
+          </div>
+        )}
+
+        {tfaStatusMessage && !tfaError && (
+          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm font-medium text-purple-700">
+            {tfaStatusMessage}
           </div>
         )}
 
