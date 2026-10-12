@@ -33,7 +33,9 @@ export interface BiometricPayload {
   ts: string;
 }
 
-export interface TfaPayload extends BiometricPayload {
+export interface TfaPayload extends Omit<BiometricPayload, "referenceKey"> {
+  referenceKey?: string;
+  actcode: string;
   aadhaar: string;
   ts: string;
 }
@@ -196,6 +198,21 @@ export function doBioEkyc(payload: BiometricPayload) {
   });
 }
 
+
+export function checkAepsLoginStatus(outletId?: string) {
+  return apiClient<
+    Envelope<{
+      outletId: string;
+      kycRequired: boolean;
+      provider: unknown;
+    }>
+  >("/api/v1/aeps/login-status", {
+    ...authOptions(),
+    method: "POST",
+    body: JSON.stringify({ outlet_id: outletId || "" }),
+  });
+}
+
 export function verifyTfa(payload: TfaPayload) {
   return apiClient<Envelope<unknown>>("/api/v1/aeps/verify-tfa", {
     ...authOptions(),
@@ -221,19 +238,6 @@ export function checkDoEkyc(outletId?: string, userId?: string) {
   });
 }
 
-export function checkAepsLoginStatus(outletId?: string) {
-  return apiClient<
-    Envelope<{
-      outletId: string;
-      kycRequired: boolean;
-      provider: unknown;
-    }>
-  >("/api/v1/aeps/login-status", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify({ outlet_id: outletId || "" }),
-  });
-}
 
 export function getRetailerKyc(retailerId: string) {
   return apiClient<

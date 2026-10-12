@@ -274,7 +274,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
               {/* HORIZONTAL STEPPER (DESKTOP) */}
               <div className="hidden border-b border-[#edf0f4] px-5 pb-0 pt-6 md:block lg:px-9 xl:px-10">
-                <StepIndicator 
+                <StepIndicator
                   steps={steps.map(s => ({ label: s.title }))}
                   currentStep={currentStep + 1}
                 />
@@ -489,23 +489,22 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                       type={currentStep === steps.length - 1 ? "submit" : "button"}
                       form={currentStep === steps.length - 1 ? "retailer-register-form" : undefined}
                       onClick={currentStep === steps.length - 1 ? undefined : nextStep}
-                      className={`flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition ${
-                        currentStep ===
+                      className={`flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition ${currentStep ===
                         steps.length - 1
-                          ? "bg-[#10a88a] hover:bg-[#0d8a70]"
-                          : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
-                      }`}
+                        ? "bg-[#10a88a] hover:bg-[#0d8a70]"
+                        : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
+                        }`}
                     >
 
                       <span>
                         {currentStep ===
-                        steps.length - 1
+                          steps.length - 1
                           ? "Submit Registration"
                           : "Continue"}
                       </span>
 
                       {currentStep ===
-                      steps.length - 1 ? (
+                        steps.length - 1 ? (
                         <Check
                           className="h-4 w-4"
                           strokeWidth={2.5}

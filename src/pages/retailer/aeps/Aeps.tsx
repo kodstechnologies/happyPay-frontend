@@ -25,6 +25,12 @@ import {
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
+import {
+  checkAepsLoginStatus,
+  verifyTfa,
+  parsePidXml,
+  type TfaPayload,
+} from "../../../services/api/retailer/aepsApi";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -315,7 +321,7 @@ const generateTransactionId = () => {
 const generateRRN = () => {
   return `${Math.floor(
     10000000000 +
-      Math.random() * 89999999999
+    Math.random() * 89999999999
   )}`;
 };
 
@@ -362,7 +368,7 @@ const Aeps = () => {
 
   const [step, setStep] = useState<Step>(0);
   const [flowMode, setFlowMode] = useState<"withdraw" | "deposit" | "">("");
-  
+
   // Real Biometric States
   const [availableDevices, setAvailableDevices] = useState<import("../../../utils/rdService").ActiveDevice[]>([]);
   const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
@@ -375,7 +381,7 @@ const Aeps = () => {
     setWithdrawalDeviceName("Scanning...");
     const devices = await rdService.scanAllDevices();
     setAvailableDevices(devices);
-    
+
     if (devices.length > 0) {
       setSelectedDevicePort(devices[0].port);
       setWithdrawalDeviceName(devices[0].name);
@@ -406,16 +412,61 @@ const Aeps = () => {
   }, []);
 
   /*
-   * Retailer authentication
+   * Retailer authentication & 2FA State
    */
-  const [retailerAadhaar, setRetailerAadhaar] =
-    useState("");
+  const [storedRetailer] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("retailerUser") || "{}");
+    } catch {
+      return {};
+    }
+  });
 
-  const [isCapturingRetailer, setIsCapturingRetailer] =
-    useState(false);
+  const [retailerAadhaar, setRetailerAadhaar] = useState(
+    () => storedRetailer?.aadhaarNumber || storedRetailer?.aadhaar || ""
+  );
 
-  const [retailerAuthenticated, setRetailerAuthenticated] =
-    useState(false);
+  const [isCapturingRetailer, setIsCapturingRetailer] = useState(false);
+  const [retailerAuthenticated, setRetailerAuthenticated] = useState(false);
+  const [actcode, setActcode] = useState<string>("");
+  const [isCheckingLoginStatus, setIsCheckingLoginStatus] = useState<boolean>(true);
+  const [tfaError, setTfaError] = useState<string>("");
+  const [tfaStatusMessage, setTfaStatusMessage] = useState<string>("");
+
+  const fetchLoginStatus = async () => {
+    setIsCheckingLoginStatus(true);
+    setTfaError("");
+    try {
+      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const outletId = stored.outletId || stored.outletid || "";
+      const res = await checkAepsLoginStatus(outletId);
+
+      const providerData = res?.data?.provider as any;
+      const extractedActcode =
+        providerData?.data?.actcode ||
+        providerData?.actcode ||
+        (res?.data as any)?.actcode ||
+        "";
+
+      setActcode(extractedActcode);
+
+      if (extractedActcode && extractedActcode !== "LOGINREQUIRED") {
+        setRetailerAuthenticated(true);
+        setTfaStatusMessage("Daily 2FA is completed / not required for today.");
+      } else if (extractedActcode === "LOGINREQUIRED") {
+        setTfaStatusMessage("Daily 2FA authentication is required. Please verify with Aadhaar and fingerprint.");
+      }
+    } catch (err: any) {
+      console.error("Failed to check AEPS login status:", err);
+      setTfaError(err.message || "Failed to check AEPS login status");
+    } finally {
+      setIsCheckingLoginStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLoginStatus();
+  }, []);
 
   /*
    * Customer Aadhaar
@@ -479,7 +530,10 @@ const Aeps = () => {
   const [receiptData, setReceiptData] =
     useState<ReceiptData | null>(null);
 
-  const retailerMobile = "+91 1234567890";
+  const retailerMobile =
+    storedRetailer?.mobile ||
+    localStorage.getItem("retailerMobile") ||
+    "+91 1234567890";
 
   const customerMobile = "+91 98XXXX832";
 
@@ -501,6 +555,7 @@ const Aeps = () => {
       .slice(0, 12);
 
     setRetailerAadhaar(value);
+    setTfaError("");
   };
 
   const handleCustomerAadhaarChange = (
@@ -525,21 +580,97 @@ const Aeps = () => {
    * ============================================================
    */
 
-  const handleRetailerBiometric = () => {
+  const handleRetailerBiometric = async () => {
     if (retailerAadhaar.length !== 12) {
+      setTfaError("Please enter a valid 12-digit Aadhaar number");
+      return;
+    }
+
+    if (!selectedDevicePort) {
+      setTfaError("Please select a connected biometric device first");
       return;
     }
 
     setIsCapturingRetailer(true);
+    setTfaError("");
 
-    /*
-     * Temporary frontend simulation.
-     * Replace with Mantra RD Service later.
-     */
-    setTimeout(() => {
-      setIsCapturingRetailer(false);
+    try {
+      // Step 1: Ensure actcode is available
+      let currentActcode = actcode;
+      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const outletId = stored.outletId || stored.outletid || "";
+      const referenceKey = stored.referenceKey || "";
+
+      if (!currentActcode) {
+        const statusRes = await checkAepsLoginStatus(outletId);
+        const providerData = statusRes?.data?.provider as any;
+        currentActcode =
+          providerData?.data?.actcode ||
+          providerData?.actcode ||
+          (statusRes?.data as any)?.actcode ||
+          "";
+        setActcode(currentActcode);
+      }
+
+      // If actcode is not LOGINREQUIRED, 2FA verification is not required
+      if (currentActcode && currentActcode !== "LOGINREQUIRED") {
+        setRetailerAuthenticated(true);
+        setIsCapturingRetailer(false);
+        return;
+      }
+
+      // Step 2: Capture fingerprint with connected RD Service
+      const captureResult = await rdService.captureFingerprint(selectedDevicePort);
+      if (!captureResult.success) {
+        throw new Error(captureResult.message || "Failed to capture fingerprint");
+      }
+
+      // Step 3: Get Geolocation coordinates
+      const coords = await new Promise<{ latitude: string; longitude: string }>(
+        (resolve) => {
+          if (!navigator.geolocation) {
+            resolve({ latitude: "0", longitude: "0" });
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({
+                latitude: String(pos.coords.latitude),
+                longitude: String(pos.coords.longitude),
+              }),
+            () => resolve({ latitude: "0", longitude: "0" }),
+            { timeout: 5000 },
+          );
+        },
+      );
+
+      // Step 4: Parse biometric XML
+      const pidData = parsePidXml(captureResult.data);
+
+      // Step 5: Call verifyTfa API with actcode
+      const payload: TfaPayload = {
+        actcode: currentActcode || "LOGINREQUIRED",
+        aadhaar: retailerAadhaar,
+        outlet_id: outletId,
+        referenceKey: referenceKey,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        ts: pidData.ts || new Date().toISOString(),
+        ...pidData,
+      };
+
+      const result = await verifyTfa(payload);
+      console.log("verifyTfa response:", result);
+
       setRetailerAuthenticated(true);
-    }, 2500);
+      setTfaStatusMessage("TFA verified successfully");
+    } catch (err: any) {
+      console.error("Retailer 2FA verification failed:", err);
+      const errMsg = err?.message || "Biometric 2FA verification failed. Please try again.";
+      setTfaError(errMsg);
+    } finally {
+      setIsCapturingRetailer(false);
+    }
   };
 
   const handleStartTransaction = () => {
@@ -617,9 +748,8 @@ const Aeps = () => {
   };
 
   const getCustomerAadhaarDisplay = () => {
-    return `XXXX XXXX ${
-      customerAadhaar.slice(-4) || "9999"
-    }`;
+    return `XXXX XXXX ${customerAadhaar.slice(-4) || "9999"
+      }`;
   };
 
   /*
@@ -732,9 +862,9 @@ const Aeps = () => {
 
     if (
       selectedService !==
-        "cash-withdrawal" &&
+      "cash-withdrawal" &&
       selectedService !==
-        "balance-withdrawal"
+      "balance-withdrawal"
     ) {
       return;
     }
@@ -784,7 +914,7 @@ const Aeps = () => {
     if (
       type === "withdrawal" ||
       type ===
-        "balance-withdrawal"
+      "balance-withdrawal"
     ) {
       finalBalance =
         currentBalance -
@@ -840,7 +970,7 @@ const Aeps = () => {
         getSelectedBankName(),
       amount:
         type === "balance" ||
-        type === "mini-statement"
+          type === "mini-statement"
           ? 0
           : withdrawalAmount,
       balance: finalBalance,
@@ -970,27 +1100,64 @@ const Aeps = () => {
       <>
         {/* 2FA + Biometric Device */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-3 text-slate-900 shadow-sm sm:p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-                <ShieldCheck className="h-5 w-5" />
+          <div className="flex h-full flex-col justify-between rounded-2xl border border-purple-100 bg-white p-3 text-slate-900 shadow-sm sm:p-4">
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+
+                  <div>
+                    <h2 className="text-sm font-bold text-[#171717] sm:text-base">
+                      Retailer Daily 2FA Active
+                    </h2>
+
+                    <p className="mt-0.5 text-xs text-[#8992a3] sm:text-sm">
+                      NPCI Mandatory Biometric Verification
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={fetchLoginStatus}
+                  disabled={isCheckingLoginStatus}
+                  title="Refresh Login Status"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-600 hover:bg-purple-50 disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 ${isCheckingLoginStatus ? "animate-spin" : ""}`}
+                  />
+                </button>
               </div>
 
-              <div>
-                <h2 className="text-sm font-bold text-[#171717] sm:text-base">
-                  Retailer Daily 2FA Active
-                </h2>
-
-                <p className="mt-0.5 text-xs text-[#8992a3] sm:text-sm">
-                  NPCI Mandatory Biometric Verification
-                </p>
-              </div>
+              <p className="mt-3 text-xs leading-5 text-[#596273] sm:text-sm">
+                As per regulatory compliance, complete 2FA authentication once
+                every morning before initiating cash transactions.
+              </p>
             </div>
 
-            <p className="mt-3 text-xs leading-5 text-[#596273] sm:text-sm">
-              As per regulatory compliance, complete 2FA authentication once
-              every morning before initiating cash transactions.
-            </p>
+            <div className="mt-3 pt-2 border-t border-purple-50 flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-500">2FA Status:</span>
+              {isCheckingLoginStatus ? (
+                <span className="inline-flex items-center gap-1.5 font-medium text-purple-600">
+                  <RefreshCw className="h-3 w-3 animate-spin" /> Checking...
+                </span>
+              ) : retailerAuthenticated ? (
+                <span className="inline-flex items-center gap-1 font-bold text-emerald-600">
+                  <Check className="h-3.5 w-3.5" /> 2FA Verified
+                </span>
+              ) : actcode === "LOGINREQUIRED" ? (
+                <span className="inline-flex items-center gap-1 font-bold text-amber-600">
+                  Login Required
+                </span>
+              ) : actcode ? (
+                <span className="font-bold text-purple-600">{actcode}</span>
+              ) : (
+                <span className="font-medium text-slate-500">Ready</span>
+              )}
+            </div>
           </div>
 
           <div className="flex h-full flex-col rounded-2xl border border-purple-100 bg-white p-3 shadow-sm sm:p-4">
@@ -1022,10 +1189,10 @@ const Aeps = () => {
                     </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
-                  <RefreshCw 
-                    className={`h-4 w-4 text-purple-600 transition-transform ${isScanningDevices ? "animate-spin" : ""}`} 
+                  <RefreshCw
+                    className={`h-4 w-4 text-purple-600 transition-transform ${isScanningDevices ? "animate-spin" : ""}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleScanDevices();
@@ -1046,9 +1213,8 @@ const Aeps = () => {
                         setWithdrawalDeviceName(device.name);
                         setIsDeviceDropdownOpen(false);
                       }}
-                      className={`w-full border-b border-slate-50 px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${
-                        selectedDevicePort === device.port ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
-                      }`}
+                      className={`w-full border-b border-slate-50 px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${selectedDevicePort === device.port ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
+                        }`}
                     >
                       {device.name} (Port: {device.port})
                     </button>
@@ -1103,6 +1269,12 @@ const Aeps = () => {
             </div>
           </section>
         </div>
+
+        {tfaError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+            {tfaError}
+          </div>
+        )}
 
         {isCapturingRetailer && (
           <div className="rounded-2xl border-2 border-[#172033] bg-white p-5 text-center">
@@ -1239,11 +1411,10 @@ const Aeps = () => {
           </label>
 
           <div
-            className={`flex min-h-[52px] items-center gap-3 rounded-xl border-2 bg-white px-4 ${
-              customerVerified
-                ? "border-slate-200"
-                : "border-slate-200 focus-within:border-[#172033]"
-            }`}
+            className={`flex min-h-[52px] items-center gap-3 rounded-xl border-2 bg-white px-4 ${customerVerified
+              ? "border-slate-200"
+              : "border-slate-200 focus-within:border-[#172033]"
+              }`}
           >
             <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
 
@@ -1266,7 +1437,7 @@ const Aeps = () => {
 
             {!customerVerified &&
               customerAadhaar.length ===
-                12 && (
+              12 && (
                 <button
                   type="button"
                   onClick={
@@ -1317,7 +1488,7 @@ const Aeps = () => {
           type="button"
           onClick={() => setStep(4)}
           disabled={!customerVerified}
-            className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
+          className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
         >
           <ArrowRight className="h-5 w-5" />
           CONTINUE TO BANK SELECTION
@@ -1539,39 +1710,39 @@ const Aeps = () => {
     iconClass: string;
     bgClass: string;
   }[] = [
-    {
-      id: "cash-withdrawal",
-      title: "A. Cash Withdrawal",
-      description: "Withdraw cash from A/C",
-      icon: WalletCards,
-      iconClass: "text-[#172033]",
-      bgClass: "bg-purple-50",
-    },
-    {
-      id: "balance-check",
-      title: "B. Balance Enquiry",
-      description: "Enquire A/C balance",
-      icon: Banknote,
-      iconClass: "text-[#172033]",
-      bgClass: "bg-purple-50",
-    },
-    {
-      id: "mini-statement",
-      title: "C. Mini Statement",
-      description: "Last 5 transactions",
-      icon: ReceiptText,
-      iconClass: "text-[#172033]",
-      bgClass: "bg-purple-50",
-    },
-    {
-      id: "balance-withdrawal",
-      title: "D. Bal+Withdraw",
-      description: "Check & withdraw",
-      icon: ArrowRight,
-      iconClass: "text-[#172033]",
-      bgClass: "bg-purple-50",
-    },
-  ];
+      {
+        id: "cash-withdrawal",
+        title: "A. Cash Withdrawal",
+        description: "Withdraw cash from A/C",
+        icon: WalletCards,
+        iconClass: "text-[#172033]",
+        bgClass: "bg-purple-50",
+      },
+      {
+        id: "balance-check",
+        title: "B. Balance Enquiry",
+        description: "Enquire A/C balance",
+        icon: Banknote,
+        iconClass: "text-[#172033]",
+        bgClass: "bg-purple-50",
+      },
+      {
+        id: "mini-statement",
+        title: "C. Mini Statement",
+        description: "Last 5 transactions",
+        icon: ReceiptText,
+        iconClass: "text-[#172033]",
+        bgClass: "bg-purple-50",
+      },
+      {
+        id: "balance-withdrawal",
+        title: "D. Bal+Withdraw",
+        description: "Check & withdraw",
+        icon: ArrowRight,
+        iconClass: "text-[#172033]",
+        bgClass: "bg-purple-50",
+      },
+    ];
 
   const renderServices = () => {
     return (
@@ -1604,11 +1775,10 @@ const Aeps = () => {
                     service.id
                   )
                 }
-                className={`rounded-2xl border-2 p-5 text-left transition ${
-                  selected
-                    ? "border-[#172033] shadow-md"
-                    : "border-[#d8d8d8]"
-                } bg-white shadow-sm hover:shadow-md transition-shadow hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.45)]`}
+                className={`rounded-2xl border-2 p-5 text-left transition ${selected
+                  ? "border-[#172033] shadow-md"
+                  : "border-[#d8d8d8]"
+                  } bg-white shadow-sm hover:shadow-md transition-shadow hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.45)]`}
               >
                 <div
                   className={`flex h-12 w-12 items-center justify-center rounded-2xl ${service.bgClass}`}
@@ -1788,11 +1958,10 @@ const Aeps = () => {
                         amount
                       )
                     }
-                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold sm:text-base ${
-                      active
-                        ? "border-[#7c3aed] bg-purple-50 text-purple-600"
-                        : "border-slate-200 bg-white text-slate-800"
-                    }`}
+                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold sm:text-base ${active
+                      ? "border-[#7c3aed] bg-purple-50 text-purple-600"
+                      : "border-slate-200 bg-white text-slate-800"
+                      }`}
                   >
                     {active && (
                       <Check className="mr-1 inline h-4 w-4" />
@@ -2014,23 +2183,21 @@ const Aeps = () => {
 
                 <div className="shrink-0 text-right">
                   <p
-                    className={`text-base font-bold sm:text-xl ${
-                      transaction.type ===
+                    className={`text-base font-bold sm:text-xl ${transaction.type ===
                       "CREDIT"
-                        ? "text-[#172033]"
-                        : "text-slate-900"
-                    }`}
+                      ? "text-[#172033]"
+                      : "text-slate-900"
+                      }`}
                   >
                     {transaction.amount}
                   </p>
 
                   <span
-                    className={`mt-1 inline-block rounded-lg px-2.5 py-1 text-xs font-bold ${
-                      transaction.type ===
+                    className={`mt-1 inline-block rounded-lg px-2.5 py-1 text-xs font-bold ${transaction.type ===
                       "CREDIT"
-                        ? "bg-purple-50 text-[#172033]"
-                        : "bg-[#e8e8ee] text-slate-700"
-                    }`}
+                      ? "bg-purple-50 text-[#172033]"
+                      : "bg-[#e8e8ee] text-slate-700"
+                      }`}
                   >
                     {transaction.type}
                   </span>
@@ -2060,9 +2227,9 @@ const Aeps = () => {
 
     const isWithdrawal =
       receiptData.receiptType ===
-        "withdrawal" ||
+      "withdrawal" ||
       receiptData.receiptType ===
-        "balance-withdrawal";
+      "balance-withdrawal";
 
     return (
       <div className="">
@@ -2254,7 +2421,7 @@ const Aeps = () => {
         </div>
       </section>
 
-      
+
       <section className="hp-card overflow-hidden rounded-2xl p-5 sm:p-7">
         {step > 1 && flowMode === "withdraw" && (
           <div className="mx-auto mt-4 w-full max-w-3xl rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
