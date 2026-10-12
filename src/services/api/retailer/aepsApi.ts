@@ -95,7 +95,7 @@ export function parsePidXml(
     errInfo: attr(resp, "errInfo"),
     errCode: attr(resp, "errCode"),
     fCount: attr(resp, "fCount") || "1",
-    fType: attr(resp, "fType") || "0",
+    fType: attr(resp, "fType") || "2",
     iCount: attr(resp, "iCount") || "0",
     iType: attr(resp, "iType") || "0",
     pCount: attr(resp, "pCount") || "0",
