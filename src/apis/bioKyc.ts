@@ -9,9 +9,13 @@ export const checkDeviceStatus = async (port: number) => {
 };
 
 export const captureBiometric = async (port: number, pidOptions: string) => {
-  return await axios.post(`http://127.0.0.1:${port}/capture`, pidOptions, {
+  return await axios({
+    method: "CAPTURE",
+    url: `http://127.0.0.1:${port}/capture`,
+    data: pidOptions,
     headers: {
       "Content-Type": "text/xml",
     },
+    timeout: 15000,
   });
 };
