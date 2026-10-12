@@ -354,63 +354,50 @@ const Dmt = () => {
     }
 
     setIsFetchingCustomer(true);
-    setContinueStatus("Checking remitter status...");
+    setContinueStatus("Verifying remitter...");
 
     try {
-      // 1. Check if user is already registered via login-remitter API
-      const res = await loginRemitterApi({ mobile: customerMobile });
-      const resData = res?.data;
-      const msg = (resData?.msg || res?.message || "").toLowerCase();
-
-      // Detect "Remitter Not Found" or unregistered state
-      const isNotFound =
-        msg.includes("not found") ||
-        msg.includes("not registered") ||
-        resData?.status === "FAILED" ||
-        (resData?.kyc === 0 && !resData?.name);
-
-      if (!isNotFound && (res?.success || res?.status)) {
-        // Remitter is found / already registered -> Skip internal registration
-        toast.success(res?.message || "Remitter details verified successfully");
-        setCustomerName(resData?.name || resData?.remitterName || "VERIFIED SENDER");
-        await fetchBeneficiariesList();
-        setScreen("customer-details");
-        return;
-      }
-
-      // Remitter not found -> Trigger internal registration seamlessly (no separate register page)
-      const validRefKey = resData?.referenceKey || "";
-      if (validRefKey) {
-        saveReferenceKey(validRefKey);
-      }
-
-      setContinueStatus("Registering remitter & sending OTP...");
-      const regRes = await registerRemitterApi({
+      // Single unified call: backend checks remitter, and automatically registers internally if not found
+      const res = await loginRemitterApi({
         mobile: customerMobile,
         aadhaar: aadhaarNumber,
-        ...(validRefKey ? { referenceKey: validRefKey } : {}),
       });
 
-      console.log("Remitter registration response:", regRes);
+      const resData = res?.data;
+      const msg = String(resData?.msg || res?.message || "").toLowerCase();
 
-      if (regRes?.success !== false && regRes?.status !== false) {
-        const nextRefKey =
-          regRes?.data?.referenceKey ||
-          regRes?.data?.data?.referenceKey ||
-          regRes?.referenceKey ||
-          validRefKey;
+      // Check if backend detected new remitter and initiated registration
+      const isNewRegistration =
+        resData?.isNewRegistration ||
+        msg.includes("otp sent") ||
+        msg.includes("registration initiated") ||
+        (resData?.referenceKey && !resData?.name && !resData?.remitterName);
 
-        if (nextRefKey) {
-          saveReferenceKey(nextRefKey);
+      if (isNewRegistration) {
+        // Capture dynamic session reference key
+        const refKey =
+          resData?.referenceKey ||
+          resData?.data?.referenceKey ||
+          res?.referenceKey ||
+          "";
+
+        if (refKey) {
+          saveReferenceKey(refKey);
         }
-        toast.info(regRes?.message || "New remitter detected. OTP sent to mobile number.");
+
+        toast.info(res?.message || "New remitter detected. OTP sent to mobile number.");
         setOtp("");
         setOtpSent(true);
         setOtpTimer(30);
         setScreen("otp");
-      } else {
-        toast.error(regRes?.message || "Failed to initiate remitter registration");
+        return;
       }
+
+      // Existing verified remitter -> Skip registration
+      toast.success(res?.message || "Remitter verified successfully");
+      setCustomerName(resData?.name || resData?.remitterName || "VERIFIED SENDER");
+      await fetchBeneficiariesList();
+      setScreen("customer-details");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to verify or register remitter"));
     } finally {

@@ -2,6 +2,7 @@ import api from "../config/axiosInstance";
 
 export interface RemitterPayload {
   mobile: string;
+  aadhaar?: string;
 }
 
 export interface RegisterRemitterPayload extends RemitterPayload {

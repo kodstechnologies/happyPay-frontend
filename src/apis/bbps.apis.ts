@@ -42,6 +42,7 @@ export interface BillerListResponse {
 }
 
 export interface ViewBillPayload {
+  orderid?: string;
   biller_id?: string | number;
   operator?: string;
   opcode?: string;
@@ -58,7 +59,9 @@ export interface ViewBillPayload {
   [key: string]: unknown;
 }
 
+
 export interface PayBillPayload {
+  orderid?: string;
   biller_id?: string | number;
   operator?: string;
   opcode?: string;
