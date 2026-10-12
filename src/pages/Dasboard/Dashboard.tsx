@@ -20,7 +20,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
-import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi } from "../../apis/wallet.apis";
+import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../apis/wallet.apis";
 import { loadRazorpayScript } from "../../utils/razorpay";
 import { useNavigate } from "react-router-dom";
 
@@ -548,8 +548,21 @@ const Dashboard = () => {
 
       const RazorpayConstructor = (window as unknown as { Razorpay: new (opts: typeof options) => { on: (event: string, cb: (res: RazorpayPaymentFailure) => void) => void; open: () => void } }).Razorpay;
       const rzp = new RazorpayConstructor(options);
-      rzp.on("payment.failed", function (response: RazorpayPaymentFailure) {
-        alert(response.error?.description || "Payment failed");
+      rzp.on("payment.failed", async function (response: RazorpayPaymentFailure) {
+        setIsAddingMoney(false);
+        const reason = response.error?.description || "Payment failed";
+        try {
+          await recordPaymentFailureApi(
+            orderData.orderId,
+            undefined,
+            reason,
+            "PAYMENT_FAILED",
+            "add_wallet"
+          );
+        } catch (failErr) {
+          console.error("Failed to report payment failure:", failErr);
+        }
+        alert(reason);
       });
       rzp.open();
     } catch (error: unknown) {

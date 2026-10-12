@@ -6,6 +6,7 @@ export interface RemitterPayload {
 
 export interface RegisterRemitterPayload extends RemitterPayload {
   aadhaar: string;
+  referenceKey?: string;
 }
 
 export interface VerifyRemitterOtpPayload extends RemitterPayload {
@@ -16,9 +17,14 @@ export interface BeneficiaryPayload extends RemitterPayload {
   bene_id?: string | number;
   bene_name?: string;
   account_number?: string;
+  accountNumber?: string;
   ifsc?: string;
+  bankIfsc?: string;
   bank_name?: string;
   otp?: string;
+  txnid?: string;
+  latitude?: string | number;
+  longitude?: string | number;
 }
 
 export interface TransactionPayload extends RemitterPayload {
@@ -63,12 +69,15 @@ export const fetchBeneficiariesApi = async (payload: RemitterPayload) => {
 };
 
 /**
- * 5. Verify Beneficiary Bank Account
+ * 5. Verify Beneficiary Bank Account (verifyAccount)
  */
 export const verifyBeneficiaryApi = async (payload: BeneficiaryPayload) => {
   const response = await api.post("/api/v1/dmt/verify-beneficiary", payload);
   return response.data;
 };
+
+export const verifyAccountApi = verifyBeneficiaryApi;
+
 
 /**
  * 6. Add Beneficiary

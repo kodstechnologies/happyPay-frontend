@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Plus, WalletCards, X, ArrowRightLeft, RefreshCw, AlertCircle, ShieldCheck, Lock } from "lucide-react";
+import { Plus, WalletCards, X, ArrowRightLeft, RefreshCw, AlertCircle, ShieldCheck, Lock, CheckCircle2, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
-import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi } from "../../../apis/wallet.apis";
+import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../../apis/wallet.apis";
 import { loadRazorpayScript } from "../../../utils/razorpay";
 
 const formatAmount = (amount: number) =>
@@ -33,7 +33,20 @@ interface RazorpayFailureResponse {
     source?: string;
     step?: string;
     reason?: string;
+    metadata?: {
+      order_id?: string;
+      payment_id?: string;
+    };
   };
+}
+
+interface PaymentNotification {
+  type: "success" | "error";
+  title: string;
+  message: string;
+  amount?: number;
+  orderId?: string;
+  paymentId?: string;
 }
 
 interface RazorpayInstance {
@@ -48,6 +61,9 @@ interface RazorpayOptions {
   name: string;
   description: string;
   order_id: string;
+  modal?: {
+    ondismiss?: () => void;
+  };
   handler: (response: RazorpaySuccessResponse) => Promise<void>;
   prefill?: {
     name?: string;
@@ -69,8 +85,9 @@ export default function Wallet() {
 
   const [amount, setAmount] = useState<string>("500");
   const [open, setOpen] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>("");
+  const [paymentNotice, setPaymentNotice] = useState<PaymentNotification | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+
 
   // Load retailer details from stored session
   const [retailerUser] = useState<StoredRetailerUser>(() => {
@@ -167,10 +184,15 @@ export default function Wallet() {
     if (!numericAmount || numericAmount <= 0) return;
 
     setIsLoading(true);
+    setPaymentNotice(null);
     try {
       const isLoaded = await loadRazorpayScript();
       if (!isLoaded) {
-        alert("Failed to load Razorpay SDK. Please check your internet connection.");
+        setPaymentNotice({
+          type: "error",
+          title: "Payment SDK Error",
+          message: "Failed to load Razorpay SDK. Please check your internet connection.",
+        });
         setIsLoading(false);
         return;
       }
@@ -178,7 +200,11 @@ export default function Wallet() {
       // 1. Initiate payment
       const initiateRes = await initiatePaymentApi(numericAmount, "add_wallet");
       if (!initiateRes.success) {
-        alert(initiateRes.message || "Failed to initiate payment");
+        setPaymentNotice({
+          type: "error",
+          title: "Initiation Failed",
+          message: initiateRes.message || "Failed to initiate payment.",
+        });
         setIsLoading(false);
         return;
       }
@@ -193,6 +219,12 @@ export default function Wallet() {
         name: "Happy Pay",
         description: "Wallet Topup",
         order_id: orderData.orderId,
+        modal: {
+          ondismiss: async function () {
+            setIsLoading(false);
+            // Optionally log user dismissed flow if needed
+          },
+        },
         handler: async function (response: RazorpaySuccessResponse) {
           try {
             // 3. Verify payment
@@ -204,20 +236,40 @@ export default function Wallet() {
             );
 
             if (verifyRes.success) {
-              setMessage(`₹${formatAmount(numericAmount)} added successfully to your wallet.`);
+              setPaymentNotice({
+                type: "success",
+                title: "Payment Successful!",
+                message: `₹${formatAmount(numericAmount)} has been credited to your retailer wallet.`,
+                amount: numericAmount,
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+              });
               setAmount("500");
               setOpen(false);
               // Fetch latest live balance from server
               await fetchBalance(false);
-              window.setTimeout(() => setMessage(""), 4000);
             } else {
-              alert(verifyRes.message || "Payment verification failed");
+              setPaymentNotice({
+                type: "error",
+                title: "Verification Failed",
+                message: verifyRes.message || "Payment verification failed with server.",
+                orderId: response.razorpay_order_id,
+                paymentId: response.razorpay_payment_id,
+              });
             }
           } catch (error: unknown) {
             console.error("Error verifying payment:", error);
             const axiosErr = error as { response?: { data?: { message?: string } } };
             const backendErr = axiosErr?.response?.data;
-            alert(backendErr?.message || "Error verifying payment with server.");
+            setPaymentNotice({
+              type: "error",
+              title: "Verification Error",
+              message: backendErr?.message || "Error verifying payment signature with server.",
+              orderId: response.razorpay_order_id,
+              paymentId: response.razorpay_payment_id,
+            });
+          } finally {
+            setIsLoading(false);
           }
         },
         prefill: {
@@ -232,9 +284,35 @@ export default function Wallet() {
 
       const RazorpayConstructor = (window as unknown as { Razorpay: new (opts: RazorpayOptions) => RazorpayInstance }).Razorpay;
       const rzp = new RazorpayConstructor(options);
-      rzp.on("payment.failed", function (response: RazorpayFailureResponse) {
-        alert(response.error?.description || "Payment failed");
+
+      rzp.on("payment.failed", async function (response: RazorpayFailureResponse) {
+        setIsLoading(false);
+        const errReason = response.error?.description || response.error?.reason || "Payment declined or failed";
+        const errCode = response.error?.code || "PAYMENT_FAILED";
+        const rzpPayId = response.error?.metadata?.payment_id;
+
+        // Record failed transaction end-to-end to backend
+        try {
+          await recordPaymentFailureApi(
+            orderData.orderId,
+            rzpPayId,
+            errReason,
+            errCode,
+            "add_wallet"
+          );
+        } catch (failErr) {
+          console.error("Failed to report payment failure to server:", failErr);
+        }
+
+        setPaymentNotice({
+          type: "error",
+          title: "Payment Failed",
+          message: errReason,
+          orderId: orderData.orderId,
+          paymentId: rzpPayId,
+        });
       });
+
       rzp.open();
     } catch (error: unknown) {
       console.error("Payment flow error:", error);
@@ -244,8 +322,11 @@ export default function Wallet() {
         backendError?.message ||
         (Array.isArray(backendError?.errors) ? backendError.errors.join(", ") : "") ||
         "Something went wrong during payment initiation.";
-      alert(`Error: ${errorMsg}`);
-    } finally {
+      setPaymentNotice({
+        type: "error",
+        title: "Initiation Error",
+        message: errorMsg,
+      });
       setIsLoading(false);
     }
   };
@@ -382,12 +463,68 @@ export default function Wallet() {
         </div>
       )}
 
-      {/* Success Notification */}
-      {message && (
-        <div role="status" className="rounded-xl bg-[#e5f7ee] border border-emerald-200 px-4 py-3 text-sm font-semibold text-[#087f5b]">
-          {message}
+      {/* Payment Result Alert Dialog / Banner */}
+      {paymentNotice && (
+        <div
+          role="status"
+          className={`relative rounded-2xl border p-5 shadow-sm transition animate-in fade-in slide-in-from-top-2 duration-200 ${
+            paymentNotice.type === "success"
+              ? "border-emerald-200 bg-emerald-50/80 text-emerald-950"
+              : "border-rose-200 bg-rose-50/80 text-rose-950"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                  paymentNotice.type === "success"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-rose-600 text-white"
+                }`}
+              >
+                {paymentNotice.type === "success" ? (
+                  <CheckCircle2 className="h-6 w-6" />
+                ) : (
+                  <XCircle className="h-6 w-6" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-bold">
+                  {paymentNotice.title}
+                </h3>
+                <p className="mt-1 text-sm text-slate-700">
+                  {paymentNotice.message}
+                </p>
+
+                {(paymentNotice.orderId || paymentNotice.paymentId) && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-slate-600">
+                    {paymentNotice.orderId && (
+                      <span className="rounded-lg bg-white/80 px-2.5 py-1 border border-slate-200">
+                        Order ID: <span className="font-mono font-semibold text-slate-800">{paymentNotice.orderId}</span>
+                      </span>
+                    )}
+                    {paymentNotice.paymentId && (
+                      <span className="rounded-lg bg-white/80 px-2.5 py-1 border border-slate-200">
+                        Payment ID: <span className="font-mono font-semibold text-slate-800">{paymentNotice.paymentId}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setPaymentNotice(null)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-white hover:text-slate-700"
+              title="Dismiss notification"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       )}
+
 
       {/* Add Money Modal */}
       {open && (

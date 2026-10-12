@@ -146,6 +146,7 @@ const Dmt = () => {
   const [customerMobile, setCustomerMobile] = useState("");
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [isFetchingCustomer, setIsFetchingCustomer] = useState(false);
+  const [continueStatus, setContinueStatus] = useState<string>("");
 
   /* =========================
      OTP
@@ -337,38 +338,52 @@ const Dmt = () => {
     }
 
     setIsFetchingCustomer(true);
-    
+    setContinueStatus("Checking remitter status...");
+
     try {
-      // 1. Check if user is registered using live API
+      // 1. Check if user is already registered via login-remitter API
       const res = await loginRemitterApi({ mobile: customerMobile });
-      
-      if (res?.success || res?.status) {
-         // User is registered, fetch beneficiaries
-         setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
-         await fetchBeneficiariesList();
-         setScreen("customer-details");
+      const resData = res?.data;
+      const msg = (resData?.msg || res?.message || "").toLowerCase();
+
+      // Detect "Remitter Not Found" or unregistered state
+      const isNotFound =
+        msg.includes("not found") ||
+        msg.includes("not registered") ||
+        resData?.status === "FAILED" ||
+        (resData?.kyc === 0 && !resData?.name);
+
+      if (!isNotFound && (res?.success || res?.status)) {
+        // Remitter is found / already registered -> Skip internal registration
+        toast.success(res?.message || "Remitter details verified successfully");
+        setCustomerName(resData?.name || resData?.remitterName || "VERIFIED SENDER");
+        await fetchBeneficiariesList();
+        setScreen("customer-details");
+        return;
+      }
+
+      // Remitter not found -> Trigger internal registration seamlessly (no separate register page)
+      setContinueStatus("Registering remitter & sending OTP...");
+      const regRes = await registerRemitterApi({
+        mobile: customerMobile,
+        aadhaar: aadhaarNumber,
+        ...(resData?.referenceKey ? { referenceKey: resData.referenceKey } : {}),
+      });
+
+      if (regRes?.success !== false && regRes?.status !== false) {
+        toast.info(regRes?.message || "New remitter detected. OTP sent to mobile number.");
+        setOtp("");
+        setOtpSent(true);
+        setOtpTimer(30);
+        setScreen("otp");
       } else {
-         throw new Error("Not registered");
+        toast.error(regRes?.message || "Failed to initiate remitter registration");
       }
-    } catch {
-      // 2. User not registered, attempt to register them
-      try {
-        const regRes = await registerRemitterApi({ mobile: customerMobile, aadhaar: aadhaarNumber });
-        if (regRes?.success || regRes?.status) {
-           toast.success(regRes?.message || "OTP sent successfully!");
-           setOtp("");
-           setOtpSent(true);
-           setOtpTimer(30);
-           setScreen("otp");
-        } else {
-           toast.error(regRes?.message || "Failed to register remitter");
-        }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (regErr: any) {
-        toast.error(regErr?.response?.data?.message || "Failed to register remitter");
-      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to verify or register remitter"));
     } finally {
       setIsFetchingCustomer(false);
+      setContinueStatus("");
     }
   };
 
@@ -390,8 +405,8 @@ const Dmt = () => {
     try {
       const res = await verifyRemitterOtpApi({ mobile: customerMobile, otp });
       if (res?.success || res?.status) {
-        toast.success(res?.message || "OTP Verified!");
-        setCustomerName("VERIFIED SENDER");
+        toast.success(res?.message || "Remitter registered and verified successfully!");
+        setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
         await fetchBeneficiariesList();
         setScreen("customer-details");
       } else {
@@ -408,14 +423,27 @@ const Dmt = () => {
      RESEND OTP
   ========================= */
 
-  const handleResendOtp = () => {
+  const handleResendOtp = async () => {
     if (otpTimer > 0) {
       return;
     }
 
-    setOtp("");
-    setOtpTimer(30);
-    setOtpSent(true);
+    try {
+      const regRes = await registerRemitterApi({
+        mobile: customerMobile,
+        aadhaar: aadhaarNumber,
+      });
+      if (regRes?.success !== false) {
+        toast.success(regRes?.message || "OTP resent successfully!");
+        setOtp("");
+        setOtpTimer(30);
+        setOtpSent(true);
+      } else {
+        toast.error(regRes?.message || "Failed to resend OTP");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to resend OTP"));
+    }
   };
 
   /* =========================
@@ -505,16 +533,44 @@ const Dmt = () => {
     setIsVerifyingAccount(true);
 
     try {
-      const res = await verifyBeneficiaryApi({
-         mobile: customerMobile,
-         account_number: beneficiaryAccount,
-         ifsc: beneficiaryBank?.ifsc || ""
+      // Obtain geolocation (fallback gracefully if blocked)
+      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve({ latitude: "28.7041", longitude: "77.1025" });
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            resolve({
+              latitude: String(pos.coords.latitude),
+              longitude: String(pos.coords.longitude),
+            });
+          },
+          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
+          { timeout: 4000 }
+        );
       });
+
+      // Generate random unique client transaction ID
+      const clientTxnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+
+      const res = await verifyBeneficiaryApi({
+        mobile: customerMobile,
+        account_number: beneficiaryAccount,
+        accountNumber: beneficiaryAccount,
+        ifsc: beneficiaryBank?.ifsc || "",
+        bankIfsc: beneficiaryBank?.ifsc || "",
+        txnid: clientTxnId,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+      });
+
       if (res?.success || res?.status) {
         toast.success(res?.message || "Account verified successfully!");
         setAccountVerified(true);
-        if (res?.data?.bene_name) {
-          setBeneficiaryName(res.data.bene_name); // Auto-fill fetched name
+        const beneName = res?.data?.bene_name || res?.data?.data?.bene_name || res?.data?.beneficiaryName || res?.data?.name;
+        if (beneName) {
+          setBeneficiaryName(beneName); // Auto-fill fetched verified name
         }
       } else {
         setVerifyAccount(false);
@@ -854,7 +910,10 @@ const Dmt = () => {
                   className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white transition hover:bg-[#c90026] disabled:cursor-not-allowed disabled:bg-[#b8bec9] sm:w-auto w-full"
                 >
                   {isFetchingCustomer ? (
-                    <><RefreshCw className="h-5 w-5 animate-spin" /> Verifying...</>
+                    <>
+                      <RefreshCw className="h-5 w-5 animate-spin" />
+                      <span>{continueStatus || "Verifying..."}</span>
+                    </>
                   ) : (
                     <>Continue <ArrowRight className="h-5 w-5" /></>
                   )}

@@ -40,3 +40,21 @@ export const verifyPaymentApi = async (
   });
   return response.data;
 };
+
+export const recordPaymentFailureApi = async (
+  razorpay_order_id: string,
+  razorpay_payment_id?: string,
+  reason?: string,
+  code?: string,
+  purpose: string = "add_wallet"
+) => {
+  const response = await api.post("/api/v1/payments/failed", {
+    razorpay_order_id,
+    razorpay_payment_id: razorpay_payment_id || null,
+    reason: reason || null,
+    code: code || null,
+    purpose,
+  });
+  return response.data;
+};
+

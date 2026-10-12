@@ -79,6 +79,44 @@ const formatDate = (isoString?: string) => {
   }
 };
 
+interface ExpandableDescriptionProps {
+  text: string;
+  maxLength?: number;
+}
+
+function ExpandableDescription({ text, maxLength = 45 }: ExpandableDescriptionProps) {
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
+
+  if (!text) return null;
+
+  if (text.length <= maxLength) {
+    return (
+      <span className="font-semibold text-slate-800 break-words whitespace-normal block">
+        {text}
+      </span>
+    );
+  }
+
+  return (
+    <div className="whitespace-normal break-words max-w-xs sm:max-w-sm">
+      <span className="font-semibold text-slate-800">
+        {isExpanded ? text : `${text.slice(0, maxLength)}... `}
+      </span>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsExpanded((prev) => !prev);
+        }}
+        className="ml-1 inline-flex items-center text-[11px] font-bold text-[#7c3aed] hover:underline focus:outline-none"
+      >
+        {isExpanded ? "Read Less" : "Read More"}
+      </button>
+    </div>
+  );
+}
+
+
 export default function Transactions() {
   const searchInputId = useId();
   const dateInputId = useId();
@@ -514,12 +552,13 @@ export default function Transactions() {
                       </td>
 
                       {/* Description & Payee details */}
-                      <td className="px-5 py-4">
-                        <p className="font-semibold text-slate-800">
-                          {tx.description || `${tx.service} Transaction`}
-                        </p>
+                      <td className="px-5 py-4 max-w-xs">
+                        <ExpandableDescription
+                          text={tx.description || `${tx.service} Transaction`}
+                          maxLength={40}
+                        />
                         {tx.payee?.accountHolderName && (
-                          <p className="text-[11px] text-slate-400">
+                          <p className="text-[11px] text-slate-400 mt-0.5 break-words">
                             {tx.payee.accountHolderName} • {tx.payee.bankName || tx.payee.accountNumber}
                           </p>
                         )}
@@ -697,7 +736,7 @@ export default function Transactions() {
                   <XCircle className="h-7 w-7" />
                 )}
               </div>
-              <h2 className="text-xl font-bold text-slate-900">
+              <h2 className="text-xl font-bold text-slate-900 break-words px-2 leading-snug">
                 {selectedTxn.description || `${selectedTxn.service} Transaction`}
               </h2>
               <p className="mt-1 text-xs font-semibold text-slate-500">
