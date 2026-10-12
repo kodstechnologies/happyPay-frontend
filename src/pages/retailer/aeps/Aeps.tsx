@@ -840,6 +840,7 @@ const Aeps = () => {
         referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
+        ts: pidData.ts || new Date().toISOString(),
         ...pidData,
         ts: pidData.ts || new Date().toISOString(),
       };
