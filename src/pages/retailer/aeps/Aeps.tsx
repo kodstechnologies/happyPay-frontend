@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import AepsDeposit from "./AepsDeposit";
 import { rdService } from "../../../utils/rdService";
+import { getDeviceInfo } from "../../../apis/bioKyc";
 import {
   ArrowLeft,
   ArrowRight,
@@ -454,7 +455,11 @@ const Aeps = () => {
   const [flowMode, setFlowMode] = useState<"withdraw" | "deposit" | "">("");
 
   // Real Biometric States
-  const [availableDevices, setAvailableDevices] = useState<import("../../../utils/rdService").ActiveDevice[]>([]);
+  const [availableDevices, setAvailableDevices] = useState<(import("../../../utils/rdService").ActiveDevice & {
+    model?: string;
+    serialNumber?: string;
+    detailedInfo?: string;
+  })[]>([]);
   const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
   const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
   const [isScanningDevices, setIsScanningDevices] = useState(true);
@@ -463,33 +468,156 @@ const Aeps = () => {
   const handleScanDevices = async () => {
     setIsScanningDevices(true);
     setWithdrawalDeviceName("Scanning...");
-    const devices = await rdService.scanAllDevices();
-    setAvailableDevices(devices);
+    
+    try {
+      console.log("=== Starting Manual Device Scan ===");
+      const devices = await rdService.scanAllDevices();
+      
+      // Enhanced device info gathering using getDeviceInfo
+      const enhancedDevices = await Promise.all(
+        devices.map(async (device) => {
+          try {
+            console.log(`Getting detailed info for device on port ${device.port}...`);
+            const deviceInfoResponse = await getDeviceInfo(device.port);
+            const deviceInfo = deviceInfoResponse.data;
+            
+            // Extract more detailed device information
+            let enhancedName = device.name;
+            let deviceModel = "";
+            let serialNumber = "";
+            
+            if (typeof deviceInfo === "string") {
+              // Extract device model from info attribute
+              const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
+              if (modelMatch) {
+                deviceModel = modelMatch[1];
+                enhancedName = `${deviceModel}`;
+              }
+              
+              // Extract serial number
+              const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
+              if (serialMatch) {
+                serialNumber = serialMatch[1];
+              }
+              
+              console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
+            }
+            
+            return {
+              ...device,
+              name: enhancedName || device.name,
+              model: deviceModel,
+              serialNumber: serialNumber,
+              detailedInfo: deviceInfo
+            };
+          } catch (error) {
+            console.log(`Could not get detailed info for device on port ${device.port}:`, error);
+            return device; // Return original device info if detailed info fails
+          }
+        })
+      );
+      
+      setAvailableDevices(enhancedDevices);
 
-    if (devices.length > 0) {
-      setSelectedDevicePort(devices[0].port);
-      setWithdrawalDeviceName(devices[0].name);
-    } else {
+      if (enhancedDevices.length > 0) {
+        setSelectedDevicePort(enhancedDevices[0].port);
+        setWithdrawalDeviceName(enhancedDevices[0].name);
+        console.log(`=== Scan Success: Found ${enhancedDevices.length} device(s) ===`);
+      } else {
+        setSelectedDevicePort(null);
+        setWithdrawalDeviceName("No device found");
+        console.log("=== Scan Complete: No devices found ===");
+        alert("No biometric devices found. Please ensure:\n1. RD Service is running\n2. Device is connected via USB\n3. Device driver is installed");
+      }
+    } catch (error) {
+      console.error("=== Device Scanning Failed ===", error);
       setSelectedDevicePort(null);
-      setWithdrawalDeviceName("No device found");
+      setWithdrawalDeviceName("Scan failed");
+      alert(`Device scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+    
     setIsScanningDevices(false);
   };
 
   useEffect(() => {
     let isMounted = true;
-    rdService.scanAllDevices().then((devices) => {
-      if (!isMounted) return;
-      setAvailableDevices(devices);
-      if (devices.length > 0) {
-        setSelectedDevicePort(devices[0].port);
-        setWithdrawalDeviceName(devices[0].name);
-      } else {
-        setSelectedDevicePort(null);
-        setWithdrawalDeviceName("No device found");
+    
+    const scanAndEnhanceDevices = async () => {
+      try {
+        const devices = await rdService.scanAllDevices();
+        
+        if (!isMounted) return;
+        
+        // Enhanced device info gathering using getDeviceInfo
+        const enhancedDevices = await Promise.all(
+          devices.map(async (device) => {
+            try {
+              console.log(`Getting detailed info for device on port ${device.port}...`);
+              const deviceInfoResponse = await getDeviceInfo(device.port);
+              const deviceInfo = deviceInfoResponse.data;
+              
+              // Extract more detailed device information
+              let enhancedName = device.name;
+              let deviceModel = "";
+              let serialNumber = "";
+              
+              if (typeof deviceInfo === "string") {
+                // Extract device model from mi attribute
+                const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
+                if (modelMatch) {
+                  deviceModel = modelMatch[1];
+                  enhancedName = `${deviceModel}`;
+                }
+                
+                // Extract serial number from ci attribute
+                const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
+                if (serialMatch) {
+                  serialNumber = serialMatch[1];
+                }
+                
+                console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
+              }
+              
+              return {
+                ...device,
+                name: enhancedName || device.name,
+                model: deviceModel,
+                serialNumber: serialNumber,
+                detailedInfo: deviceInfo
+              };
+            } catch (error) {
+              console.log(`Could not get detailed info for device on port ${device.port}:`, error);
+              return device; // Return original device info if detailed info fails
+            }
+          })
+        );
+        
+        if (!isMounted) return;
+        
+        setAvailableDevices(enhancedDevices);
+        
+        if (enhancedDevices.length > 0) {
+          setSelectedDevicePort(enhancedDevices[0].port);
+          setWithdrawalDeviceName(enhancedDevices[0].name);
+        } else {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("No device found");
+        }
+      } catch (error) {
+        console.error("Initial device scan failed:", error);
+        if (isMounted) {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("Scan failed");
+        }
+      } finally {
+        if (isMounted) {
+          setIsScanningDevices(false);
+        }
       }
-      setIsScanningDevices(false);
-    });
+    };
+
+    scanAndEnhanceDevices();
+    
     return () => {
       isMounted = false;
     };
@@ -750,26 +878,70 @@ const Aeps = () => {
       if (targetPort === null || availableDevices.length === 0) {
         setIsScanningDevices(true);
         setWithdrawalDeviceName("Scanning devices...");
-        const devices = await rdService.scanAllDevices();
-        setAvailableDevices(devices);
-        setIsScanningDevices(false);
-
-        if (devices.length > 0) {
-          targetPort = devices[0].port;
-          setSelectedDevicePort(devices[0].port);
-          setWithdrawalDeviceName(devices[0].name);
-        } else {
-          setSelectedDevicePort(null);
-          setWithdrawalDeviceName("No device found");
-          throw new Error(
-            "No Biometric Device found. Please connect your USB RD Service scanner and retry."
+        
+        try {
+          console.log("=== Auto-scanning for biometric devices ===");
+          const devices = await rdService.scanAllDevices();
+          
+          // Enhanced device info gathering
+          const enhancedDevices = await Promise.all(
+            devices.map(async (device) => {
+              try {
+                const deviceInfoResponse = await getDeviceInfo(device.port);
+                const deviceInfo = deviceInfoResponse.data;
+                
+                let enhancedName = device.name;
+                let deviceModel = "";
+                
+                if (typeof deviceInfo === "string") {
+                  const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
+                  if (modelMatch) {
+                    deviceModel = modelMatch[1];
+                    enhancedName = `${deviceModel}`;
+                  }
+                }
+                
+                return {
+                  ...device,
+                  name: enhancedName || device.name,
+                  model: deviceModel,
+                  detailedInfo: deviceInfo
+                };
+              } catch (error) {
+                console.log(`Could not get detailed info for device on port ${device.port}:`, error);
+                return device;
+              }
+            })
           );
+          
+          setAvailableDevices(enhancedDevices);
+          setIsScanningDevices(false);
+
+          if (enhancedDevices.length > 0) {
+            targetPort = enhancedDevices[0].port;
+            setSelectedDevicePort(enhancedDevices[0].port);
+            setWithdrawalDeviceName(enhancedDevices[0].name);
+            console.log(`Auto-selected device: ${enhancedDevices[0].name} on port ${targetPort}`);
+          } else {
+            setSelectedDevicePort(null);
+            setWithdrawalDeviceName("No device found");
+            throw new Error(
+              "No Biometric Device found. Please connect your USB RD Service scanner and retry."
+            );
+          }
+        } catch (error) {
+          setIsScanningDevices(false);
+          throw error;
         }
       }
 
       // Call RD Service API to capture fingerprint
-      const captureResult =
-        await rdService.captureFingerprint(targetPort);
+      console.log(`=== Starting fingerprint capture on port ${targetPort} ===`);
+      setTfaStatusMessage(`Capturing fingerprint from ${withdrawalDeviceName}...`);
+      
+      const captureResult = await rdService.captureFingerprint(targetPort);
+      
+      console.log("=== Capture Result ===", captureResult);
 
       if (!captureResult.success || !captureResult.data) {
         throw new Error(
@@ -782,8 +954,9 @@ const Aeps = () => {
       setTfaStatusMessage(
         "Fingerprint captured successfully! Click 'VERIFY 2FA' below to authenticate."
       );
+      console.log("=== Fingerprint Capture Successful ===");
     } catch (error: unknown) {
-      console.error("Biometric capture failed:", error);
+      console.error("=== Biometric Capture Failed ===", error);
       setCapturedPidData("");
       setTfaError(
         getErrorMessage(
@@ -1453,13 +1626,19 @@ const Aeps = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <RefreshCw
-                    className={`h-4 w-4 text-purple-600 transition-transform ${isScanningDevices ? "animate-spin" : ""}`}
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleScanDevices();
                     }}
-                  />
+                    disabled={isScanningDevices}
+                    className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                    title="Scan for devices"
+                  >
+                    <RefreshCw className={`h-3 w-3 transition-transform ${isScanningDevices ? "animate-spin" : ""}`} />
+                    Scan
+                  </button>
                   <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
                 </div>
               </button>
@@ -1475,15 +1654,32 @@ const Aeps = () => {
                         setWithdrawalDeviceName(device.name);
                         setIsDeviceDropdownOpen(false);
                       }}
-                      className={`w-full border-b border-slate-50 px-3 py-2 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${selectedDevicePort === device.port ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
+                      className={`w-full border-b border-slate-50 px-3 py-3 text-left text-sm transition-colors last:border-0 hover:bg-slate-50 ${selectedDevicePort === device.port ? "bg-purple-50/50 font-bold text-purple-600" : "font-medium text-slate-700"
                         }`}
                     >
-                      {device.name} (Port: {device.port})
+                      <div className="flex flex-col gap-1">
+                        <div className="font-semibold">{device.name}</div>
+                        <div className="text-xs text-slate-500">
+                          Port: {device.port}
+                          {device.model && ` • Model: ${device.model}`}
+                          {device.serialNumber && ` • S/N: ${device.serialNumber.slice(0, 8)}...`}
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>
               )}
             </div>
+
+            {/* Debug Information */}
+            {/* {process.env.NODE_ENV === 'development' && (
+              <div className="mt-3 text-xs text-slate-500">
+                <div>Debug Info:</div>
+                <div>Available Devices: {availableDevices.length}</div>
+                <div>Selected Port: {selectedDevicePort || 'None'}</div>
+                <div>Scanning: {isScanningDevices ? 'Yes' : 'No'}</div>
+              </div>
+            )} */}
           </div>
         </div>
 

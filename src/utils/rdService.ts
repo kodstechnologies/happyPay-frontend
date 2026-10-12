@@ -1,9 +1,9 @@
-import { checkDeviceStatus, captureBiometric, captureBiometricFetch } from "../apis/bioKyc";
+import { checkDeviceStatus, captureBiometric } from "../apis/bioKyc";
 
 export interface RDDeviceResponse {
   success: boolean;
   message: string;
-  data: string;
+  data: string | null;
 }
 
 export interface ActiveDevice {
@@ -30,182 +30,102 @@ class RDService {
   public async scanAllDevices(): Promise<ActiveDevice[]> {
     const activeDevices: ActiveDevice[] = [];
 
+    console.log("Starting device scan on ports:", RDService.PORTS);
+
     // Use Promise.allSettled to scan all ports concurrently (much faster)
     const scanPromises = RDService.PORTS.map(async (port) => {
       try {
+        console.log(`Scanning port ${port}...`);
         const response = await checkDeviceStatus(port);
+        
         if (response.status >= 200 && response.status < 300) {
           const deviceInfo = response.data;
-
+          
+          console.log(`Port ${port} response:`, { status: response.status, data: deviceInfo });
+          
           if (typeof deviceInfo === "string" && deviceInfo.includes("RDService")) {
             // Extract the 'info' attribute for the device name (e.g. info="Mantra MFS100")
             const match = deviceInfo.match(/info="([^"]+)"/i);
             const deviceName = match ? match[1] : `Unknown Device (Port ${port})`;
-
+            
+            console.log(`Found device on port ${port}: ${deviceName}`);
             activeDevices.push({ port, name: deviceName });
           }
         }
-      } catch {
+      } catch (error) {
+        console.log(`Port ${port} scan failed:`, error);
         // Ignore dead ports
       }
     });
 
     await Promise.allSettled(scanPromises);
+    
+    console.log(`Device scan completed. Found ${activeDevices.length} devices:`, activeDevices);
     return activeDevices;
   }
 
   /**
-   * Captures the fingerprint from a SPECIFIC port using multiple methods
+   * Captures the fingerprint from a SPECIFIC port
    */
   public async captureFingerprint(port: number | null): Promise<RDDeviceResponse> {
     if (!port) {
-      return { success: false, message: "Please select a Biometric Device first.", data: "" };
+      return { success: false, message: "Please select a Biometric Device first.", data: null };
     }
 
-    console.log(`Attempting to capture biometric from port ${port} using multiple methods...`);
-
-    // Method 1: Try axios-based approach
     try {
-      const response = await captureBiometric(port, RDService.getPidOptions());
-      const pidData = response.data;
-      console.log("Axios capture response:", { status: response.status, dataLength: pidData?.length });
-
-      if (typeof pidData === "string" && pidData.includes('errCode="0"')) {
-        return { success: true, message: "Fingerprint captured successfully", data: pidData };
-      } else {
-        return this.parseErrorResponse(pidData);
-      }
-    } catch (axiosError) {
-      console.error("Axios method failed, trying fetch:", axiosError);
+      console.log(`Starting fingerprint capture on port ${port}...`);
       
-      // Method 2: Try fetch-based approach
+      // First try the regular captureBiometric method
       try {
-        const fetchResponse = await captureBiometricFetch(port, RDService.getPidOptions());
-        const pidData = fetchResponse.data;
-        console.log("Fetch capture response:", { status: fetchResponse.status, dataLength: pidData?.length });
-
+        const response = await captureBiometric(port, RDService.getPidOptions());
+        const pidData = response.data;
+        
+        console.log(`Capture response for port ${port}:`, { status: response.status, dataLength: pidData?.length });
+        
+        // Basic validation to ensure the device actually captured something
         if (typeof pidData === "string" && pidData.includes('errCode="0"')) {
           return { success: true, message: "Fingerprint captured successfully", data: pidData };
+        } else if (typeof pidData === "string" && pidData.includes('errCode=')) {
+          // Extract error code for better user feedback
+          const errorMatch = pidData.match(/errCode="(\d+)"/);
+          const errorCode = errorMatch ? errorMatch[1] : 'unknown';
+          return { success: false, message: `Capture failed with error code: ${errorCode}`, data: pidData };
         } else {
-          return this.parseErrorResponse(pidData);
+          return { success: false, message: "Invalid response from biometric device", data: pidData };
         }
-      } catch (fetchError) {
-        console.error("Fetch method also failed:", fetchError);
+      } catch (axiosError) {
+        console.log("Axios capture failed, trying fetch fallback...", axiosError);
         
-        // Method 3: Try direct HTTP request with XMLHttpRequest (for legacy compatibility)
+        // Fallback to fetch method if axios fails
         try {
-          const xhrResponse = await this.captureWithXHR(port, RDService.getPidOptions());
-          if (xhrResponse.success) {
-            return xhrResponse;
-          }
-        } catch (xhrError) {
-          console.error("XHR method also failed:", xhrError);
-        }
-
-        return this.buildErrorResponse(axiosError, port);
-      }
-    }
-  }
-
-  /**
-   * Legacy XMLHttpRequest method for maximum compatibility
-   */
-  private captureWithXHR(port: number, pidOptions: string): Promise<RDDeviceResponse> {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      const url = `http://127.0.0.1:${port}/capture`;
-      
-      xhr.timeout = 15000;
-      xhr.open('POST', url, true);
-      xhr.setRequestHeader('Content-Type', 'text/xml');
-      xhr.setRequestHeader('Accept', '*/*');
-      
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const pidData = xhr.responseText;
-          if (pidData.includes('errCode="0"')) {
-            resolve({ success: true, message: "Fingerprint captured successfully", data: pidData });
+          const { captureBiometricFetch } = await import("../apis/bioKyc");
+          const fetchResponse = await captureBiometricFetch(port, RDService.getPidOptions());
+          const pidData = fetchResponse.data;
+          
+          console.log(`Fetch capture response for port ${port}:`, { status: fetchResponse.status, dataLength: pidData?.length });
+          
+          if (typeof pidData === "string" && pidData.includes('errCode="0"')) {
+            return { success: true, message: "Fingerprint captured successfully (fetch fallback)", data: pidData };
+          } else if (typeof pidData === "string" && pidData.includes('errCode=')) {
+            const errorMatch = pidData.match(/errCode="(\d+)"/);
+            const errorCode = errorMatch ? errorMatch[1] : 'unknown';
+            return { success: false, message: `Capture failed with error code: ${errorCode}`, data: pidData };
           } else {
-            resolve(this.parseErrorResponse(pidData));
+            return { success: false, message: "Invalid response from biometric device (fetch)", data: pidData };
           }
-        } else {
-          reject(new Error(`XHR failed with status ${xhr.status}`));
-        }
-      };
-      
-      xhr.onerror = () => reject(new Error('XHR network error'));
-      xhr.ontimeout = () => reject(new Error('XHR timeout'));
-      
-      xhr.send(pidOptions);
-    });
-  }
-
-  /**
-   * Parse error codes from RD Service response
-   */
-
-private parseErrorResponse(pidData: string | null): RDDeviceResponse {
-  const errorMatch = pidData?.match(/errCode="(\d+)"/);
-  const errorCode = errorMatch ? errorMatch[1] : "unknown";
-
-  let errorMessage: string;
-
-  switch (errorCode) {
-    case "700":
-      errorMessage =
-        "Timeout error - Please place finger properly on the scanner.";
-      break;
-
-    case "1140":
-      errorMessage =
-        "Poor finger quality - Please clean finger and scanner, try again.";
-      break;
-
-    case "513":
-      errorMessage =
-        "Device not ready - Please check device connection.";
-      break;
-
-    default:
-      errorMessage =
-        `Capture failed (Error: ${errorCode}) - Please try again.`;
-  }
-
-  return {
-    success: false,
-    message: errorMessage,
-    data: pidData || "",
-  };
-}
-
-  /**
-   * Build error response from caught exceptions
-   */
-  private buildErrorResponse(error: unknown, port: number): RDDeviceResponse {
-    let errorMessage = "RD Service disconnected during capture.";
-    
-    if (error && typeof error === 'object' && 'response' in error) {
-      const axiosError = error as { response?: { status?: number; statusText?: string } };
-      if (axiosError.response) {
-        if (axiosError.response.status === 405) {
-          errorMessage = "RD Service method not supported. Your device may require different software or drivers.";
-        } else if (axiosError.response.status === 404) {
-          errorMessage = "RD Service endpoint not found. Please verify the biometric device service is properly installed and running.";
-        } else {
-          errorMessage = `RD Service error (${axiosError.response.status}): ${axiosError.response.statusText || 'Unknown error'}`;
+        } catch (fetchError) {
+          console.error("Both axios and fetch capture methods failed:", fetchError);
+          return { success: false, message: "All capture methods failed. Please check device connection.", data: null };
         }
       }
-    } else if (error && typeof error === 'object' && 'code' in error) {
-      const networkError = error as { code?: string };
-      if (networkError.code === 'ECONNREFUSED') {
-        errorMessage = `Cannot connect to RD Service on port ${port}. Please ensure the biometric device service is running.`;
-      } else if (networkError.code === 'ETIMEDOUT') {
-        errorMessage = "RD Service timeout. Please check device connection and try again.";
-      }
+
+    } catch (error) {
+      console.error("Fingerprint capture error:", error);
+      return { success: false, message: "RD Service disconnected during capture.", data: null };
     }
-    
-    return { success: false, message: errorMessage, data: "" };
   }
 }
 
 export const rdService = new RDService();
+
+
