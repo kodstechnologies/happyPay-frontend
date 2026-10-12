@@ -477,7 +477,7 @@ const Aeps = () => {
         devices.map(async (device) => {
           try {
             console.log(`Getting detailed info for device on port ${device.port}...`);
-            const deviceInfoResponse = await getDeviceInfo();
+            const deviceInfoResponse = await getDeviceInfo(device.port);
             const deviceInfo = deviceInfoResponse.data;
             
             // Extract more detailed device information
@@ -548,7 +548,7 @@ const Aeps = () => {
           devices.map(async (device) => {
             try {
               console.log(`Getting detailed info for device on port ${device.port}...`);
-              const deviceInfoResponse = await getDeviceInfo();
+              const deviceInfoResponse = await getDeviceInfo(device.port);
               const deviceInfo = deviceInfoResponse.data;
               
               // Extract more detailed device information
