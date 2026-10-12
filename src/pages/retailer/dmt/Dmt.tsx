@@ -26,7 +26,8 @@ import {
   fetchBeneficiariesApi,
   verifyBeneficiaryApi,
   addBeneficiaryApi,
-  executeTransactionApi
+  executeTransactionApi,
+  getBanksApi
 } from "../../../apis/dmt.apis";
 
 type Screen =
@@ -41,6 +42,8 @@ interface Bank {
   name: string;
   code: string;
   ifsc: string;
+  bank_id?: number | string;
+  iin?: string;
 }
 
 interface Beneficiary {
@@ -77,57 +80,50 @@ const getApiErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 /* =========================
-   BANK LIST
+   DEFAULT BANK IFSC MAPPING & FALLBACKS
 ========================= */
 
-const banks: Bank[] = [
-  {
-    name: "HDFC Bank",
-    code: "HDFC",
-    ifsc: "HDFC0001234",
-  },
-  {
-    name: "State Bank of India",
-    code: "SBIN",
-    ifsc: "SBIN0001234",
-  },
-  {
-    name: "ICICI Bank",
-    code: "ICIC",
-    ifsc: "ICIC0000045",
-  },
-  {
-    name: "Punjab National Bank",
-    code: "PUNB",
-    ifsc: "PUNB0001234",
-  },
-  {
-    name: "Bank of Baroda",
-    code: "BARB",
-    ifsc: "BARB0001234",
-  },
-  {
-    name: "Axis Bank",
-    code: "UTIB",
-    ifsc: "UTIB0001234",
-  },
-  {
-    name: "Canara Bank",
-    code: "CNRB",
-    ifsc: "CNRB0001234",
-  },
-  {
-    name: "Union Bank of India",
-    code: "UBIN",
-    ifsc: "UBIN0001234",
-  },
-];
+const defaultBankIfscMap: Record<string, string> = {
+  "state bank of india": "SBIN0000001",
+  "punjab national bank": "PUNB0000001",
+  "bank of baroda": "BARB0000001",
+  "bank of india": "BKID0000001",
+  "union bank of india": "UBIN0000001",
+  "canara bank": "CNRB0000001",
+  "hdfc bank": "HDFC0000001",
+  "icici bank": "ICIC0000001",
+  "axis bank": "UTIB0000001",
+  "kotak mahindra bank": "KKBK0000001",
+  "indian bank": "IDIB0000001",
+  "indian overseas bank": "IOBA0000001",
+  "central bank of india": "CBIN0000001",
+  "uco bank": "UCBA0000001",
+  "bank of maharashtra": "MAHB0000001",
+  "yes bank": "YESB0000001",
+  "indusind bank": "INDB0000001",
+  "idbi bank": "IBKL0000001",
+  "federal bank": "FDRL0000001",
+  "rbl bank": "RATN0000001",
+  "bandhan bank": "BDBL0000001",
+  "india post payments bank": "IPOS0000001",
+  "airtel payments bank": "AIRP0000001",
+  "paytm payments bank": "PYTM0000001",
+  "fino payments bank": "FINO0000001",
+  "aryavart bank": "BARB0ARYAVR",
+  "uttar pradesh gramin bank": "PUNB0MBGB06",
+};
 
-/* =========================
-   SAMPLE BENEFICIARIES
-========================= */
-
-// removed initialBeneficiaries
+const getDefaultIfscForBank = (bankName: string): string => {
+  const normalized = (bankName || "").trim().toLowerCase();
+  for (const [key, ifsc] of Object.entries(defaultBankIfscMap)) {
+    if (normalized.includes(key) || key.includes(normalized)) {
+      return ifsc;
+    }
+  }
+  // Standard fallback pattern: First 4 uppercase letters followed by 0000001
+  const cleanCode = bankName.replace(/[^A-Za-z]/g, "").slice(0, 4).toUpperCase();
+  return cleanCode.length === 4 ? `${cleanCode}0000001` : "SBIN0000001";
+};
 
 const Dmt = () => {
   const navigate = useNavigate();
@@ -212,10 +208,15 @@ const Dmt = () => {
 
   const [beneficiaryName, setBeneficiaryName] = useState("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<Bank | null>(null);
+  const [beneficiaryIfsc, setBeneficiaryIfsc] = useState("");
   const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
   const [verifyAccount, setVerifyAccount] = useState(false);
   const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
   const [accountVerified, setAccountVerified] = useState(false);
+
+  /* Dynamic Bank List from /api/v1/auth/banks (API only) */
+  const [liveBanks, setLiveBanks] = useState<Bank[]>([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(false);
 
   /* =========================
      SEND MONEY
@@ -257,10 +258,51 @@ const Dmt = () => {
     }
   }, []);
 
+  const fetchAllBanks = useCallback(async () => {
+    setIsLoadingBanks(true);
+    try {
+      const res = await getBanksApi({ page: 1, limit: 500 });
+      const rawList = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.data)
+        ? res.data.data
+        : [];
+
+      if (rawList.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mappedBanks: Bank[] = rawList.map((item: any) => {
+          const bankName = String(item.name || item.bank_name || "Unknown Bank").trim();
+          const ifscCode = item.ifsc || getDefaultIfscForBank(bankName);
+          const bankCode = String(item.bank_id || item.iin || bankName).trim();
+          return {
+            name: bankName,
+            code: bankCode,
+            ifsc: ifscCode,
+            bank_id: item.bank_id,
+            iin: item.iin,
+          };
+        });
+
+        // Sort alphabetically by name for a clean UI
+        mappedBanks.sort((a, b) => a.name.localeCompare(b.name));
+        setLiveBanks(mappedBanks);
+        console.log(`[DMT] Successfully loaded ${mappedBanks.length} banks from /api/v1/auth/banks`);
+      } else {
+        setLiveBanks([]);
+      }
+    } catch (err) {
+      console.error("[DMT] Failed to fetch bank list from API:", err);
+      setLiveBanks([]);
+    } finally {
+      setIsLoadingBanks(false);
+    }
+  }, []);
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWallet();
-  }, [fetchWallet]);
+    fetchAllBanks();
+  }, [fetchWallet, fetchAllBanks]);
 
   /*
    * Demo values matching the reference UI.
@@ -534,6 +576,7 @@ const Dmt = () => {
   const resetBeneficiaryForm = () => {
     setBeneficiaryName("");
     setBeneficiaryBank(null);
+    setBeneficiaryIfsc("");
     setBeneficiaryAccount("");
     setVerifyAccount(false);
     setIsVerifyingAccount(false);
@@ -556,6 +599,7 @@ const Dmt = () => {
   const canVerifyAccount =
     beneficiaryName.trim().length > 0 &&
     beneficiaryBank !== null &&
+    beneficiaryIfsc.trim().length === 11 &&
     beneficiaryAccount.length >= 8;
 
   const handleVerifyAccountChange = async (
@@ -598,13 +642,14 @@ const Dmt = () => {
 
       // Generate random unique client transaction ID
       const clientTxnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
+      const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank?.ifsc || "").toUpperCase();
 
       const res = await verifyBeneficiaryApi({
         mobile: customerMobile,
         account_number: beneficiaryAccount,
         accountNumber: beneficiaryAccount,
-        ifsc: beneficiaryBank?.ifsc || "",
-        bankIfsc: beneficiaryBank?.ifsc || "",
+        ifsc: effectiveIfsc,
+        bankIfsc: effectiveIfsc,
         txnid: clientTxnId,
         latitude: coords.latitude,
         longitude: coords.longitude,
@@ -636,6 +681,7 @@ const Dmt = () => {
   const canAddBeneficiary =
     beneficiaryName.trim().length > 0 &&
     beneficiaryBank !== null &&
+    beneficiaryIfsc.trim().length === 11 &&
     beneficiaryAccount.length >= 8 &&
     (!verifyAccount || accountVerified); // Verification is optional but if checked it must pass
 
@@ -645,11 +691,12 @@ const Dmt = () => {
     }
 
     try {
+       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
        const payload = {
          mobile: customerMobile,
          bene_name: beneficiaryName.trim(),
          account_number: beneficiaryAccount,
-         ifsc: beneficiaryBank.ifsc,
+         ifsc: effectiveIfsc,
          bank_name: beneficiaryBank.name
        };
        const res = await addBeneficiaryApi(payload);
@@ -1098,36 +1145,40 @@ const Dmt = () => {
                   className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-[#172033]"
                 />
               </div>
-
               {/* Bank */}
               <div>
                 <label className="mb-2 block font-semibold text-[#183153]">
-                  Bank Name
+                  Bank Name {isLoadingBanks && <span className="text-xs text-slate-400 font-normal">(Loading banks...)</span>}
                 </label>
 
                 <select
-                  value={
-                    beneficiaryBank?.code || ""
-                  }
+                  value={beneficiaryBank?.code || ""}
+                  disabled={isLoadingBanks || liveBanks.length === 0}
                   onChange={(event) => {
+                    const selectedCode = event.target.value;
                     const bank =
-                      banks.find(
-                        (item) =>
-                          item.code ===
-                          event.target.value
-                      ) || null;
+                      liveBanks.find((item) => item.code === selectedCode) || null;
 
                     setBeneficiaryBank(bank);
+                    if (bank) {
+                      setBeneficiaryIfsc(bank.ifsc);
+                    } else {
+                      setBeneficiaryIfsc("");
+                    }
                     setVerifyAccount(false);
                     setAccountVerified(false);
                   }}
                   className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 outline-none focus:border-[#172033]"
                 >
                   <option value="">
-                    Select Bank
+                    {isLoadingBanks
+                      ? "Loading bank list..."
+                      : liveBanks.length === 0
+                      ? "No banks available"
+                      : "Select Bank"}
                   </option>
 
-                  {banks.map((bank) => (
+                  {liveBanks.map((bank) => (
                     <option
                       key={bank.code}
                       value={bank.code}
@@ -1167,18 +1218,25 @@ const Dmt = () => {
 
               {/* IFSC */}
               <div>
-                <label className="mb-2 block font-semibold text-[#183153]">
-                  IFSC Code
-                </label>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block font-semibold text-[#183153]">
+                    IFSC Code
+                  </label>
+                  <span className="text-[11px] text-slate-400">11 characters</span>
+                </div>
 
                 <input
                   type="text"
-                  readOnly
-                  value={
-                    beneficiaryBank?.ifsc || ""
-                  }
-                  placeholder="IFSC will be auto-filled"
-                  className="h-12 w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-50 px-4 uppercase"
+                  maxLength={11}
+                  value={beneficiaryIfsc}
+                  onChange={(event) => {
+                    const val = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11);
+                    setBeneficiaryIfsc(val);
+                    setVerifyAccount(false);
+                    setAccountVerified(false);
+                  }}
+                  placeholder="e.g. SBIN0001234"
+                  className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 uppercase outline-none focus:border-[#172033]"
                 />
               </div>
             </div>

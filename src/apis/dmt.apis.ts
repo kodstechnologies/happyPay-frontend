@@ -120,3 +120,20 @@ export const executeTransactionApi = async (payload: TransactionPayload) => {
   const response = await api.post("/api/v1/dmt/do-transaction", payload);
   return response.data;
 };
+
+/**
+ * 11. Fetch All Banks List
+ */
+export interface AuthBank {
+  id: number;
+  bank_id: number;
+  name: string;
+  iin?: string;
+  aeps_enabled?: number;
+  aadhaarpay_enabled?: number;
+}
+
+export const getBanksApi = async (params: { page?: number; limit?: number } = { page: 1, limit: 500 }) => {
+  const response = await api.get("/api/v1/auth/banks", { params });
+  return response.data;
+};
