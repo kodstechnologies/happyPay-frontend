@@ -470,6 +470,7 @@ const Aeps = () => {
     setWithdrawalDeviceName("Scanning...");
     
     try {
+      console.log("=== Starting Manual Device Scan ===");
       const devices = await rdService.scanAllDevices();
       
       // Enhanced device info gathering using getDeviceInfo
@@ -521,14 +522,18 @@ const Aeps = () => {
       if (enhancedDevices.length > 0) {
         setSelectedDevicePort(enhancedDevices[0].port);
         setWithdrawalDeviceName(enhancedDevices[0].name);
+        console.log(`=== Scan Success: Found ${enhancedDevices.length} device(s) ===`);
       } else {
         setSelectedDevicePort(null);
         setWithdrawalDeviceName("No device found");
+        console.log("=== Scan Complete: No devices found ===");
+        alert("No biometric devices found. Please ensure:\n1. RD Service is running\n2. Device is connected via USB\n3. Device driver is installed");
       }
     } catch (error) {
-      console.error("Device scanning failed:", error);
+      console.error("=== Device Scanning Failed ===", error);
       setSelectedDevicePort(null);
       setWithdrawalDeviceName("Scan failed");
+      alert(`Device scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
     
     setIsScanningDevices(false);
@@ -875,6 +880,7 @@ const Aeps = () => {
         setWithdrawalDeviceName("Scanning devices...");
         
         try {
+          console.log("=== Auto-scanning for biometric devices ===");
           const devices = await rdService.scanAllDevices();
           
           // Enhanced device info gathering
@@ -915,6 +921,7 @@ const Aeps = () => {
             targetPort = enhancedDevices[0].port;
             setSelectedDevicePort(enhancedDevices[0].port);
             setWithdrawalDeviceName(enhancedDevices[0].name);
+            console.log(`Auto-selected device: ${enhancedDevices[0].name} on port ${targetPort}`);
           } else {
             setSelectedDevicePort(null);
             setWithdrawalDeviceName("No device found");
@@ -929,8 +936,12 @@ const Aeps = () => {
       }
 
       // Call RD Service API to capture fingerprint
-      const captureResult =
-        await rdService.captureFingerprint(targetPort);
+      console.log(`=== Starting fingerprint capture on port ${targetPort} ===`);
+      setTfaStatusMessage(`Capturing fingerprint from ${withdrawalDeviceName}...`);
+      
+      const captureResult = await rdService.captureFingerprint(targetPort);
+      
+      console.log("=== Capture Result ===", captureResult);
 
       if (!captureResult.success || !captureResult.data) {
         throw new Error(
@@ -943,8 +954,9 @@ const Aeps = () => {
       setTfaStatusMessage(
         "Fingerprint captured successfully! Click 'VERIFY 2FA' below to authenticate."
       );
+      console.log("=== Fingerprint Capture Successful ===");
     } catch (error: unknown) {
-      console.error("Biometric capture failed:", error);
+      console.error("=== Biometric Capture Failed ===", error);
       setCapturedPidData("");
       setTfaError(
         getErrorMessage(
@@ -1614,13 +1626,19 @@ const Aeps = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <RefreshCw
-                    className={`h-4 w-4 text-purple-600 transition-transform ${isScanningDevices ? "animate-spin" : ""}`}
+                  <button
+                    type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleScanDevices();
                     }}
-                  />
+                    disabled={isScanningDevices}
+                    className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                    title="Scan for devices"
+                  >
+                    <RefreshCw className={`h-3 w-3 transition-transform ${isScanningDevices ? "animate-spin" : ""}`} />
+                    Scan
+                  </button>
                   <ChevronRight className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-90" : ""}`} />
                 </div>
               </button>
@@ -1652,6 +1670,16 @@ const Aeps = () => {
                 </div>
               )}
             </div>
+
+            {/* Debug Information */}
+            {process.env.NODE_ENV === 'development' && (
+              <div className="mt-3 text-xs text-slate-500">
+                <div>Debug Info:</div>
+                <div>Available Devices: {availableDevices.length}</div>
+                <div>Selected Port: {selectedDevicePort || 'None'}</div>
+                <div>Scanning: {isScanningDevices ? 'Yes' : 'No'}</div>
+              </div>
+            )}
           </div>
         </div>
 
