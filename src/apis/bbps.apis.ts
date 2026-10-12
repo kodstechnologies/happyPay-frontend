@@ -42,10 +42,17 @@ export interface BillerListResponse {
 }
 
 export interface ViewBillPayload {
+  // Required BBPS parameters
+  REFMOBILENO?: string;
+  AMT?: string | number;
+  CUSTNO?: string;
   orderid?: string;
+  opcode?: string;
+  service_id?: string | number;
+
+  // Backward-compatible aliases & optional fields
   biller_id?: string | number;
   operator?: string;
-  opcode?: string;
   canumber?: string;
   consumer_number?: string;
   ad1?: string;
@@ -61,13 +68,20 @@ export interface ViewBillPayload {
 
 
 export interface PayBillPayload {
+  // Required BBPS parameters
+  REFMOBILENO?: string;
+  AMT?: string | number;
+  CUSTNO?: string;
   orderid?: string;
+  opcode?: string;
+  service_id?: string | number;
+
+  // Payment details & backward-compatible aliases
+  amount: number;
   biller_id?: string | number;
   operator?: string;
-  opcode?: string;
   canumber?: string;
   consumer_number?: string;
-  amount: number;
   referenceid?: string;
   reference_id?: string;
   latitude?: string;

@@ -427,12 +427,12 @@ const BBPS: React.FC = () => {
   // Dynamic Field Labels based on currently selected Biller
   const primaryFieldLabel = selectedBiller?.CUSTNO || activeMeta.defaultInputLabel;
   const secondaryFieldLabel = selectedBiller?.FIELD1;
-  const mobileFieldLabel = selectedBiller?.REFMOBILENO;
+  const mobileFieldLabel = selectedBiller?.REFMOBILENO || "Mobile Number";
 
   const handleFetchBill = async () => {
-    const primaryInput = consumerValues[primaryFieldLabel] || "";
+    const primaryInput = (consumerValues[primaryFieldLabel] || "").trim();
 
-    if (!primaryInput.trim()) {
+    if (!primaryInput) {
       toast.error(`Please enter ${primaryFieldLabel}.`);
       return;
     }
@@ -442,22 +442,63 @@ const BBPS: React.FC = () => {
       return;
     }
 
-    if (mobileFieldLabel && !consumerValues[mobileFieldLabel]?.trim()) {
-      toast.error(`Please enter ${mobileFieldLabel}.`);
+    if (selectedBiller?.REFMOBILENO && !consumerValues[selectedBiller.REFMOBILENO]?.trim()) {
+      toast.error(`Please enter ${selectedBiller.REFMOBILENO}.`);
       return;
     }
 
     setIsFetching(true);
 
     try {
+      // 11-digit unique numeric order ID (e.g. 45645634434)
+      const randomOrderId = `${Math.floor(1 + Math.random() * 9)}${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+      const enteredMobile =
+        (mobileFieldLabel && consumerValues[mobileFieldLabel]?.trim()) ||
+        consumerValues["REFMOBILENO"]?.trim() ||
+        consumerValues["mobile"]?.trim() ||
+        consumerValues["Mobile Number"]?.trim() ||
+        "";
+
+      const refMobileNo =
+        enteredMobile ||
+        (primaryInput.match(/^[6-9]\d{9}$/) ? primaryInput : "9876543210");
+
+      const opcode = String(selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : ""));
+      const serviceId = String(
+        selectedBiller?.service_id ??
+        selectedBiller?.id ??
+        selectedCategory?.id ??
+        "0"
+      );
+      const custNo = primaryInput;
+      const amtValue =
+        (selectedBiller?.AMT && consumerValues[selectedBiller.AMT]?.trim()) ||
+        consumerValues["AMT"]?.trim() ||
+        consumerValues["amount"]?.trim() ||
+        paymentAmount.trim() ||
+        "0";
+
       const payload = {
+        // 6 Required BBPS parameters
+        REFMOBILENO: refMobileNo,
+        AMT: amtValue,
+        CUSTNO: custNo,
+        orderid: randomOrderId,
+        opcode: opcode,
+        service_id: serviceId,
+
+        // Backward-compatible aliases & optional fields
         biller_id: selectedBiller?.id,
-        operator: selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : undefined),
-        opcode: selectedBiller?.opcode,
-        canumber: primaryInput,
-        consumer_number: primaryInput,
+        operator: opcode,
+        canumber: custNo,
+        consumer_number: custNo,
+        amount: amtValue,
+        referenceid: randomOrderId,
         ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
-        mobile: mobileFieldLabel ? consumerValues[mobileFieldLabel] : primaryInput,
+        ad2: consumerValues["ad2"] || consumerValues["field2"] || undefined,
+        ad3: consumerValues["ad3"] || consumerValues["field3"] || undefined,
+        mobile: refMobileNo,
         mode: "online",
         service_type: selectedBiller?.service_type || selectedCategory?.service_name,
         customer_params: consumerValues,
@@ -585,20 +626,48 @@ const BBPS: React.FC = () => {
     const primaryInput = consumerValues[primaryFieldLabel] || "";
 
     try {
+      const randomOrderId = `${Math.floor(1 + Math.random() * 9)}${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+      const enteredMobile =
+        (mobileFieldLabel && consumerValues[mobileFieldLabel]?.trim()) ||
+        consumerValues["REFMOBILENO"]?.trim() ||
+        consumerValues["mobile"]?.trim() ||
+        consumerValues["Mobile Number"]?.trim() ||
+        "";
+
+      const refMobileNo =
+        enteredMobile ||
+        (primaryInput.match(/^[6-9]\d{9}$/) ? primaryInput : "9876543210");
+      const opcode = String(selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : ""));
+      const serviceId = String(
+        selectedBiller?.service_id ??
+        selectedBiller?.id ??
+        selectedCategory?.id ??
+        "0"
+      );
+      const custNo = primaryInput;
+
       const payload = {
-        biller_id: selectedBiller?.id,
-        operator: selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : undefined),
-        opcode: selectedBiller?.opcode,
-        canumber: primaryInput,
-        consumer_number: primaryInput,
+        // 6 Required BBPS parameters
+        REFMOBILENO: refMobileNo,
+        AMT: String(payValue),
+        CUSTNO: custNo,
+        orderid: randomOrderId,
+        opcode: opcode,
+        service_id: serviceId,
+
+        // Payment details & backward-compatible fields
         amount: payValue,
+        biller_id: selectedBiller?.id,
+        operator: opcode,
+        canumber: custNo,
+        consumer_number: custNo,
         referenceid: createReference(),
         reference_id: createReference(),
         billnumber: billDetails.billNumber,
         billdate: billDetails.billDate,
         duedate: billDetails.dueDate,
         ad1: secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : undefined,
-        mobile: mobileFieldLabel ? consumerValues[mobileFieldLabel] : primaryInput,
+        mobile: refMobileNo,
         latitude: "28.6139",
         longitude: "77.2090",
         service_type: selectedBiller?.service_type || selectedCategory?.service_name,

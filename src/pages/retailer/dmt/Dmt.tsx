@@ -207,6 +207,7 @@ const Dmt = () => {
   ========================= */
 
   const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [beneficiaryMobile, setBeneficiaryMobile] = useState("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<Bank | null>(null);
   const [beneficiaryIfsc, setBeneficiaryIfsc] = useState("");
   const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
@@ -575,6 +576,7 @@ const Dmt = () => {
 
   const resetBeneficiaryForm = () => {
     setBeneficiaryName("");
+    setBeneficiaryMobile("");
     setBeneficiaryBank(null);
     setBeneficiaryIfsc("");
     setBeneficiaryAccount("");
@@ -683,6 +685,7 @@ const Dmt = () => {
     beneficiaryBank !== null &&
     beneficiaryIfsc.trim().length === 11 &&
     beneficiaryAccount.length >= 8 &&
+    (!beneficiaryMobile || beneficiaryMobile.length === 10) &&
     (!verifyAccount || accountVerified); // Verification is optional but if checked it must pass
 
   const handleAddBeneficiary = async () => {
@@ -692,12 +695,19 @@ const Dmt = () => {
 
     try {
        const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
+       const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+       const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+       const effectiveBankId = String(beneficiaryBank.bank_id || beneficiaryBank.code || "");
+       const effectiveBeneMobile = beneficiaryMobile.trim() || customerMobile.trim();
+
        const payload = {
-         mobile: customerMobile,
-         bene_name: beneficiaryName.trim(),
-         account_number: beneficiaryAccount,
+         bankId: effectiveBankId,
+         outletid: effectiveOutletId,
+         name: beneficiaryName.trim(),
          ifsc: effectiveIfsc,
-         bank_name: beneficiaryBank.name
+         accountNumber: beneficiaryAccount.trim(),
+         beneficiaryMobile: effectiveBeneMobile,
+         remitterMobile: customerMobile.trim(),
        };
        const res = await addBeneficiaryApi(payload);
        if (res?.success || res?.status) {
@@ -1142,6 +1152,28 @@ const Dmt = () => {
                     setAccountVerified(false);
                   }}
                   placeholder="Enter beneficiary name"
+                  className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-[#172033]"
+                />
+              </div>
+
+              {/* Beneficiary Mobile */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block font-semibold text-[#183153]">
+                    Beneficiary Mobile
+                  </label>
+                  <span className="text-[11px] text-slate-400">10 digits (optional)</span>
+                </div>
+
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  value={beneficiaryMobile}
+                  onChange={(event) => {
+                    setBeneficiaryMobile(formatMobile(event.target.value));
+                  }}
+                  placeholder={customerMobile ? `Default: ${customerMobile}` : "Enter 10-digit mobile"}
                   className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-[#172033]"
                 />
               </div>
