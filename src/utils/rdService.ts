@@ -57,7 +57,7 @@ class RDService {
   /**
    * Captures the fingerprint from a SPECIFIC port
    */
-  public async captureFingerprint(port: number): Promise<RDDeviceResponse> {
+  public async captureFingerprint(port: number | null): Promise<RDDeviceResponse> {
     if (!port) {
       return { success: false, message: "Please select a Biometric Device first.", data: "" };
     }
