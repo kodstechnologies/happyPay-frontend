@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 import {
   ArrowLeft,
@@ -147,6 +147,22 @@ const Dmt = () => {
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [isFetchingCustomer, setIsFetchingCustomer] = useState(false);
   const [continueStatus, setContinueStatus] = useState<string>("");
+  const [activeReferenceKey, setActiveReferenceKey] = useState<string>(() => {
+    return sessionStorage.getItem("dmt_remitter_ref_key") || "";
+  });
+  const referenceKeyRef = useRef<string>(
+    sessionStorage.getItem("dmt_remitter_ref_key") || ""
+  );
+
+  const saveReferenceKey = (key: string) => {
+    if (key && typeof key === "string" && key.trim()) {
+      const cleanKey = key.trim();
+      referenceKeyRef.current = cleanKey;
+      setActiveReferenceKey(cleanKey);
+      sessionStorage.setItem("dmt_remitter_ref_key", cleanKey);
+      console.log("[DMT] Stored active session referenceKey:", cleanKey);
+    }
+  };
 
   /* =========================
      OTP
@@ -363,14 +379,30 @@ const Dmt = () => {
       }
 
       // Remitter not found -> Trigger internal registration seamlessly (no separate register page)
+      const validRefKey = resData?.referenceKey || "";
+      if (validRefKey) {
+        saveReferenceKey(validRefKey);
+      }
+
       setContinueStatus("Registering remitter & sending OTP...");
       const regRes = await registerRemitterApi({
         mobile: customerMobile,
         aadhaar: aadhaarNumber,
-        ...(resData?.referenceKey ? { referenceKey: resData.referenceKey } : {}),
+        ...(validRefKey ? { referenceKey: validRefKey } : {}),
       });
 
+      console.log("Remitter registration response:", regRes);
+
       if (regRes?.success !== false && regRes?.status !== false) {
+        const nextRefKey =
+          regRes?.data?.referenceKey ||
+          regRes?.data?.data?.referenceKey ||
+          regRes?.referenceKey ||
+          validRefKey;
+
+        if (nextRefKey) {
+          saveReferenceKey(nextRefKey);
+        }
         toast.info(regRes?.message || "New remitter detected. OTP sent to mobile number.");
         setOtp("");
         setOtpSent(true);
@@ -403,7 +435,22 @@ const Dmt = () => {
     setIsVerifyingOtp(true);
 
     try {
-      const res = await verifyRemitterOtpApi({ mobile: customerMobile, otp });
+      // Prioritize synchronous ref, fallback to state, fallback to sessionStorage
+      const currentRefKey =
+        referenceKeyRef.current ||
+        activeReferenceKey ||
+        sessionStorage.getItem("dmt_remitter_ref_key") ||
+        "";
+
+      console.log("[DMT] Verifying OTP with referenceKey:", currentRefKey);
+
+      // Pass valid actual OTP and valid session referenceKey
+      const res = await verifyRemitterOtpApi({
+        mobile: customerMobile,
+        otp: otp.trim(),
+        referenceKey: currentRefKey,
+      });
+
       if (res?.success || res?.status) {
         toast.success(res?.message || "Remitter registered and verified successfully!");
         setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
@@ -428,12 +475,23 @@ const Dmt = () => {
       return;
     }
 
+    const currentRefKey =
+      referenceKeyRef.current ||
+      activeReferenceKey ||
+      sessionStorage.getItem("dmt_remitter_ref_key") ||
+      "";
+
     try {
       const regRes = await registerRemitterApi({
         mobile: customerMobile,
         aadhaar: aadhaarNumber,
+        ...(currentRefKey ? { referenceKey: currentRefKey } : {}),
       });
       if (regRes?.success !== false) {
+        const nextKey = regRes?.data?.referenceKey || currentRefKey;
+        if (nextKey) {
+          saveReferenceKey(nextKey);
+        }
         toast.success(regRes?.message || "OTP resent successfully!");
         setOtp("");
         setOtpTimer(30);
@@ -981,9 +1039,9 @@ const Dmt = () => {
             )}
           </div>
 
-          <div className="mt-6 rounded-xl bg-[#fff8e6] px-5 py-3 text-sm text-[#8a6500]">
-            Demo OTP: <strong>123456</strong>
-          </div>
+          <p className="mt-4 text-xs text-slate-400">
+            Please enter the 6-digit OTP sent to the customer's mobile number.
+          </p>
 
           <button
             type="button"

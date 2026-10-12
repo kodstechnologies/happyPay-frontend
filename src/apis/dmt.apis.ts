@@ -11,6 +11,7 @@ export interface RegisterRemitterPayload extends RemitterPayload {
 
 export interface VerifyRemitterOtpPayload extends RemitterPayload {
   otp: string;
+  referenceKey?: string;
 }
 
 export interface BeneficiaryPayload extends RemitterPayload {
