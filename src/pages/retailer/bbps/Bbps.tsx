@@ -40,6 +40,33 @@ import {
 } from "../../../apis/bbps.apis";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error !== "object" || error === null) {
+    return fallback;
+  }
+
+  if ("response" in error) {
+    const response = (error as { response?: unknown }).response;
+    if (typeof response === "object" && response !== null && "data" in response) {
+      const data = (response as { data?: unknown }).data;
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        "message" in data &&
+        typeof (data as { message?: unknown }).message === "string"
+      ) {
+        return (data as { message: string }).message;
+      }
+    }
+  }
+
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+};
+
 // =============================================================
 // Interfaces & Types
 // =============================================================
@@ -494,23 +521,89 @@ const BBPS: React.FC = () => {
 
       const res = await viewBillApi(payload);
 
-      // Extract bill_details from response
-      const billDetailsObj = res?.data?.bill_details || res?.data;
+      console.log("[BBPS] viewBillApi response:", res);
 
-      if (!billDetailsObj || res?.success === false) {
+      // Check if response indicates success
+      const isSuccess =
+        res?.success !== false &&
+        res?.status !== false &&
+        res?.status !== "FAILED" &&
+        res?.status !== "ERROR";
+
+      if (!isSuccess) {
         toast.error(res?.message || "Unable to fetch bill details for the provided consumer account.");
         return;
       }
 
-      // Exact field names from API response
-      const customerName = billDetailsObj["Customer Name"] || "VERIFIED CONSUMER";
-      const billNumber = billDetailsObj["Bill Number"] || createBillNumber();
-      const billDate = billDetailsObj["Bill Date"] || "";
-      const dueDate = billDetailsObj["Bill Due Date"] || "";
-      const amount = Number(billDetailsObj["Bill Amount"]) || 0;
-      const billingPeriod = billDetailsObj["DUEFROMTO"] || "";
-      const customerId = billDetailsObj["Customer ID / Account ID"] || custNo;
-      const partialPayAllow = billDetailsObj["Partial Pay Allow"];
+      // Extract bill_details from various possible response structures
+      const billData = res?.data ?? res;
+      const billDetailsObj =
+        billData?.bill_details ||
+        billData?.billDetails ||
+        billData?.data?.bill_details ||
+        billData?.data ||
+        billData;
+
+      if (!billDetailsObj || typeof billDetailsObj !== "object") {
+        toast.error(res?.message || "No bill details returned for this account.");
+        return;
+      }
+
+      // Parse fields supporting diverse API conventions (Title Case, camelCase, snake_case)
+      const customerName =
+        billDetailsObj["Customer Name"] ||
+        billDetailsObj["customer_name"] ||
+        billDetailsObj["customerName"] ||
+        billDetailsObj["name"] ||
+        "VERIFIED CONSUMER";
+
+      const billNumber =
+        billDetailsObj["Bill Number"] ||
+        billDetailsObj["bill_number"] ||
+        billDetailsObj["billNumber"] ||
+        billDetailsObj["billnumber"] ||
+        createBillNumber();
+
+      const billDate =
+        billDetailsObj["Bill Date"] ||
+        billDetailsObj["bill_date"] ||
+        billDetailsObj["billDate"] ||
+        billDetailsObj["billdate"] ||
+        "";
+
+      const dueDate =
+        billDetailsObj["Bill Due Date"] ||
+        billDetailsObj["due_date"] ||
+        billDetailsObj["dueDate"] ||
+        billDetailsObj["duedate"] ||
+        "";
+
+      const rawAmount =
+        billDetailsObj["Bill Amount"] ??
+        billDetailsObj["bill_amount"] ??
+        billDetailsObj["billAmount"] ??
+        billDetailsObj["amount"] ??
+        billDetailsObj["dueamount"] ??
+        billDetailsObj["due_amount"] ??
+        0;
+      const amount = Number(rawAmount) || 0;
+
+      const billingPeriod =
+        billDetailsObj["DUEFROMTO"] ||
+        billDetailsObj["billing_period"] ||
+        billDetailsObj["billingPeriod"] ||
+        "";
+
+      const customerId =
+        billDetailsObj["Customer ID / Account ID"] ||
+        billDetailsObj["customer_id"] ||
+        billDetailsObj["customerId"] ||
+        custNo;
+
+      const partialPayAllow =
+        billDetailsObj["Partial Pay Allow"] ??
+        billDetailsObj["partial_pay_allow"] ??
+        billDetailsObj["partialPayAllow"];
 
       setBillDetails({
         customerName: String(customerName).trim(),
@@ -522,13 +615,16 @@ const BBPS: React.FC = () => {
         customerId: String(customerId).trim(),
         partialPayAllow,
       });
-      setPaymentAmount(amount.toFixed(2));
+
+      setPaymentAmount(amount > 0 ? amount.toFixed(2) : "");
+      toast.success(res?.message || "Bill details fetched successfully!");
       setScreen("bill");
     } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : "Failed to connect to BBPS provider network. Please check details and try again.";
+      console.error("[BBPS] handleFetchBill error:", err);
+      const errorMsg = getApiErrorMessage(
+        err,
+        "Failed to connect to BBPS provider network. Please check details and try again."
+      );
       toast.error(errorMsg);
     } finally {
       setIsFetching(false);
@@ -646,10 +742,10 @@ const BBPS: React.FC = () => {
       toast.success("Bill payment successfully completed!");
       setScreen("success");
     } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : "Payment failed due to provider connection error. Please try again.";
+      const errorMsg = getApiErrorMessage(
+        err,
+        "Payment failed due to provider connection error. Please try again."
+      );
       toast.error(errorMsg);
     } finally {
       setIsPaying(false);

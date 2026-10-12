@@ -80,7 +80,7 @@ export const fetchBeneficiariesApi = async (payload: RemitterPayload) => {
   return response.data;
 };
 
-export interface VerifyBeneficiaryPayload {
+export interface VerifyAccountPayload {
   txnid: string;
   accountNumber: string;
   bankIfsc: string;
@@ -90,14 +90,28 @@ export interface VerifyBeneficiaryPayload {
 }
 
 /**
- * 5. Verify Beneficiary Bank Account (verifyAccount)
+ * 5. Verify Beneficiary Bank Account (Penny-drop name inquiry)
+ */
+export const verifyAccountApi = async (payload: VerifyAccountPayload) => {
+  const response = await api.post("/api/v1/dmt/verify-account", payload);
+  return response.data;
+};
+
+export interface VerifyBeneficiaryPayload {
+  outletid: string | number;
+  referenceKey: string;
+  beneficiaryId: string;
+  otp: string;
+  remitterMobile: string;
+}
+
+/**
+ * 6. Verify Beneficiary OTP (Confirm beneficiary addition)
  */
 export const verifyBeneficiaryApi = async (payload: VerifyBeneficiaryPayload) => {
   const response = await api.post("/api/v1/dmt/verify-beneficiary", payload);
   return response.data;
 };
-
-export const verifyAccountApi = verifyBeneficiaryApi;
 
 
 /**

@@ -26,7 +26,9 @@ import {
   registerRemitterApi,
   verifyRemitterOtpApi,
   fetchBeneficiariesApi,
+  verifyAccountApi,
   verifyBeneficiaryApi,
+  type VerifyBeneficiaryPayload,
   addBeneficiaryApi,
   deleteBeneficiaryApi,
   verifyDeleteBeneficiaryOtpApi,
@@ -39,6 +41,7 @@ type Screen =
   | "otp"
   | "customer-details"
   | "add-beneficiary"
+  | "verify-beneficiary"
   | "send-money"
   | "success";
 
@@ -211,13 +214,27 @@ const Dmt = () => {
   ========================= */
 
   const [beneficiaryName, setBeneficiaryName] = useState("");
-  const [beneficiaryMobile, setBeneficiaryMobile] = useState("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<Bank | null>(null);
   const [beneficiaryIfsc, setBeneficiaryIfsc] = useState("");
   const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
   const [verifyAccount, setVerifyAccount] = useState(false);
   const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
   const [accountVerified, setAccountVerified] = useState(false);
+
+  /* Verify Beneficiary OTP State */
+  const [pendingVerifyBeneficiary, setPendingVerifyBeneficiary] = useState<{
+    outletid: string;
+    referenceKey: string;
+    beneficiaryId: string;
+    remitterMobile: string;
+    name: string;
+    accountNumber: string;
+    bankName: string;
+    ifsc: string;
+  } | null>(null);
+  const [beneficiaryVerifyOtp, setBeneficiaryVerifyOtp] = useState<string>("");
+  const [isVerifyingBeneficiaryOtp, setIsVerifyingBeneficiaryOtp] = useState<boolean>(false);
+  const [isAddingBeneficiary, setIsAddingBeneficiary] = useState<boolean>(false);
 
   /* Delete Beneficiary State */
   const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
@@ -570,6 +587,10 @@ const Dmt = () => {
         setScreen("customer-details");
         break;
 
+      case "verify-beneficiary":
+        setScreen("add-beneficiary");
+        break;
+
       case "send-money":
         setSendAmount("");
         setScreen("customer-details");
@@ -587,13 +608,15 @@ const Dmt = () => {
 
   const resetBeneficiaryForm = () => {
     setBeneficiaryName("");
-    setBeneficiaryMobile("");
     setBeneficiaryBank(null);
     setBeneficiaryIfsc("");
     setBeneficiaryAccount("");
     setVerifyAccount(false);
     setIsVerifyingAccount(false);
     setAccountVerified(false);
+    setPendingVerifyBeneficiary(null);
+    setBeneficiaryVerifyOtp("");
+    setIsAddingBeneficiary(false);
   };
 
   /* =========================
@@ -657,7 +680,7 @@ const Dmt = () => {
       const clientTxnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank?.ifsc || "").toUpperCase();
 
-      const res = await verifyBeneficiaryApi({
+      const res = await verifyAccountApi({
         txnid: clientTxnId,
         accountNumber: beneficiaryAccount.trim(),
         bankIfsc: effectiveIfsc,
@@ -693,7 +716,6 @@ const Dmt = () => {
     beneficiaryBank !== null &&
     beneficiaryIfsc.trim().length === 11 &&
     beneficiaryAccount.length >= 8 &&
-    (!beneficiaryMobile || beneficiaryMobile.length === 10) &&
     (!verifyAccount || accountVerified); // Verification is optional but if checked it must pass
 
   const handleAddBeneficiary = async () => {
@@ -701,12 +723,12 @@ const Dmt = () => {
       return;
     }
 
+    setIsAddingBeneficiary(true);
     try {
       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
       const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
       const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
       const effectiveBankId = String(beneficiaryBank.bank_id || beneficiaryBank.code || "");
-      const effectiveBeneMobile = beneficiaryMobile.trim() || customerMobile.trim();
 
       const payload = {
         bankId: effectiveBankId,
@@ -714,20 +736,70 @@ const Dmt = () => {
         name: beneficiaryName.trim(),
         ifsc: effectiveIfsc,
         accountNumber: beneficiaryAccount.trim(),
-        beneficiaryMobile: effectiveBeneMobile,
+        beneficiaryMobile: customerMobile.trim(),
         remitterMobile: customerMobile.trim(),
       };
       const res = await addBeneficiaryApi(payload);
       if (res?.success || res?.status) {
-        toast.success(res?.message || "Beneficiary added successfully!");
-        await fetchBeneficiariesList();
-        resetBeneficiaryForm();
-        setScreen("customer-details");
+        const beneId = String(res?.data?.beneficiaryId || res?.beneficiaryId || "");
+        const refKey = String(res?.data?.referenceKey || res?.referenceKey || "");
+
+        setPendingVerifyBeneficiary({
+          outletid: effectiveOutletId,
+          referenceKey: refKey,
+          beneficiaryId: beneId,
+          remitterMobile: customerMobile.trim(),
+          name: beneficiaryName.trim(),
+          accountNumber: beneficiaryAccount.trim(),
+          bankName: beneficiaryBank.name,
+          ifsc: effectiveIfsc,
+        });
+        setBeneficiaryVerifyOtp("");
+        toast.success(res?.data?.msg || res?.message || "OTP sent to verify beneficiary");
+        setScreen("verify-beneficiary");
       } else {
         toast.error(res?.message || "Failed to add beneficiary");
       }
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to add beneficiary"));
+    } finally {
+      setIsAddingBeneficiary(false);
+    }
+  };
+
+  /* =========================
+     VERIFY BENEFICIARY (OTP)
+  ========================= */
+
+  const handleVerifyBeneficiaryOtp = async () => {
+    if (!pendingVerifyBeneficiary || beneficiaryVerifyOtp.length !== 6) {
+      toast.error("Please enter a valid 6-digit OTP");
+      return;
+    }
+
+    setIsVerifyingBeneficiaryOtp(true);
+    try {
+      const payload: VerifyBeneficiaryPayload = {
+        outletid: pendingVerifyBeneficiary.outletid,
+        referenceKey: pendingVerifyBeneficiary.referenceKey,
+        beneficiaryId: pendingVerifyBeneficiary.beneficiaryId,
+        otp: beneficiaryVerifyOtp.trim(),
+        remitterMobile: pendingVerifyBeneficiary.remitterMobile,
+      };
+
+      const res = await verifyBeneficiaryApi(payload);
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "Beneficiary verified and added successfully!");
+        await fetchBeneficiariesList();
+        resetBeneficiaryForm();
+        setScreen("customer-details");
+      } else {
+        toast.error(res?.message || "Failed to verify beneficiary OTP");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to verify beneficiary OTP"));
+    } finally {
+      setIsVerifyingBeneficiaryOtp(false);
     }
   };
 
@@ -1223,27 +1295,7 @@ const Dmt = () => {
                 />
               </div>
 
-              {/* Beneficiary Mobile */}
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="block font-semibold text-[#183153]">
-                    Beneficiary Mobile
-                  </label>
-                  <span className="text-[11px] text-slate-400">10 digits (optional)</span>
-                </div>
 
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  maxLength={10}
-                  value={beneficiaryMobile}
-                  onChange={(event) => {
-                    setBeneficiaryMobile(formatMobile(event.target.value));
-                  }}
-                  placeholder={customerMobile ? `Default: ${customerMobile}` : "Enter 10-digit mobile"}
-                  className="h-12 w-full rounded-xl border border-slate-200 px-4 outline-none focus:border-[#172033]"
-                />
-              </div>
               {/* Bank */}
               <div>
                 <label className="mb-2 block font-semibold text-[#183153]">
@@ -1398,12 +1450,104 @@ const Dmt = () => {
               <button
                 type="button"
                 onClick={handleAddBeneficiary}
-                disabled={!canAddBeneficiary}
-                className="flex min-h-[46px] items-center gap-2.5 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
+                disabled={!canAddBeneficiary || isAddingBeneficiary}
+                className="flex min-h-[46px] items-center gap-2.5 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
               >
                 <Plus className="h-5 w-5" />
+                {isAddingBeneficiary ? "Adding Beneficiary..." : "Add Beneficiary"}
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    );
+  };
 
-                Add Beneficiary
+  /* =========================
+     VERIFY BENEFICIARY (OTP)
+  ========================= */
+
+  const renderVerifyBeneficiary = () => {
+    return (
+      <div className="">
+        <main className="mx-auto mt-4 max-w-[760px]">
+          <section className="rounded-[16px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={handleBack}
+                className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-slate-100"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+
+              <div>
+                <h2 className="text-base font-bold text-slate-900 sm:text-2xl">
+                  Verify Beneficiary OTP
+                </h2>
+
+                <p className="mt-1 text-xs text-[#50627d]">
+                  Enter the OTP sent to customer mobile to complete beneficiary verification.
+                </p>
+              </div>
+            </div>
+
+            {/* Beneficiary Details Summary Card */}
+            {pendingVerifyBeneficiary && (
+              <div className="mt-6 rounded-xl border border-slate-200 bg-[#f8fafc] p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <span className="text-xs text-[#64748b]">Beneficiary Name</span>
+                    <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-[#64748b]">Account Number</span>
+                    <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.accountNumber}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-[#64748b]">Bank Name</span>
+                    <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.bankName || "Bank"}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-[#64748b]">IFSC Code</span>
+                    <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.ifsc}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="mx-auto mt-6 flex max-w-sm flex-col items-center text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#eef1f5]">
+                <MessageSquare className="h-9 w-9 fill-[#172033] text-[#172033]" />
+              </div>
+
+              <h3 className="mt-4 text-lg font-bold text-[#172033]">
+                Enter Verification Code
+              </h3>
+
+              <p className="mt-1 text-xs text-[#555b67]">
+                OTP has been sent to customer mobile{" "}
+                <span className="font-semibold text-[#172033]">
+                  +91 {pendingVerifyBeneficiary?.remitterMobile || customerMobile}
+                </span>
+              </p>
+
+              <div className="mt-5 w-full">
+                <OtpInput
+                  value={beneficiaryVerifyOtp}
+                  onChange={(val) => setBeneficiaryVerifyOtp(val)}
+                  length={6}
+                  disabled={isVerifyingBeneficiaryOtp}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleVerifyBeneficiaryOtp}
+                disabled={beneficiaryVerifyOtp.length !== 6 || isVerifyingBeneficiaryOtp}
+                className="mt-8 flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#7c3aed] text-sm font-bold text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
+              >
+                {isVerifyingBeneficiaryOtp ? "VERIFYING BENEFICIARY..." : "VERIFY BENEFICIARY"}
               </button>
             </div>
           </section>
@@ -2051,6 +2195,9 @@ const Dmt = () => {
 
       {screen === "add-beneficiary" &&
         renderAddBeneficiary()}
+
+      {screen === "verify-beneficiary" &&
+        renderVerifyBeneficiary()}
 
       {screen === "send-money" &&
         renderSendMoney()}
