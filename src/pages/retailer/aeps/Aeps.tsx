@@ -1672,14 +1672,14 @@ const Aeps = () => {
             </div>
 
             {/* Debug Information */}
-            {process.env.NODE_ENV === 'development' && (
+            {/* {process.env.NODE_ENV === 'development' && (
               <div className="mt-3 text-xs text-slate-500">
                 <div>Debug Info:</div>
                 <div>Available Devices: {availableDevices.length}</div>
                 <div>Selected Port: {selectedDevicePort || 'None'}</div>
                 <div>Scanning: {isScanningDevices ? 'Yes' : 'No'}</div>
               </div>
-            )}
+            )} */}
           </div>
         </div>
 
