@@ -80,10 +80,19 @@ export const fetchBeneficiariesApi = async (payload: RemitterPayload) => {
   return response.data;
 };
 
+export interface VerifyBeneficiaryPayload {
+  txnid: string;
+  accountNumber: string;
+  bankIfsc: string;
+  latitude: string | number;
+  longitude: string | number;
+  mobile?: string;
+}
+
 /**
  * 5. Verify Beneficiary Bank Account (verifyAccount)
  */
-export const verifyBeneficiaryApi = async (payload: BeneficiaryPayload) => {
+export const verifyBeneficiaryApi = async (payload: VerifyBeneficiaryPayload) => {
   const response = await api.post("/api/v1/dmt/verify-beneficiary", payload);
   return response.data;
 };

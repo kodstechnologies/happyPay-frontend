@@ -14,7 +14,9 @@ import {
   Send,
   ShieldCheck,
   Wallet,
-  Fingerprint
+  Fingerprint,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
@@ -26,6 +28,8 @@ import {
   fetchBeneficiariesApi,
   verifyBeneficiaryApi,
   addBeneficiaryApi,
+  deleteBeneficiaryApi,
+  verifyDeleteBeneficiaryOtpApi,
   executeTransactionApi,
   getBanksApi
 } from "../../../apis/dmt.apis";
@@ -214,6 +218,13 @@ const Dmt = () => {
   const [verifyAccount, setVerifyAccount] = useState(false);
   const [isVerifyingAccount, setIsVerifyingAccount] = useState(false);
   const [accountVerified, setAccountVerified] = useState(false);
+
+  /* Delete Beneficiary State */
+  const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
+  const [deleteOtp, setDeleteOtp] = useState<string>("");
+  const [isInitiatingDelete, setIsInitiatingDelete] = useState<boolean>(false);
+  const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
 
   /* Dynamic Bank List from /api/v1/auth/banks (API only) */
   const [liveBanks, setLiveBanks] = useState<Bank[]>([]);
@@ -647,12 +658,9 @@ const Dmt = () => {
       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank?.ifsc || "").toUpperCase();
 
       const res = await verifyBeneficiaryApi({
-        mobile: customerMobile,
-        account_number: beneficiaryAccount,
-        accountNumber: beneficiaryAccount,
-        ifsc: effectiveIfsc,
-        bankIfsc: effectiveIfsc,
         txnid: clientTxnId,
+        accountNumber: beneficiaryAccount.trim(),
+        bankIfsc: effectiveIfsc,
         latitude: coords.latitude,
         longitude: coords.longitude,
       });
@@ -694,32 +702,91 @@ const Dmt = () => {
     }
 
     try {
-       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
-       const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-       const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
-       const effectiveBankId = String(beneficiaryBank.bank_id || beneficiaryBank.code || "");
-       const effectiveBeneMobile = beneficiaryMobile.trim() || customerMobile.trim();
+      const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
+      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const effectiveBankId = String(beneficiaryBank.bank_id || beneficiaryBank.code || "");
+      const effectiveBeneMobile = beneficiaryMobile.trim() || customerMobile.trim();
 
-       const payload = {
-         bankId: effectiveBankId,
-         outletid: effectiveOutletId,
-         name: beneficiaryName.trim(),
-         ifsc: effectiveIfsc,
-         accountNumber: beneficiaryAccount.trim(),
-         beneficiaryMobile: effectiveBeneMobile,
-         remitterMobile: customerMobile.trim(),
-       };
-       const res = await addBeneficiaryApi(payload);
-       if (res?.success || res?.status) {
-          toast.success(res?.message || "Beneficiary added successfully!");
-          await fetchBeneficiariesList();
-          resetBeneficiaryForm();
-          setScreen("customer-details");
-       } else {
-          toast.error(res?.message || "Failed to add beneficiary");
-       }
-     } catch (err: unknown) {
-        toast.error(getApiErrorMessage(err, "Failed to add beneficiary"));
+      const payload = {
+        bankId: effectiveBankId,
+        outletid: effectiveOutletId,
+        name: beneficiaryName.trim(),
+        ifsc: effectiveIfsc,
+        accountNumber: beneficiaryAccount.trim(),
+        beneficiaryMobile: effectiveBeneMobile,
+        remitterMobile: customerMobile.trim(),
+      };
+      const res = await addBeneficiaryApi(payload);
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "Beneficiary added successfully!");
+        await fetchBeneficiariesList();
+        resetBeneficiaryForm();
+        setScreen("customer-details");
+      } else {
+        toast.error(res?.message || "Failed to add beneficiary");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to add beneficiary"));
+    }
+  };
+
+  /* =========================
+     DELETE BENEFICIARY
+  ========================= */
+
+  const handleInitiateDeleteBeneficiary = async (beneficiary: Beneficiary) => {
+    setDeletingBeneficiary(beneficiary);
+    setDeleteOtp("");
+    setIsInitiatingDelete(true);
+
+    try {
+      const res = await deleteBeneficiaryApi({
+        mobile: customerMobile,
+        bene_id: beneficiary.id,
+      });
+
+      if (res?.success !== false) {
+        toast.info(res?.message || "OTP sent to customer mobile to confirm beneficiary deletion.");
+        setShowDeleteModal(true);
+      } else {
+        toast.error(res?.message || "Failed to initiate beneficiary deletion");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to initiate beneficiary deletion"));
+    } finally {
+      setIsInitiatingDelete(false);
+    }
+  };
+
+  const handleConfirmDeleteBeneficiary = async () => {
+    if (!deletingBeneficiary || deleteOtp.length !== 6) {
+      toast.error("Please enter the 6-digit OTP");
+      return;
+    }
+
+    setIsVerifyingDeleteOtp(true);
+
+    try {
+      const res = await verifyDeleteBeneficiaryOtpApi({
+        mobile: customerMobile,
+        bene_id: deletingBeneficiary.id,
+        otp: deleteOtp.trim(),
+      });
+
+      if (res?.success || res?.status) {
+        toast.success(res?.message || "Beneficiary deleted successfully!");
+        setShowDeleteModal(false);
+        setDeletingBeneficiary(null);
+        setDeleteOtp("");
+        await fetchBeneficiariesList();
+      } else {
+        toast.error(res?.message || "Failed to verify delete OTP");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to delete beneficiary"));
+    } finally {
+      setIsVerifyingDeleteOtp(false);
     }
   };
 
@@ -1451,19 +1518,30 @@ const Dmt = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() =>
-                      handleSendToBeneficiary(
-                        beneficiary
-                      )
-                    }
-                    className="flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#c90026]"
-                  >
-                    <Send className="h-5 w-5" />
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      title="Delete Beneficiary"
+                      onClick={() => handleInitiateDeleteBeneficiary(beneficiary)}
+                      disabled={isInitiatingDelete}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-rose-500 hover:bg-rose-50 hover:border-rose-300 transition"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
 
-                    Send
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleSendToBeneficiary(
+                          beneficiary
+                        )
+                      }
+                      className="flex min-h-[40px] items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-sm hover:bg-[#c90026] transition"
+                    >
+                      <Send className="h-4 w-4" />
+                      Send
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1481,6 +1559,77 @@ const Dmt = () => {
                 <p className="mt-1 text-xs text-[#50627d]">
                   {selectedBeneficiary.name}
                 </p>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Beneficiary OTP Modal */}
+          {showDeleteModal && deletingBeneficiary && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900">
+                    Confirm Beneficiary Deletion
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteModal(false);
+                      setDeletingBeneficiary(null);
+                      setDeleteOtp("");
+                    }}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-sm text-slate-600">
+                    Are you sure you want to delete beneficiary{" "}
+                    <span className="font-bold text-slate-900">
+                      {deletingBeneficiary.name}
+                    </span>{" "}
+                    (A/C: {deletingBeneficiary.accountNumber})?
+                  </p>
+                  <p className="mt-2 text-xs text-slate-500">
+                    Enter the 6-digit OTP sent to customer mobile{" "}
+                    <span className="font-semibold text-slate-700">
+                      +91 {customerMobile}
+                    </span>:
+                  </p>
+
+                  <div className="mt-4 flex justify-center">
+                    <OtpInput
+                      value={deleteOtp}
+                      onChange={(val) => setDeleteOtp(val)}
+                      length={6}
+                      disabled={isVerifyingDeleteOtp}
+                    />
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowDeleteModal(false);
+                        setDeletingBeneficiary(null);
+                        setDeleteOtp("");
+                      }}
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={deleteOtp.length !== 6 || isVerifyingDeleteOtp}
+                      onClick={handleConfirmDeleteBeneficiary}
+                      className="rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-rose-700 disabled:opacity-50"
+                    >
+                      {isVerifyingDeleteOtp ? "Deleting..." : "Delete Beneficiary"}
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
