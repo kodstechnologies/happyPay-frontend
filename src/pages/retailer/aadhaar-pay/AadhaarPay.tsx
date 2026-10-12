@@ -12,23 +12,13 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
+import { getBanksApi, type AuthBank } from "../../../apis/dmt.apis";
 
 interface AadhaarPayProps {
   onBack?: () => void;
 }
 
 type TransactionStatus = "IDLE" | "PROCESSING" | "SUCCESS";
-
-const BANKS = [
-  "State Bank of India",
-  "HDFC Bank",
-  "ICICI Bank",
-  "Axis Bank",
-  "Punjab National Bank",
-  "Bank of Baroda",
-  "Canara Bank",
-  "Union Bank of India",
-];
 
 const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
   const [aadhaar, setAadhaar] = useState("");
@@ -40,6 +30,10 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
   const [showReceipt, setShowReceipt] = useState(false);
   const [transactionId, setTransactionId] = useState("");
   const [transactionDate, setTransactionDate] = useState<Date | null>(null);
+
+  // Live Bank List States (API only)
+  const [bankList, setBankList] = useState<string[]>([]);
+  const [isLoadingBanks, setIsLoadingBanks] = useState(false);
 
   // Biometric States
   const [availableDevices, setAvailableDevices] = useState<import("../../../utils/rdService").ActiveDevice[]>([]);
@@ -78,6 +72,42 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
       }
       setIsScanningDevices(false);
     });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Fetch Live Bank List on Mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchBanks = async () => {
+      try {
+        setIsLoadingBanks(true);
+        const res = await getBanksApi({ page: 1, limit: 500 });
+        if (!isMounted) return;
+        const rawBanks = Array.isArray(res?.data) ? (res.data as AuthBank[]) : [];
+        if (rawBanks.length > 0) {
+          const eligibleBanks = rawBanks.filter((b) => b.aadhaarpay_enabled !== 0);
+          const bankListToUse = eligibleBanks.length > 0 ? eligibleBanks : rawBanks;
+          const names = bankListToUse
+            .map((b) => b.name?.trim())
+            .filter((name): name is string => Boolean(name));
+          const uniqueSorted = Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
+          setBankList(uniqueSorted);
+        } else {
+          setBankList([]);
+        }
+      } catch (err) {
+        console.error("Failed to load bank list in AadhaarPay:", err);
+        setBankList([]);
+      } finally {
+        if (isMounted) {
+          setIsLoadingBanks(false);
+        }
+      }
+    };
+
+    fetchBanks();
     return () => {
       isMounted = false;
     };
@@ -358,17 +388,27 @@ const AadhaarPay: React.FC<AadhaarPayProps> = ({ onBack }) => {
                     id="bank-select"
                     value={bank}
                     onChange={(e) => setBank(e.target.value)}
-                    disabled={isScanning || transactionStatus === "PROCESSING"}
+                    disabled={isLoadingBanks || bankList.length === 0 || isScanning || transactionStatus === "PROCESSING"}
                     className="min-w-0 flex-1 appearance-none bg-transparent text-sm text-slate-700 outline-none border-none focus:ring-0 cursor-pointer pr-8"
                   >
-                    <option value="" disabled>Select customer's bank</option>
-                    {BANKS.map((b) => (
+                    <option value="" disabled>
+                      {isLoadingBanks
+                        ? "Loading bank list..."
+                        : bankList.length === 0
+                        ? "No banks available"
+                        : "Select customer's bank"}
+                    </option>
+                    {bankList.map((b) => (
                       <option key={b} value={b}>{b}</option>
                     ))}
                   </select>
 
                   <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                    {isLoadingBanks ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-slate-400" />
+                    )}
                   </div>
                 </div>
               </div>
