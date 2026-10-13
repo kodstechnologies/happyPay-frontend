@@ -173,6 +173,8 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
     }
     if (typeof record.pidOptionWadh === "string") {
       prompt.pidOptionWadh = record.pidOptionWadh;
+    } else if (typeof record.wadh === "string") {
+      prompt.pidOptionWadh = record.wadh;
     }
 
     Object.values(record).forEach(walk);

@@ -23,6 +23,7 @@ import OtpInput from "../../../components/common/OtpInput";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
 import { extractBiometricData } from "../../../utils/biometric";
+import { readEkycPrompt } from "../../../services/api/retailer/aepsApi";
 import {
   loginRemitterApi,
   registerRemitterApi,
@@ -171,6 +172,23 @@ const Dmt = () => {
       setActiveReferenceKey(cleanKey);
       sessionStorage.setItem("dmt_remitter_ref_key", cleanKey);
       console.log("[DMT] Stored active session referenceKey:", cleanKey);
+    }
+  };
+
+  const [activeWadh, setActiveWadh] = useState<string>(() => {
+    return sessionStorage.getItem("dmt_remitter_wadh") || "";
+  });
+  const wadhRef = useRef<string>(
+    sessionStorage.getItem("dmt_remitter_wadh") || ""
+  );
+
+  const saveWadh = (wadh: string) => {
+    if (wadh && typeof wadh === "string" && wadh.trim()) {
+      const cleanWadh = wadh.trim();
+      wadhRef.current = cleanWadh;
+      setActiveWadh(cleanWadh);
+      sessionStorage.setItem("dmt_remitter_wadh", cleanWadh);
+      console.log("[DMT] Stored active session WADH:", cleanWadh);
     }
   };
 
@@ -459,8 +477,10 @@ const Dmt = () => {
         (resData?.referenceKey && !resData?.name && !resData?.remitterName);
 
       if (isNewRegistration) {
-        // Capture dynamic session reference key
+        // Capture dynamic session reference key and WADH (if present)
+        const prompt = readEkycPrompt(res);
         const refKey =
+          prompt.referenceKey ||
           resData?.referenceKey ||
           resData?.data?.referenceKey ||
           res?.referenceKey ||
@@ -468,6 +488,9 @@ const Dmt = () => {
 
         if (refKey) {
           saveReferenceKey(refKey);
+        }
+        if (prompt.pidOptionWadh) {
+          saveWadh(prompt.pidOptionWadh);
         }
 
         toast.info(res?.message || "New remitter detected. OTP sent to mobile number.");
@@ -525,12 +548,17 @@ const Dmt = () => {
       });
 
       if (res?.success || res?.status) {
+        const prompt = readEkycPrompt(res);
         const nextKey =
+          prompt.referenceKey ||
           res?.data?.referenceKey ||
           res?.referenceKey ||
           "";
         if (nextKey) {
           saveReferenceKey(nextKey);
+        }
+        if (prompt.pidOptionWadh) {
+          saveWadh(prompt.pidOptionWadh);
         }
 
         const msg = String(res?.data?.msg || res?.message || "").toLowerCase();
@@ -576,9 +604,13 @@ const Dmt = () => {
         ...(currentRefKey ? { referenceKey: currentRefKey } : {}),
       });
       if (regRes?.success !== false) {
-        const nextKey = regRes?.data?.referenceKey || currentRefKey;
+        const prompt = readEkycPrompt(regRes);
+        const nextKey = prompt.referenceKey || regRes?.data?.referenceKey || currentRefKey;
         if (nextKey) {
           saveReferenceKey(nextKey);
+        }
+        if (prompt.pidOptionWadh) {
+          saveWadh(prompt.pidOptionWadh);
         }
         toast.success(regRes?.message || "OTP resent successfully!");
         setOtp("");
@@ -902,9 +934,16 @@ const Dmt = () => {
     setKycStep("Initializing Mantra biometric device...");
 
     try {
-      // 1. Capture fingerprint from RD service
+      // 1. Capture fingerprint from RD service using session WADH (matching Dashboard eKYC)
       setKycStep("Please place finger on scanner...");
-      const capture = await mfs110Service.capture();
+      const currentWadh =
+        wadhRef.current ||
+        activeWadh ||
+        sessionStorage.getItem("dmt_remitter_wadh") ||
+        "";
+      console.log("[DMT] Capturing fingerprint with WADH:", currentWadh);
+
+      const capture = await mfs110Service.capture(currentWadh);
       if (!capture.success || !capture.data) {
         const errorMsg = capture.message || "Fingerprint capture failed. Please check device connection.";
         setKycError(errorMsg);
@@ -914,7 +953,8 @@ const Dmt = () => {
       }
 
       setKycStep("Fingerprint captured. Parsing biometric data...");
-        console.log("cpatire data",capture?.data)
+      console.log("[DMT] Raw biometric capture data parsed successfully");
+
       // 2. Parse PID XML using reusable extractBiometricData utility
       const biometricData = extractBiometricData(capture.data);
 
@@ -924,6 +964,11 @@ const Dmt = () => {
         setKycStep("Device error.");
         toast.error(errorMsg);
         return;
+      }
+
+      const qScore = parseInt(biometricData.qScore || "0", 10);
+      if (qScore > 0 && qScore < 40) {
+        toast.warning(`Fingerprint quality is low (${qScore}%). If eKYC fails, please reposition finger firmly.`);
       }
 
       // 3. Geolocation
