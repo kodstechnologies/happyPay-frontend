@@ -1,4 +1,26 @@
 import api from "../config/axiosInstance";
+// import type { ExtractedBiometricData } from "../utils/biometric";
+
+export interface RemitterEkycPayload {
+  mobile: string;
+  outletid?: string | number;
+  referenceKey?: string;
+  latitude: string | number;
+  longitude: string | number;
+  txnid: string | number;
+  ci: string;
+  hmac: string;
+  Piddata: string;
+  ts: string;
+  dpId: string;
+  dc: string;
+  mi: string;
+  mc: string;
+  rdsVer: string;
+  rdsId: string;
+  sessionKey: string;
+  srno: string;
+}
 
 export interface RemitterPayload {
   mobile: string;
@@ -69,6 +91,34 @@ export const registerRemitterApi = async (payload: RegisterRemitterPayload) => {
  */
 export const verifyRemitterOtpApi = async (payload: VerifyRemitterOtpPayload) => {
   const response = await api.post("/api/v1/dmt/register-remitter-verify", payload);
+  return response.data;
+};
+
+/**
+ * 3.1 Perform Remitter eKYC
+ */
+export const remitterEkycApi = async (payload: RemitterEkycPayload) => {
+  const cleanPayload = {
+    mobile: payload.mobile,
+    outletid: payload.outletid,
+    referenceKey: payload.referenceKey,
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    txnid: payload.txnid,
+    ci: payload.ci,
+    hmac: payload.hmac,
+    Piddata: payload.Piddata,
+    ts: payload.ts,
+    dpId: payload.dpId,
+    dc: payload.dc,
+    mi: payload.mi,
+    mc: payload.mc,
+    rdsVer: payload.rdsVer,
+    rdsId: payload.rdsId,
+    sessionKey: payload.sessionKey,
+    srno: payload.srno,
+  };
+  const response = await api.post("/api/v1/dmt/remitter-ekyc", cleanPayload);
   return response.data;
 };
 
