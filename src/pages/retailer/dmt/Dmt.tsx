@@ -39,6 +39,7 @@ import {
   addBeneficiaryApi,
   deleteBeneficiaryApi,
   verifyDeleteBeneficiaryOtpApi,
+  generateTransactionOtpApi,
   executeTransactionApi,
   getBanksApi
 } from "../../../apis/dmt.apis";
@@ -62,7 +63,7 @@ interface Bank {
 
 interface Beneficiary {
   id: number | string;
-  bene_id: number | string;
+  beneficiaryId: number | string;
   name: string;
   initials: string;
   bankName: string;
@@ -235,11 +236,11 @@ const Dmt = () => {
         // Map to Beneficiary type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mapped = list.map((b: any) => {
-          const beneId = b.bene_id || b.beneficiaryId || b.id || "";
+          const beneId = b.beneficiaryId || b.bene_id || b.id || "";
           const beneName = b.bene_name || b.name || "Unknown";
           return {
             id: beneId,
-            bene_id: beneId,
+            beneficiaryId: beneId,
             name: beneName,
             initials: getInitials(beneName),
             bankName: b.bankname || b.bank_name || b.bankName || "Bank",
@@ -380,6 +381,22 @@ const Dmt = () => {
 
   const [isProcessingTransfer, setIsProcessingTransfer] =
     useState(false);
+
+  /* Transaction OTP for amounts > 5000 */
+  const [transactionOtp, setTransactionOtp] = useState<string>("");
+  const [isSendingTxnOtp, setIsSendingTxnOtp] = useState<boolean>(false);
+  const [txnOtpSent, setTxnOtpSent] = useState<boolean>(false);
+  const [txnOtpTimer, setTxnOtpTimer] = useState<number>(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (txnOtpTimer > 0) {
+      interval = setInterval(() => {
+        setTxnOtpTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [txnOtpTimer]);
 
   /* =========================
      SUCCESS
@@ -959,9 +976,9 @@ const Dmt = () => {
   ========================= */
 
   const handleInitiateDeleteBeneficiary = async (beneficiary: Beneficiary) => {
-    const targetBeneId = beneficiary.bene_id || beneficiary.id;
-    if (!targetBeneId) {
-      toast.error("Beneficiary ID (bene_id) is missing");
+    const targetBeneficiaryId = beneficiary.beneficiaryId || beneficiary.id;
+    if (!targetBeneficiaryId) {
+      toast.error("Beneficiary ID (beneficiaryId) is missing");
       return;
     }
 
@@ -971,8 +988,8 @@ const Dmt = () => {
 
     try {
       const res = await deleteBeneficiaryApi({
-        mobile: customerMobile.trim(),
-        bene_id: targetBeneId,
+        beneficiaryId: targetBeneficiaryId,
+        remitterMobile: customerMobile.trim(),
       });
 
       if (res?.success !== false && res?.status !== "FAILED") {
@@ -989,8 +1006,8 @@ const Dmt = () => {
   };
 
   const handleConfirmDeleteBeneficiary = async () => {
-    const targetBeneId = deletingBeneficiary?.bene_id || deletingBeneficiary?.id;
-    if (!deletingBeneficiary || !targetBeneId || deleteOtp.length !== 6) {
+    const targetBeneficiaryId = deletingBeneficiary?.beneficiaryId || deletingBeneficiary?.id;
+    if (!deletingBeneficiary || !targetBeneficiaryId || deleteOtp.length !== 6) {
       toast.error("Please enter the 6-digit OTP");
       return;
     }
@@ -999,8 +1016,8 @@ const Dmt = () => {
 
     try {
       const res = await verifyDeleteBeneficiaryOtpApi({
-        mobile: customerMobile.trim(),
-        bene_id: targetBeneId,
+        beneficiaryId: targetBeneficiaryId,
+        remitterMobile: customerMobile.trim(),
         otp: deleteOtp.trim(),
       });
 
@@ -1183,16 +1200,55 @@ const Dmt = () => {
 
     setTransferMode("IMPS");
 
+    setTransactionOtp("");
+    setTxnOtpSent(false);
+    setTxnOtpTimer(0);
+
     setScreen("send-money");
   };
 
   /* =========================
-     SEND MONEY VALIDATION
+     SEND MONEY VALIDATION & OTP
   ========================= */
+
+  const handleSendTransactionOtp = async () => {
+    if (!customerMobile || numericSendAmount <= 5000) {
+      return;
+    }
+
+    const targetBeneId = selectedBeneficiary?.beneficiaryId || selectedBeneficiary?.id;
+    if (!targetBeneId) {
+      toast.error("Beneficiary is required");
+      return;
+    }
+
+    setIsSendingTxnOtp(true);
+
+    try {
+      const res = await generateTransactionOtpApi({
+        mobile: customerMobile.trim(),
+        amount: numericSendAmount,
+        bene_id: targetBeneId,
+      });
+
+      if (res?.success !== false && res?.status !== "FAILED") {
+        toast.success(res?.message || res?.msg || "Transaction OTP sent to customer mobile successfully.");
+        setTxnOtpSent(true);
+        setTxnOtpTimer(60);
+      } else {
+        toast.error(res?.message || res?.msg || "Failed to generate transaction OTP");
+      }
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to send transaction OTP"));
+    } finally {
+      setIsSendingTxnOtp(false);
+    }
+  };
 
   const canTransfer =
     numericSendAmount > 0 &&
-    numericSendAmount <= availableBalance;
+    numericSendAmount <= availableBalance &&
+    (numericSendAmount <= 5000 || transactionOtp.trim().length >= 4);
 
   /* =========================
      TRANSFER NOW
@@ -1207,34 +1263,50 @@ const Dmt = () => {
       return;
     }
 
+    // Amount > 5000 requires customer OTP validation
+    if (numericSendAmount > 5000 && !txnOtpSent) {
+      toast.info("Please request and enter the OTP to authorize transactions above ₹5,000.");
+      await handleSendTransactionOtp();
+      return;
+    }
+
+    if (numericSendAmount > 5000 && transactionOtp.trim().length < 4) {
+      toast.error("Please enter the OTP sent to customer mobile to confirm transfer above ₹5,000.");
+      return;
+    }
+
     setIsProcessingTransfer(true);
 
     try {
+      const clientRefId = generateClientTxnId("DMT");
+      const targetBeneId = selectedBeneficiary.beneficiaryId || selectedBeneficiary.id;
       const payload = {
-        mobile: customerMobile,
+        mobile: customerMobile.trim(),
         amount: numericSendAmount,
-        bene_id: selectedBeneficiary.id,
+        bene_id: targetBeneId,
         mode: transferMode,
+        latlong: "28.7041,77.1025",
+        client_ref_id: clientRefId,
+        ...(numericSendAmount > 5000 ? { otp: transactionOtp.trim() } : {}),
       };
 
       const res = await executeTransactionApi(payload);
       
-      const isSuccess = res?.success !== false && res?.status !== false;
+      const isSuccess = res?.success !== false && res?.status !== false && res?.status !== "FAILED";
       
       if (!isSuccess) {
-         toast.error(res?.message || "Transfer failed");
+         toast.error(res?.message || res?.msg || "Transfer failed");
          return;
       }
       
-      const txnId = res?.data?.txnid || `HP${Date.now().toString().slice(-10)}`;
+      const txnId = res?.data?.txnid || res?.data?.reference_id || clientRefId;
       setTransactionId(txnId);
+      setTransactionOtp("");
+      setTxnOtpSent(false);
       fetchWallet();
       setScreen("success");
-    } catch {
-      // Fallback for seamless demo functionality
-      const id = `HP${Date.now().toString().slice(-10)}`;
-      setTransactionId(id);
-      setScreen("success");
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, "Failed to execute DMT transfer"));
     } finally {
       setIsProcessingTransfer(false);
     }
@@ -1250,6 +1322,10 @@ const Dmt = () => {
     setOtp("");
     setOtpSent(false);
     setOtpTimer(30);
+
+    setTransactionOtp("");
+    setTxnOtpSent(false);
+    setTxnOtpTimer(0);
 
     setSelectedBeneficiary(null);
 
@@ -2417,6 +2493,58 @@ const Dmt = () => {
               </button>
             </div>
           </section>
+
+          {/* OTP Section for amounts > 5000 */}
+          {numericSendAmount > 5000 && (
+            <section className="mt-6 rounded-[18px] border border-amber-200 bg-amber-50/60 p-5 shadow-xs sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h4 className="flex items-center gap-2 text-sm font-bold text-amber-950">
+                    <ShieldCheck className="h-4 w-4 text-amber-600" />
+                    Transaction OTP Required (&gt; ₹5,000)
+                  </h4>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Per RBI regulations, transfers exceeding ₹5,000 require customer OTP authorization sent to{" "}
+                    <span className="font-semibold text-amber-950">+91 {customerMobile}</span>.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendTransactionOtp}
+                  disabled={isSendingTxnOtp || txnOtpTimer > 0}
+                  className="w-fit rounded-xl bg-[#7c3aed] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#6d28d9] disabled:opacity-50"
+                >
+                  {isSendingTxnOtp
+                    ? "Sending..."
+                    : txnOtpTimer > 0
+                    ? `Resend in ${txnOtpTimer}s`
+                    : txnOtpSent
+                    ? "Resend OTP"
+                    : "Send OTP"}
+                </button>
+              </div>
+
+              <div className="mt-4">
+                <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  Enter Customer OTP
+                </label>
+                <div className="flex max-w-[280px] items-center rounded-xl border border-slate-300 bg-white px-3 py-2 focus-within:border-[#7c3aed]">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={8}
+                    value={transactionOtp}
+                    onChange={(e) => setTransactionOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                    placeholder="Enter 4-8 digit OTP"
+                    className="w-full bg-transparent text-sm font-bold tracking-widest text-slate-900 outline-none"
+                  />
+                  {transactionOtp.length >= 4 && (
+                    <Check className="h-4 w-4 text-emerald-600" />
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
 
           {/* Summary */}
           {numericSendAmount > 0 && (

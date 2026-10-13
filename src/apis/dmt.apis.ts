@@ -61,10 +61,19 @@ export interface BeneficiaryPayload extends RemitterPayload {
   longitude?: string | number;
 }
 
-export interface TransactionPayload extends RemitterPayload {
+export interface TransactionOtpPayload {
+  mobile: string;
   amount: number | string;
   bene_id?: string | number;
-  mode?: string; // IMPS/NEFT
+  beneficiaryId?: string | number;
+}
+
+export interface TransactionPayload {
+  mobile: string;
+  amount: number | string;
+  bene_id: string | number;
+  beneficiaryId?: string | number;
+  mode: string; // IMPS | NEFT
   otp?: string;
   latlong?: string;
   client_ref_id?: string;
@@ -173,13 +182,13 @@ export const addBeneficiaryApi = async (payload: AddBeneficiaryPayload) => {
 };
 
 export interface DeleteBeneficiaryPayload {
-  mobile: string;
-  bene_id: string | number;
+  beneficiaryId: string | number;
+  remitterMobile: string;
 }
 
 export interface VerifyDeleteBeneficiaryOtpPayload {
-  mobile: string;
-  bene_id: string | number;
+  beneficiaryId: string | number;
+  remitterMobile: string;
   otp: string;
 }
 
@@ -188,8 +197,8 @@ export interface VerifyDeleteBeneficiaryOtpPayload {
  */
 export const deleteBeneficiaryApi = async (payload: DeleteBeneficiaryPayload) => {
   const cleanPayload = {
-    mobile: String(payload.mobile).trim(),
-    bene_id: payload.bene_id,
+    beneficiaryId: payload.beneficiaryId,
+    remitterMobile: String(payload.remitterMobile).trim(),
   };
   const response = await api.post("/api/v1/dmt/delete-beneficiary", cleanPayload);
   return response.data;
@@ -200,8 +209,8 @@ export const deleteBeneficiaryApi = async (payload: DeleteBeneficiaryPayload) =>
  */
 export const verifyDeleteBeneficiaryOtpApi = async (payload: VerifyDeleteBeneficiaryOtpPayload) => {
   const cleanPayload = {
-    mobile: String(payload.mobile).trim(),
-    bene_id: payload.bene_id,
+    beneficiaryId: payload.beneficiaryId,
+    remitterMobile: String(payload.remitterMobile).trim(),
     otp: String(payload.otp).trim(),
   };
   const response = await api.post("/api/v1/dmt/delete-beneficiary-verify", cleanPayload);
@@ -209,10 +218,15 @@ export const verifyDeleteBeneficiaryOtpApi = async (payload: VerifyDeleteBenefic
 };
 
 /**
- * 9. Generate Transaction OTP
+ * 9. Generate Transaction OTP (Required for amounts > 5000)
  */
-export const generateTransactionOtpApi = async (payload: TransactionPayload) => {
-  const response = await api.post("/api/v1/dmt/generate-transaction-otp", payload);
+export const generateTransactionOtpApi = async (payload: TransactionOtpPayload) => {
+  const cleanPayload = {
+    mobile: String(payload.mobile).trim(),
+    amount: payload.amount,
+    ...(payload.bene_id || payload.beneficiaryId ? { bene_id: payload.bene_id || payload.beneficiaryId } : {}),
+  };
+  const response = await api.post("/api/v1/dmt/generate-transaction-otp", cleanPayload);
   return response.data;
 };
 
@@ -220,7 +234,16 @@ export const generateTransactionOtpApi = async (payload: TransactionPayload) => 
  * 10. Execute Transaction
  */
 export const executeTransactionApi = async (payload: TransactionPayload) => {
-  const response = await api.post("/api/v1/dmt/do-transaction", payload);
+  const cleanPayload = {
+    mobile: String(payload.mobile).trim(),
+    amount: payload.amount,
+    bene_id: payload.bene_id || payload.beneficiaryId,
+    mode: payload.mode,
+    latlong: payload.latlong || "28.7041,77.1025",
+    client_ref_id: payload.client_ref_id || `DMT_${Date.now()}`,
+    ...(payload.otp ? { otp: String(payload.otp).trim() } : {}),
+  };
+  const response = await api.post("/api/v1/dmt/do-transaction", cleanPayload);
   return response.data;
 };
 
