@@ -1,4 +1,4 @@
-import { useState, forwardRef, useImperativeHandle } from "react";
+import { useState, forwardRef, useImperativeHandle, useEffect } from "react";
 import {
   Building2,
   CreditCard,
@@ -10,7 +10,7 @@ import {
   Fingerprint,
 } from "lucide-react";
 
-import { updateRetailerBankDetails } from "../../../../services/api/retailer/retailerAuthApi";
+import { updateRetailerBankDetails, getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
 import {
   checkDoEkyc,
   doBioEkyc,
@@ -50,16 +50,28 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
     const [kycStep, setKycStep] = useState("");
 
-  const banks = [
-    "State Bank of India",
-    "HDFC Bank",
-    "ICICI Bank",
-    "Axis Bank",
-    "Kotak Mahindra Bank",
-    "Bank of Baroda",
-    "Punjab National Bank",
-    "Other",
-  ];
+    // Bank list state
+    const [banks, setBanks] = useState<Bank[]>([]);
+    const [loadingBanks, setLoadingBanks] = useState(false);
+
+  // Fetch bank list on component mount
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setLoadingBanks(true);
+      try {
+        const response = await getBankList();
+        if (response.success && response.data && response.data.data) {
+          setBanks(response.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch bank list:", err);
+      } finally {
+        setLoadingBanks(false);
+      }
+    };
+
+    fetchBanks();
+  }, []);
 
   const handleIfscChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -244,19 +256,20 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
             onChange={(event) =>
               setBankName(event.target.value)
             }
-            className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-12 pr-12 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/10 ${
+            disabled={loadingBanks}
+            className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-12 pr-12 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/10 disabled:opacity-60 ${
               bankName
                 ? "border-[#7c3aed] font-medium text-[#172033]"
                 : "border-[#dfe1e6] text-[#a1a8b5]"
             }`}
           >
             <option value="" disabled>
-              Select bank
+              {loadingBanks ? "Loading banks..." : "Select bank"}
             </option>
 
             {banks.map((bank) => (
-              <option key={bank} value={bank}>
-                {bank}
+              <option key={bank.id} value={bank.name}>
+                {bank.name}
               </option>
             ))}
           </select>

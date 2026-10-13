@@ -139,6 +139,33 @@ const RetailerLogin = () => {
       navigate("/retailer", { replace: true });
     } catch (err: any) {
       setOtpVerified(false);
+      
+      // Check if error is due to incomplete registration
+      if (err?.statusCode === 403 && err?.data?.currentRegistrationStep) {
+        const { currentRegistrationStep, user: userData } = err.data;
+        
+        // Store user ID for resuming registration
+        if (userData?.id || userData?._id || userData?.userId) {
+          localStorage.setItem("retailerUserId", userData.id || userData._id || userData.userId);
+        }
+        localStorage.setItem("pendingRetailerMobile", mobile);
+        
+        // Map backend step to frontend step index
+        const stepMap: Record<string, number> = {
+          ACCOUNT: 0,
+          SHOP_DETAILS: 1,
+          ABOUT: 2,
+          AADHAAR_DETAILS: 3,
+          BANK_DETAILS: 4,
+        };
+        
+        const stepIndex = stepMap[currentRegistrationStep] ?? 0;
+        
+        // Navigate to registration page with the appropriate step
+        navigate(`/retailer/register?step=${stepIndex}`, { replace: true });
+        return;
+      }
+      
       setError(err.message || "An error occurred during login");
     } finally {
       setSubmitting(false);

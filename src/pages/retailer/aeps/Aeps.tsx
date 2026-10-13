@@ -30,6 +30,7 @@ import {
   checkAepsLoginStatus,
   verifyTfa,
   parsePidXml,
+  balanceEnquiry,
   type TfaPayload,
 } from "../../../services/api/retailer/aepsApi";
 
@@ -45,7 +46,8 @@ type ModalType =
   | ""
   | "amount"
   | "otp"
-  | "biometric";
+  | "biometric"
+  | "balance-enquiry";
 
 type ReceiptType =
   | ""
@@ -771,6 +773,14 @@ const Aeps = () => {
    */
   const [selectedService, setSelectedService] =
     useState<ServiceId | "">("");
+
+  /*
+   * Balance Enquiry
+   */
+  const [balanceEnquiryAadhaar, setBalanceEnquiryAadhaar] = useState("");
+  const [isCheckingBalance, setIsCheckingBalance] = useState(false);
+  const [balanceResult, setBalanceResult] = useState<Record<string, unknown> | null>(null);
+  const [balanceError, setBalanceError] = useState("");
 
   /*
    * Modal
@@ -1533,6 +1543,75 @@ const Aeps = () => {
   const renderRetailerAuth = () => {
     return (
       <>
+        {/* Balance Enquiry Card */}
+        <div className="rounded-2xl border border-purple-100 bg-white p-4 shadow-sm sm:p-5 mb-4">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <Banknote className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-[#171717] sm:text-base">
+                Quick Balance Enquiry
+              </h2>
+              <p className="mt-0.5 text-xs text-[#8992a3] sm:text-sm">
+                Check account balance instantly
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 mb-3">
+            <IdCard className="h-5 w-5 shrink-0 text-purple-600" />
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={12}
+              value={balanceEnquiryAadhaar}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 12);
+                setBalanceEnquiryAadhaar(value);
+                setBalanceError("");
+              }}
+              disabled={isCheckingBalance}
+              placeholder="Enter 12-digit Aadhaar number"
+              className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+            />
+          </div>
+
+          {balanceError && (
+            <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+              {balanceError}
+            </div>
+          )}
+
+          {balanceResult && (
+            <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <p className="text-xs font-semibold text-emerald-700 mb-2">Balance Enquiry Result</p>
+              <pre className="text-xs text-emerald-800 overflow-auto max-h-32">
+                {JSON.stringify(balanceResult, null, 2)}
+              </pre>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleBalanceEnquiry}
+            disabled={balanceEnquiryAadhaar.length !== 12 || isCheckingBalance}
+            className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-md transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isCheckingBalance ? (
+              <>
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                CHECKING...
+              </>
+            ) : (
+              <>
+                <Banknote className="h-4 w-4" />
+                CHECK BALANCE
+              </>
+            )}
+          </button>
+        </div>
+
         {/* 2FA + Biometric Device */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="flex h-full flex-col justify-between rounded-2xl border border-purple-100 bg-white p-3 text-slate-900 shadow-sm sm:p-4">
@@ -2259,6 +2338,67 @@ const Aeps = () => {
         bgClass: "bg-purple-50",
       },
     ];
+
+  const handleBalanceEnquiry = async () => {
+    if (balanceEnquiryAadhaar.length !== 12) {
+      setBalanceError("Please enter a valid 12-digit Aadhaar number");
+      return;
+    }
+
+    setIsCheckingBalance(true);
+    setBalanceError("");
+    setBalanceResult(null);
+
+    try {
+      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const outletId = stored.outletId || stored.outletid || "";
+      const referenceKey = stored.referenceKey || "";
+
+      if (!outletId) {
+        throw new Error("Outlet ID is missing. Please check your retailer account.");
+      }
+
+      if (!referenceKey) {
+        throw new Error("Reference key is missing. Please complete eKYC first.");
+      }
+
+      // Get geolocation
+      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve({ latitude: "0", longitude: "0" });
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            resolve({
+              latitude: String(position.coords.latitude),
+              longitude: String(position.coords.longitude),
+            });
+          },
+          () => {
+            resolve({ latitude: "0", longitude: "0" });
+          },
+          { timeout: 5000 }
+        );
+      });
+
+      const payload = {
+        outlet_id: outletId,
+        referenceKey,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        aadhaar: balanceEnquiryAadhaar,
+        ts: new Date().toISOString(),
+      };
+
+      const result = await balanceEnquiry(payload);
+      setBalanceResult(result.data as Record<string, unknown> | null);
+    } catch (error: unknown) {
+      setBalanceError(error instanceof Error ? error.message : "Failed to check balance");
+    } finally {
+      setIsCheckingBalance(false);
+    }
+  };
 
   const renderServices = () => {
     return (
