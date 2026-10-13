@@ -127,8 +127,24 @@ export const remitterEkycApi = async (payload: RemitterEkycPayload) => {
     sessionKey: payload.sessionKey,
     srno: payload.srno,
   };
-  const response = await api.post("/api/v1/dmt/remitter-ekyc", cleanPayload);
-  return response.data;
+
+  try {
+    const response = await api.post("/api/v1/dmt/remitter-ekyc", cleanPayload);
+    return response.data;
+  } catch (error: unknown) {
+    const err = error as { response?: { data?: { message?: string; msg?: string; data?: { msg?: string } } } };
+    const data = err?.response?.data;
+    const msg = String(data?.message || data?.msg || data?.data?.msg || "").trim().toLowerCase();
+    if (msg.includes("transaction successful") || msg === "successful" || msg === "success") {
+      return {
+        success: true,
+        statusCode: 200,
+        message: data?.message || data?.msg || data?.data?.msg || "Transaction Successful",
+        data: data?.data || data,
+      };
+    }
+    throw error;
+  }
 };
 
 /**
@@ -183,12 +199,15 @@ export const addBeneficiaryApi = async (payload: AddBeneficiaryPayload) => {
 
 export interface DeleteBeneficiaryPayload {
   beneficiaryId: string | number;
+  outletid: string;
   remitterMobile: string;
 }
 
 export interface VerifyDeleteBeneficiaryOtpPayload {
   beneficiaryId: string | number;
+  outletid: string;
   remitterMobile: string;
+  referenceKey: string;
   otp: string;
 }
 
@@ -198,6 +217,7 @@ export interface VerifyDeleteBeneficiaryOtpPayload {
 export const deleteBeneficiaryApi = async (payload: DeleteBeneficiaryPayload) => {
   const cleanPayload = {
     beneficiaryId: payload.beneficiaryId,
+    outletid: String(payload.outletid).trim(),
     remitterMobile: String(payload.remitterMobile).trim(),
   };
   const response = await api.post("/api/v1/dmt/delete-beneficiary", cleanPayload);
@@ -210,7 +230,9 @@ export const deleteBeneficiaryApi = async (payload: DeleteBeneficiaryPayload) =>
 export const verifyDeleteBeneficiaryOtpApi = async (payload: VerifyDeleteBeneficiaryOtpPayload) => {
   const cleanPayload = {
     beneficiaryId: payload.beneficiaryId,
+    outletid: String(payload.outletid).trim(),
     remitterMobile: String(payload.remitterMobile).trim(),
+    referenceKey: String(payload.referenceKey).trim(),
     otp: String(payload.otp).trim(),
   };
   const response = await api.post("/api/v1/dmt/delete-beneficiary-verify", cleanPayload);
