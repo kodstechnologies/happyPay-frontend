@@ -364,12 +364,6 @@ const Dmt = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (showDoKycModal) {
-      handleScanDevices();
-    }
-  }, [showDoKycModal, handleScanDevices]);
-
   /* Dynamic Bank List from /api/v1/auth/banks (API only) */
   const [liveBanks, setLiveBanks] = useState<Bank[]>([]);
   const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(false);
@@ -1904,6 +1898,7 @@ const Dmt = () => {
                     setKycError("");
                     setKycStep("Ready to scan fingerprint.");
                     setShowDoKycModal(true);
+                    handleScanDevices();
                   }}
                   className="flex w-fit items-center gap-2 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-[#6d28d9]"
                 >
