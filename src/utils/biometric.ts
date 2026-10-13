@@ -1,7 +1,3 @@
-/**
- * Biometric Utilities for parsing RD Service (MFS110/Mantra) PID XML
- */
-
 export interface ExtractedBiometricData {
   dc: string;
   ci: string;
@@ -29,11 +25,7 @@ export interface ExtractedBiometricData {
   ts: string;
 }
 
-/**
- * Extracts and formats all biometric data fields from the RD Service PID XML.
- * @param xml Raw PID XML string returned by the biometric device capture.
- * @returns Structured biometric data object matching DMT/AEPS schema expectations.
- */
+
 export function extractBiometricData(xml: string): ExtractedBiometricData {
   const doc = new DOMParser().parseFromString(xml, "text/xml");
   const resp = doc.querySelector("Resp");

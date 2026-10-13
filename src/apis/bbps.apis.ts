@@ -91,25 +91,30 @@ export const getBbpsCategoriesApi = async (): Promise<BbpsCategoryItem[]> => {
 };
 
 /**
+ * Helper to safely extract biller array from various API response formats
+ */
+const extractBillerArray = (rootData: unknown): BillerItem[] => {
+  if (!rootData || typeof rootData !== "object") return [];
+  if (Array.isArray(rootData)) return rootData as BillerItem[];
+
+  const root = rootData as Record<string, unknown>;
+  const nestedData = root.data as Record<string, unknown> | BillerItem[] | undefined;
+
+  if (Array.isArray(nestedData)) return nestedData as BillerItem[];
+  if (nestedData && typeof nestedData === "object") {
+    if (Array.isArray(nestedData.data)) return nestedData.data as BillerItem[];
+    if (Array.isArray(nestedData.billers)) return nestedData.billers as BillerItem[];
+  }
+  if (Array.isArray(root.billers)) return root.billers as BillerItem[];
+  return [];
+};
+
+/**
  * Fetch all BBPS Billers from backend API (GET /api/v1/bbps/billers)
  */
 export const getAllBillersApi = async (): Promise<BillerItem[]> => {
   const response = await api.get<BillerListResponse>("/api/v1/bbps/billers");
-  const rootData = response.data;
-
-  if (Array.isArray(rootData)) {
-    return rootData;
-  }
-  if (Array.isArray(rootData?.data)) {
-    return rootData.data as BillerItem[];
-  }
-  if (Array.isArray((rootData?.data as Record<string, unknown>)?.data)) {
-    return (rootData?.data as Record<string, unknown>)?.data as BillerItem[];
-  }
-  if (Array.isArray((rootData?.data as Record<string, unknown>)?.billers)) {
-    return (rootData?.data as Record<string, unknown>)?.billers as BillerItem[];
-  }
-  return [];
+  return extractBillerArray(response.data);
 };
 
 /**
@@ -122,8 +127,7 @@ export const getBillersByCategoryIdApi = async (
     const response = await api.post("/api/v1/bbps/billers/by-category-id", {
       cat_id: catId,
     });
-    const data = response.data?.data?.billers || response.data?.data || response.data || [];
-    return Array.isArray(data) ? data : [];
+    return extractBillerArray(response.data);
   } catch {
     return [];
   }
@@ -139,14 +143,7 @@ export const getBillersByCategoryNameApi = async (
     const response = await api.post("/api/v1/bbps/billers/by-category", {
       catname,
     });
-    const rootData = response.data;
-    const data =
-      rootData?.data?.billers ||
-      rootData?.data ||
-      rootData?.billers ||
-      rootData ||
-      [];
-    return Array.isArray(data) ? data : [];
+    return extractBillerArray(response.data);
   } catch (err) {
     console.error("[BBPS] Failed to fetch billers by category name:", err);
     return [];

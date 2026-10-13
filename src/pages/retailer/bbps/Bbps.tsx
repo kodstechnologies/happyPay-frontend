@@ -913,11 +913,11 @@ const BBPS: React.FC = () => {
                       </div>
                     </div>
 
-                    {selectedBiller?.opcode && (
+                    {/* {selectedBiller?.opcode && (
                       <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-700">
                         Opcode: {selectedBiller.opcode}
                       </span>
-                    )}
+                    )} */}
                   </div>
 
 
@@ -1226,9 +1226,9 @@ const BBPS: React.FC = () => {
                       <h4 className="text-xs font-bold text-slate-900">
                         Active Biller Operator
                       </h4>
-                      <p className="text-[11px] text-slate-500">
+                      {/* <p className="text-[11px] text-slate-500">
                         Opcode: {selectedBiller.opcode}
-                      </p>
+                      </p> */}
                     </div>
                   </div>
 
@@ -1349,18 +1349,18 @@ const BBPS: React.FC = () => {
                     onClick={() => handleBillerSelect(biller)}
                     className="flex w-full items-center justify-between py-3 px-2.5 text-left hover:bg-blue-50/60 rounded-xl transition group"
                   >
-                    <div className="pr-3">
+                    <div className="py-2 pr-3">
                       <span className="block text-xs font-bold text-slate-800 group-hover:text-blue-700">
                         {biller.service_name}
                       </span>
-                      <span className="block text-[10px] font-semibold text-slate-400">
+                      {/* <span className="block text-[10px] font-semibold text-slate-400">
                         Input: {biller.CUSTNO || "Consumer ID"}
                         {biller.FIELD1 ? ` | Secondary: ${biller.FIELD1}` : ""}
-                      </span>
+                      </span> */}
                     </div>
-                    <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5 shrink-0">
-                      #{biller.opcode}
-                    </span>
+                    {/* <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5 shrink-0">
+                    #{biller.opcode}
+                    </span> */}
                   </button>
                 ))
               ) : (
