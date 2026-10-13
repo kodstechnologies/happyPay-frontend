@@ -496,7 +496,8 @@ class MFS110Service {
    */
   async capture(
     wadh = "",
-    otp = ""
+    otp = "",
+    fType = "0"
   ): Promise<RDResponse> {
     if (!this.discovered) {
       const discovery = await this.discover();
@@ -510,10 +511,10 @@ class MFS110Service {
 
     const safeWadh = escapeXmlAttribute(wadh);
     const safeOtp = escapeXmlAttribute(otp);
+    const safeFType = escapeXmlAttribute(fType || "0");
 
-    // The provider always includes both attributes,
-    // even when their values are empty.
-    const pidOptions = `<PidOptions ver="1.0"><Opts fCount="1" fType="2" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" wadh="${safeWadh}" otp="${safeOtp}" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
+    // The provider includes both attributes and standard fType="0" for standard ISO matching
+    const pidOptions = `<PidOptions ver="1.0"><Opts fCount="1" fType="${safeFType}" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" wadh="${safeWadh}" otp="${safeOtp}" posh="UNKNOWN" env="P"/><CustOpts><Param name="mantrakey" value=""/></CustOpts></PidOptions>`;
 
     try {
       const response = await axios.request<string>({

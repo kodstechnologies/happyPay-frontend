@@ -936,14 +936,17 @@ const Dmt = () => {
     try {
       // 1. Capture fingerprint from RD service using session WADH (matching Dashboard eKYC)
       setKycStep("Please place finger on scanner...");
+      // Standard PaySprint Bank Pipe WADH hash (Bank 6 / AEPS / eKYC standard)
+      const PAYSPRINT_BANK6_WADH = "E0jzJ/P8UopUHAieZn8CKqS4WPMi5ZSYXgfnlfkWjrc=";
       const currentWadh =
         wadhRef.current ||
         activeWadh ||
         sessionStorage.getItem("dmt_remitter_wadh") ||
-        "";
+        PAYSPRINT_BANK6_WADH;
       console.log("[DMT] Capturing fingerprint with WADH:", currentWadh);
 
-      const capture = await mfs110Service.capture(currentWadh);
+      // Use standard fType="0" (Standard ISO / PaySprint default matching rdService in AEPS)
+      const capture = await mfs110Service.capture(currentWadh, "", "0");
       if (!capture.success || !capture.data) {
         const errorMsg = capture.message || "Fingerprint capture failed. Please check device connection.";
         setKycError(errorMsg);
@@ -996,7 +999,7 @@ const Dmt = () => {
       setKycStep("Submitting remitter eKYC to bank provider...");
 
       const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "620409");
 
       // 5. Call remitterEkycApi
       const res = await remitterEkycApi({
