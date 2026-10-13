@@ -7,6 +7,7 @@ import {
   GraduationCap,
   Check,
   ChevronDown,
+  CalendarDays,
 } from "lucide-react";
 
 const AboutRetailerStep = () => {
@@ -17,6 +18,7 @@ const AboutRetailerStep = () => {
   const [gender, setGender] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
   const [education, setEducation] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
 
   const handleSelfieUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -129,6 +131,42 @@ const AboutRetailerStep = () => {
             </>
           )}
         </button>
+      </div>
+
+      {/* =====================================================
+          DATE OF BIRTH
+      ===================================================== */}
+
+      <div>
+        <label
+          htmlFor="retailer-dob"
+          className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
+        >
+          Date of Birth
+        </label>
+
+        <div className="relative">
+          <CalendarDays
+            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
+            strokeWidth={2}
+          />
+
+          <input
+            id="retailer-dob" name="dob"
+            type="text"
+            value={dateOfBirth}
+            onChange={(event) =>
+              setDateOfBirth(event.target.value)
+            }
+            placeholder="DD/MM/YYYY"
+            inputMode="numeric"
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
+              dateOfBirth
+                ? "border-[#7c3aed]"
+                : "border-[#dfe3e9]"
+            }`}
+          />
+        </div>
       </div>
 
       {/* =====================================================

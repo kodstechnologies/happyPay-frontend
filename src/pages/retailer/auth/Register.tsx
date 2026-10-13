@@ -8,8 +8,6 @@ import {
   Store,
   UserRound,
   Fingerprint,
-  Cake,
-  FileText,
   Building2,
   ShieldCheck,
 } from "lucide-react";
@@ -20,8 +18,7 @@ import ShopDetailsStep from "./registerSteps/ShopDetailsStep";
 import AboutRetailerStep from "./registerSteps/AboutRetailerStep";
 // import PanVerificationStep from "./registerSteps/PanVerificationStep";
 import AadhaarStep from "./registerSteps/AadhaarStep";
-import DobStep from "./registerSteps/DobStep";
-import BusinessProofStep from "./registerSteps/BusinessProofStep";
+// import DobStep from "./registerSteps/DobStep"; // Removed - DOB field moved to AboutRetailerStep
 import BankDetailsStep from "./registerSteps/BankDetailsStep";
 
 const steps = [
@@ -32,7 +29,7 @@ const steps = [
   },
   {
     title: "Shop Details",
-    description: "Business information",
+    description: "Business information & proof",
     icon: Store,
   },
   {
@@ -50,16 +47,16 @@ const steps = [
     description: "Aadhaar verification",
     icon: Fingerprint,
   },
-  {
+  /* {
     title: "DOB",
     description: "Date of birth",
     icon: Cake,
-  },
-  {
+  }, */ // Removed - DOB field moved to AboutRetailerStep
+  /* {
     title: "Business Proof",
     description: "Business verification",
     icon: FileText,
-  },
+  }, */ // Removed - fields moved to ShopDetailsStep
   {
     title: "Bank Details",
     description: "Bank account details",
@@ -73,19 +70,19 @@ const stepHeadings = [
   "About You",
   // "Verify your PAN",
   "Verify Aadhaar",
-  "Date of Birth",
-  "Business Proof",
+  // "Date of Birth", // Removed - DOB field moved to AboutRetailerStep
+  // "Business Proof", // Removed - fields moved to ShopDetailsStep
   "Bank Details",
 ];
 
 const stepDescriptions = [
   "Create your HappyPay retailer account.",
-  "Tell us about your shop and business.",
-  "Tell us a little about yourself.",
+  "Tell us about your shop, business, and upload required proofs.",
+  "Tell us about yourself including your date of birth.",
   // "Enter your PAN details for verification.",
   "Verify your Aadhaar information securely.",
-  "Enter your date of birth.",
-  "Upload your shop and business proof.",
+  // "Enter your date of birth.", // Removed - DOB field moved to AboutRetailerStep
+  // "Upload your shop and business proof.", // Removed - fields moved to ShopDetailsStep
   "Add your bank account for payouts.",
 ];
 
@@ -97,6 +94,9 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const navigate = useNavigate();
 
   const [currentStep, setCurrentStep] = useState(0);
+  const [retailerUserId, setRetailerUserId] = useState<string>(
+    () => localStorage.getItem("retailerUserId") ?? ""
+  );
 
   /*
    * ==========================================================
@@ -366,27 +366,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                 <div className="my-6 h-px bg-[#edf0f4]" />
 
-                {/* =================================================
-                    ALL STEP COMPONENTS STAY MOUNTED
-                    =================================================
 
-                    THIS IS THE IMPORTANT FIX.
-
-                    We do NOT conditionally render the components.
-
-                    Previously:
-                      Step 1 rendered
-                      -> Next
-                      -> Step 1 unmounted
-                      -> Step 2 rendered
-
-                    Now:
-                      ALL steps stay mounted.
-                      Only the active one is visible.
-
-                    Therefore every existing useState inside the
-                    original step files keeps its value.
-                */}
 
                 <form id="retailer-register-form" className="flex-1" onSubmit={handleSubmit}>
 
@@ -397,7 +377,12 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                         : "hidden"
                     }
                   >
-                    <AccountStep />
+                    <AccountStep
+                      onAccountCreated={(id) => {
+                        setRetailerUserId(id);
+                        nextStep();
+                      }}
+                    />
                   </div>
 
                   <div
@@ -407,7 +392,10 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                         : "hidden"
                     }
                   >
-                    <ShopDetailsStep />
+                    <ShopDetailsStep
+                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      onShopDetailsSaved={nextStep}
+                    />
                   </div>
 
                   <div
@@ -433,26 +421,6 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                   <div
                     className={
                       currentStep === 4
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <DobStep />
-                  </div>
-
-                  <div
-                    className={
-                      currentStep === 5
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <BusinessProofStep />
-                  </div>
-
-                  <div
-                    className={
-                      currentStep === 6
                         ? "block"
                         : "hidden"
                     }
@@ -484,36 +452,30 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                       </span>
                     </button>
 
-                    {/* NEXT */}
-                    <button
-                      type={currentStep === steps.length - 1 ? "submit" : "button"}
-                      form={currentStep === steps.length - 1 ? "retailer-register-form" : undefined}
-                      onClick={currentStep === steps.length - 1 ? undefined : nextStep}
-                      className={`flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition ${currentStep ===
-                        steps.length - 1
-                        ? "bg-[#10a88a] hover:bg-[#0d8a70]"
-                        : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
+                    {/* NEXT — hidden on step 0 & 1 (those steps self-advance) */}
+                    {currentStep !== 0 && currentStep !== 1 && (
+                      <button
+                        type={currentStep === steps.length - 1 ? "submit" : "button"}
+                        form={currentStep === steps.length - 1 ? "retailer-register-form" : undefined}
+                        onClick={currentStep === steps.length - 1 ? undefined : nextStep}
+                        className={`flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition ${currentStep === steps.length - 1
+                          ? "bg-[#10a88a] hover:bg-[#0d8a70]"
+                          : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
                         }`}
-                    >
+                      >
+                        <span>
+                          {currentStep === steps.length - 1
+                            ? "Submit Registration"
+                            : "Continue"}
+                        </span>
 
-                      <span>
-                        {currentStep ===
-                          steps.length - 1
-                          ? "Submit Registration"
-                          : "Continue"}
-                      </span>
-
-                      {currentStep ===
-                        steps.length - 1 ? (
-                        <Check
-                          className="h-4 w-4"
-                          strokeWidth={2.5}
-                        />
-                      ) : (
-                        <ArrowRight className="h-4 w-4" />
-                      )}
-
-                    </button>
+                        {currentStep === steps.length - 1 ? (
+                          <Check className="h-4 w-4" strokeWidth={2.5} />
+                        ) : (
+                          <ArrowRight className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
 
                   </div>
 
