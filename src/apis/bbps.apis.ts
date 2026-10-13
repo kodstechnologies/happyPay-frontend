@@ -48,6 +48,7 @@ export interface ViewBillPayload {
   orderid: string;
   opcode: string;
   service_id: string | number;
+  FIELD1?: string;
   [key: string]: unknown;
 }
 
@@ -64,6 +65,7 @@ export interface PayBillPayload {
   duedate?: string;
   latitude?: string;
   longitude?: string;
+  FIELD1?: string;
   [key: string]: unknown;
 }
 
