@@ -69,14 +69,17 @@ export interface TransactionOtpPayload {
 }
 
 export interface TransactionPayload {
-  mobile: string;
+  latitude: string;
+  longitude: string;
+  txnid: string;
   amount: number | string;
-  bene_id: string | number;
-  beneficiaryId?: string | number;
-  mode: string; // IMPS | NEFT
+  mode: string;
+  ifsc: string;
+  referenceKey: string;
+  account: string;
+  remitterMobile: string;
+  outletid: string;
   otp?: string;
-  latlong?: string;
-  client_ref_id?: string;
 }
 
 /**
@@ -256,15 +259,23 @@ export const generateTransactionOtpApi = async (payload: TransactionOtpPayload) 
  * 10. Execute Transaction
  */
 export const executeTransactionApi = async (payload: TransactionPayload) => {
-  const cleanPayload = {
-    mobile: String(payload.mobile).trim(),
+  const cleanPayload: Record<string, unknown> = {
+    latitude: String(payload.latitude).trim(),
+    longitude: String(payload.longitude).trim(),
+    txnid: String(payload.txnid).trim(),
     amount: payload.amount,
-    bene_id: payload.bene_id || payload.beneficiaryId,
-    mode: payload.mode,
-    latlong: payload.latlong || "28.7041,77.1025",
-    client_ref_id: payload.client_ref_id || `DMT_${Date.now()}`,
-    ...(payload.otp ? { otp: String(payload.otp).trim() } : {}),
+    mode: String(payload.mode).trim(),
+    ifsc: String(payload.ifsc).trim(),
+    referenceKey: String(payload.referenceKey).trim(),
+    account: String(payload.account).trim(),
+    remitterMobile: String(payload.remitterMobile).trim(),
+    outletid: String(payload.outletid).trim(),
   };
+
+  if (payload.otp && String(payload.otp).trim()) {
+    cleanPayload.otp = String(payload.otp).trim();
+  }
+
   const response = await api.post("/api/v1/dmt/do-transaction", cleanPayload);
   return response.data;
 };
