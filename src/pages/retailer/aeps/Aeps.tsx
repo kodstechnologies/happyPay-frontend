@@ -33,6 +33,7 @@ import {
   balanceEnquiry,
   type TfaPayload,
 } from "../../../services/api/retailer/aepsApi";
+import { getGeolocationCoordinates } from "../../../utils/geolocation";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -1045,33 +1046,10 @@ const Aeps = () => {
       }
 
       // Obtain geolocation coordinates.
-      const coords = await new Promise<{
-        latitude: string;
-        longitude: string;
-      }>((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({
-            latitude: "0",
-            longitude: "0",
-          });
-          return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              latitude: String(position.coords.latitude),
-              longitude: String(position.coords.longitude),
-            });
-          },
-          () => {
-            resolve({
-              latitude: "0",
-              longitude: "0",
-            });
-          },
-          { timeout: 5000 }
-        );
+      const coords = await getGeolocationCoordinates({
+        fallbackLatitude: "0",
+        fallbackLongitude: "0",
+        timeout: 5000,
       });
 
       // Parse the captured RD Service PID XML.
@@ -2363,23 +2341,10 @@ const Aeps = () => {
       }
 
       // Get geolocation
-      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({ latitude: "0", longitude: "0" });
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            resolve({
-              latitude: String(position.coords.latitude),
-              longitude: String(position.coords.longitude),
-            });
-          },
-          () => {
-            resolve({ latitude: "0", longitude: "0" });
-          },
-          { timeout: 5000 }
-        );
+      const coords = await getGeolocationCoordinates({
+        fallbackLatitude: "0",
+        fallbackLongitude: "0",
+        timeout: 5000,
       });
 
       const payload = {
