@@ -1324,15 +1324,40 @@ const Dmt = () => {
     setIsProcessingTransfer(true);
 
     try {
-      const clientRefId = generateClientTxnId("DMT");
-      const targetBeneId = selectedBeneficiary.beneficiaryId || selectedBeneficiary.id;
+      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const effectiveRefKey =
+        activeReferenceKey ||
+        referenceKeyRef.current ||
+        sessionStorage.getItem("dmt_remitter_ref_key") ||
+        storedUser?.referenceKey ||
+        "";
+
+      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
+        if (!navigator.geolocation) {
+          resolve({ latitude: "28.7041", longitude: "77.1025" });
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }),
+          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
+          { timeout: 3000 }
+        );
+      });
+
+      const clientTxnId = generateClientTxnId("DMT");
+
       const payload = {
-        mobile: customerMobile.trim(),
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        txnid: clientTxnId,
         amount: numericSendAmount,
-        bene_id: targetBeneId,
         mode: transferMode,
-        latlong: "28.7041,77.1025",
-        client_ref_id: clientRefId,
+        ifsc: selectedBeneficiary.ifsc.trim(),
+        referenceKey: effectiveRefKey,
+        account: selectedBeneficiary.accountNumber.trim(),
+        remitterMobile: customerMobile.trim(),
+        outletid: effectiveOutletId,
         ...(numericSendAmount > 5000 ? { otp: transactionOtp.trim() } : {}),
       };
 
@@ -1345,7 +1370,7 @@ const Dmt = () => {
          return;
       }
       
-      const txnId = res?.data?.txnid || res?.data?.reference_id || clientRefId;
+      const txnId = res?.data?.txnid || res?.data?.reference_id || clientTxnId;
       setTransactionId(txnId);
       setTransactionOtp("");
       setTxnOtpSent(false);
