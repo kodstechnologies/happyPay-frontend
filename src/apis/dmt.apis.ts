@@ -172,19 +172,39 @@ export const addBeneficiaryApi = async (payload: AddBeneficiaryPayload) => {
   return response.data;
 };
 
+export interface DeleteBeneficiaryPayload {
+  mobile: string;
+  bene_id: string | number;
+}
+
+export interface VerifyDeleteBeneficiaryOtpPayload {
+  mobile: string;
+  bene_id: string | number;
+  otp: string;
+}
+
 /**
  * 7. Delete Beneficiary (Initiate)
  */
-export const deleteBeneficiaryApi = async (payload: BeneficiaryPayload) => {
-  const response = await api.post("/api/v1/dmt/delete-beneficiary", payload);
+export const deleteBeneficiaryApi = async (payload: DeleteBeneficiaryPayload) => {
+  const cleanPayload = {
+    mobile: String(payload.mobile).trim(),
+    bene_id: payload.bene_id,
+  };
+  const response = await api.post("/api/v1/dmt/delete-beneficiary", cleanPayload);
   return response.data;
 };
 
 /**
  * 8. Verify Delete Beneficiary (OTP)
  */
-export const verifyDeleteBeneficiaryOtpApi = async (payload: BeneficiaryPayload) => {
-  const response = await api.post("/api/v1/dmt/delete-beneficiary-verify", payload);
+export const verifyDeleteBeneficiaryOtpApi = async (payload: VerifyDeleteBeneficiaryOtpPayload) => {
+  const cleanPayload = {
+    mobile: String(payload.mobile).trim(),
+    bene_id: payload.bene_id,
+    otp: String(payload.otp).trim(),
+  };
+  const response = await api.post("/api/v1/dmt/delete-beneficiary-verify", cleanPayload);
   return response.data;
 };
 

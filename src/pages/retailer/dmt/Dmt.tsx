@@ -11,6 +11,7 @@ import {
   Plus,
   Printer,
   RefreshCw,
+  ChevronDown,
   Send,
   ShieldCheck,
   Wallet,
@@ -22,6 +23,8 @@ import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
+import { rdService, type ActiveDevice } from "../../../utils/rdService";
+import { getDeviceInfo } from "../../../apis/bioKyc";
 import { extractBiometricData } from "../../../utils/biometric";
 import { readEkycPrompt } from "../../../services/api/retailer/aepsApi";
 import {
@@ -58,13 +61,14 @@ interface Bank {
 }
 
 interface Beneficiary {
-  id: number;
+  id: number | string;
+  bene_id: number | string;
   name: string;
   initials: string;
   bankName: string;
   accountNumber: string;
   ifsc: string;
-  mobile: string;
+  mobile?: string;
 }
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
@@ -215,19 +219,36 @@ const Dmt = () => {
     try {
       const res = await fetchBeneficiariesApi({ mobile: customerMobile });
       if (res?.success || res?.status) {
-         // Assuming res.data.beneficiaries or res.data is the array
-         const list = Array.isArray(res.data?.beneficiaries) ? res.data.beneficiaries : Array.isArray(res.data) ? res.data : [];
-         // Map to Beneficiary type
-         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-         const mapped = list.map((b: any) => ({
-           id: b.bene_id || b.id || Math.random(),
-           name: b.bene_name || b.name || "Unknown",
-           initials: getInitials(b.bene_name || b.name || "UN"),
-           bankName: b.bank_name || b.bankName || "Bank",
-           accountNumber: b.account_number || b.accountNumber || "",
-           ifsc: b.ifsc || "",
-         }));
-         setBeneficiaries(mapped);
+        const rawData = res.data?.data || res.data;
+        const list = Array.isArray(rawData?.beneficiary)
+          ? rawData.beneficiary
+          : Array.isArray(rawData?.beneficiaries)
+          ? rawData.beneficiaries
+          : Array.isArray(rawData)
+          ? rawData
+          : Array.isArray(res.data?.beneficiary)
+          ? res.data.beneficiary
+          : Array.isArray(res.data?.beneficiaries)
+          ? res.data.beneficiaries
+          : [];
+
+        // Map to Beneficiary type
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mapped = list.map((b: any) => {
+          const beneId = b.bene_id || b.beneficiaryId || b.id || "";
+          const beneName = b.bene_name || b.name || "Unknown";
+          return {
+            id: beneId,
+            bene_id: beneId,
+            name: beneName,
+            initials: getInitials(beneName),
+            bankName: b.bankname || b.bank_name || b.bankName || "Bank",
+            accountNumber: b.account || b.account_number || b.accountNumber || "",
+            ifsc: b.ifsc || "",
+            mobile: b.mobile || customerMobile || "",
+          };
+        });
+        setBeneficiaries(mapped);
       }
     } catch {
       console.error("Failed to fetch beneficiaries");
@@ -274,6 +295,80 @@ const Dmt = () => {
   const [isCapturingBiometric, setIsCapturingBiometric] = useState<boolean>(false);
   const [kycStep, setKycStep] = useState<string>("Ready to scan fingerprint.");
   const [kycError, setKycError] = useState<string>("");
+
+  /* Biometric Device States (Matching AEPS) */
+  const [availableDevices, setAvailableDevices] = useState<(ActiveDevice & {
+    model?: string;
+    serialNumber?: string;
+    detailedInfo?: string;
+  })[]>([]);
+  const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
+  const [selectedDeviceName, setSelectedDeviceName] = useState<string>("Scanning...");
+  const [isScanningDevices, setIsScanningDevices] = useState<boolean>(false);
+  const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState<boolean>(false);
+
+  const handleScanDevices = useCallback(async () => {
+    setIsScanningDevices(true);
+    setSelectedDeviceName("Scanning...");
+    try {
+      console.log("[DMT eKYC] Starting Biometric Device Scan...");
+      const devices = await rdService.scanAllDevices();
+      const enhancedDevices = await Promise.all(
+        devices.map(async (device) => {
+          try {
+            const deviceInfoResponse = await getDeviceInfo(device.port);
+            const deviceInfo = deviceInfoResponse.data;
+            let enhancedName = device.name;
+            let deviceModel = "";
+            let serialNumber = "";
+            if (typeof deviceInfo === "string") {
+              const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
+              if (modelMatch) {
+                deviceModel = modelMatch[1];
+                enhancedName = `${deviceModel}`;
+              }
+              const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
+              if (serialMatch) {
+                serialNumber = serialMatch[1];
+              }
+            }
+            return {
+              ...device,
+              name: enhancedName || device.name,
+              model: deviceModel,
+              serialNumber: serialNumber,
+              detailedInfo: deviceInfo,
+            };
+          } catch {
+            return device;
+          }
+        })
+      );
+
+      setAvailableDevices(enhancedDevices);
+
+      if (enhancedDevices.length > 0) {
+        setSelectedDevicePort(enhancedDevices[0].port);
+        setSelectedDeviceName(enhancedDevices[0].name);
+        console.log(`[DMT eKYC] Found ${enhancedDevices.length} device(s), active:`, enhancedDevices[0].name);
+      } else {
+        setSelectedDevicePort(null);
+        setSelectedDeviceName("No device found");
+      }
+    } catch (err) {
+      console.error("[DMT eKYC] Device scan error:", err);
+      setSelectedDevicePort(null);
+      setSelectedDeviceName("Scan failed");
+    } finally {
+      setIsScanningDevices(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (showDoKycModal) {
+      handleScanDevices();
+    }
+  }, [showDoKycModal, handleScanDevices]);
 
   /* Dynamic Bank List from /api/v1/auth/banks (API only) */
   const [liveBanks, setLiveBanks] = useState<Bank[]>([]);
@@ -870,21 +965,27 @@ const Dmt = () => {
   ========================= */
 
   const handleInitiateDeleteBeneficiary = async (beneficiary: Beneficiary) => {
+    const targetBeneId = beneficiary.bene_id || beneficiary.id;
+    if (!targetBeneId) {
+      toast.error("Beneficiary ID (bene_id) is missing");
+      return;
+    }
+
     setDeletingBeneficiary(beneficiary);
     setDeleteOtp("");
     setIsInitiatingDelete(true);
 
     try {
       const res = await deleteBeneficiaryApi({
-        mobile: customerMobile,
-        bene_id: beneficiary.id,
+        mobile: customerMobile.trim(),
+        bene_id: targetBeneId,
       });
 
-      if (res?.success !== false) {
-        toast.info(res?.message || "OTP sent to customer mobile to confirm beneficiary deletion.");
+      if (res?.success !== false && res?.status !== "FAILED") {
+        toast.info(res?.message || res?.msg || "OTP sent to customer mobile to confirm beneficiary deletion.");
         setShowDeleteModal(true);
       } else {
-        toast.error(res?.message || "Failed to initiate beneficiary deletion");
+        toast.error(res?.message || res?.msg || "Failed to initiate beneficiary deletion");
       }
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to initiate beneficiary deletion"));
@@ -894,7 +995,8 @@ const Dmt = () => {
   };
 
   const handleConfirmDeleteBeneficiary = async () => {
-    if (!deletingBeneficiary || deleteOtp.length !== 6) {
+    const targetBeneId = deletingBeneficiary?.bene_id || deletingBeneficiary?.id;
+    if (!deletingBeneficiary || !targetBeneId || deleteOtp.length !== 6) {
       toast.error("Please enter the 6-digit OTP");
       return;
     }
@@ -903,19 +1005,19 @@ const Dmt = () => {
 
     try {
       const res = await verifyDeleteBeneficiaryOtpApi({
-        mobile: customerMobile,
-        bene_id: deletingBeneficiary.id,
+        mobile: customerMobile.trim(),
+        bene_id: targetBeneId,
         otp: deleteOtp.trim(),
       });
 
-      if (res?.success || res?.status) {
-        toast.success(res?.message || "Beneficiary deleted successfully!");
+      if (res?.success || res?.status === "SUCCESS" || res?.status === true) {
+        toast.success(res?.message || res?.msg || "Beneficiary deleted successfully!");
         setShowDeleteModal(false);
         setDeletingBeneficiary(null);
         setDeleteOtp("");
         await fetchBeneficiariesList();
       } else {
-        toast.error(res?.message || "Failed to verify delete OTP");
+        toast.error(res?.message || res?.msg || "Failed to verify delete OTP");
       }
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to delete beneficiary"));
@@ -930,12 +1032,22 @@ const Dmt = () => {
 
   const handleCaptureBiometricAndDoKyc = async () => {
     setKycError("");
+
+    const targetPort = selectedDevicePort || (availableDevices.length > 0 ? availableDevices[0].port : null);
+
+    if (!targetPort) {
+      const errorMsg = "Please connect a biometric device and click Scan.";
+      setKycError(errorMsg);
+      toast.error(errorMsg);
+      return;
+    }
+
     setIsCapturingBiometric(true);
-    setKycStep("Initializing Mantra biometric device...");
+    setKycStep(`Initializing ${selectedDeviceName}...`);
 
     try {
-      // 1. Capture fingerprint from RD service using session WADH (matching Dashboard eKYC)
-      setKycStep("Please place finger on scanner...");
+      // 1. Capture fingerprint from RD service using session WADH (matching Dashboard eKYC & AEPS)
+      setKycStep(`Please place finger on ${selectedDeviceName} scanner...`);
       // Standard PaySprint Bank Pipe WADH hash (Bank 6 / AEPS / eKYC standard)
       const PAYSPRINT_BANK6_WADH = "E0jzJ/P8UopUHAieZn8CKqS4WPMi5ZSYXgfnlfkWjrc=";
       const currentWadh =
@@ -943,23 +1055,39 @@ const Dmt = () => {
         activeWadh ||
         sessionStorage.getItem("dmt_remitter_wadh") ||
         PAYSPRINT_BANK6_WADH;
-      console.log("[DMT] Capturing fingerprint with WADH:", currentWadh);
+      console.log(`[DMT] Capturing fingerprint on port ${targetPort} with WADH:`, currentWadh);
 
-      // Use standard fType="0" (Standard ISO / PaySprint default matching rdService in AEPS)
-      const capture = await mfs110Service.capture(currentWadh, "", "0");
-      if (!capture.success || !capture.data) {
-        const errorMsg = capture.message || "Fingerprint capture failed. Please check device connection.";
-        setKycError(errorMsg);
-        setKycStep("Capture failed.");
-        toast.error(errorMsg);
-        return;
+      // Try primary capture using selected port via rdService (with fType="2" and dynamic capturePath)
+      let rawCaptureXml: string | null = null;
+      const activeDevice = availableDevices.find((d) => d.port === targetPort);
+      const captureResult = await rdService.captureFingerprint(targetPort, {
+        wadh: currentWadh,
+        fType: "2", // ISO 19794-2 standard card format required by bank provider
+        capturePath: activeDevice?.capturePath || "/rd/capture",
+      });
+
+      if (captureResult.success && captureResult.data) {
+        rawCaptureXml = captureResult.data;
+      } else {
+        // Fallback to mfs110Service if device was Mantra or proxy configured
+        console.warn("[DMT] rdService capture returned issue, attempting mfs110Service fallback...", captureResult.message);
+        const mfsCapture = await mfs110Service.capture(currentWadh, "", "2");
+        if (mfsCapture.success && mfsCapture.data) {
+          rawCaptureXml = mfsCapture.data;
+        } else {
+          const errorMsg = captureResult.message || mfsCapture.message || "Fingerprint capture failed. Please check device connection.";
+          setKycError(errorMsg);
+          setKycStep("Capture failed.");
+          toast.error(errorMsg);
+          return;
+        }
       }
 
       setKycStep("Fingerprint captured. Parsing biometric data...");
       console.log("[DMT] Raw biometric capture data parsed successfully");
 
       // 2. Parse PID XML using reusable extractBiometricData utility
-      const biometricData = extractBiometricData(capture.data);
+      const biometricData = extractBiometricData(rawCaptureXml);
 
       if (biometricData.errCode && biometricData.errCode !== "0") {
         const errorMsg = `Device error (${biometricData.errCode}): ${biometricData.errInfo || "Failed to capture fingerprint"}`;
@@ -1982,7 +2110,7 @@ const Dmt = () => {
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900">Remitter Biometric eKYC</h3>
-                      <p className="text-[11px] text-slate-500">Mantra MFS110 RD Service</p>
+                      <p className="text-[11px] text-slate-500">Biometric RD Service Verification</p>
                     </div>
                   </div>
                   <button
@@ -2020,8 +2148,87 @@ const Dmt = () => {
                     )}
                   </div>
 
+                  {/* Connected Biometric Device Selector (AEPS Reference) */}
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-bold text-slate-700">
+                        Select Biometric Device
+                      </label>
+                      <span className="rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+                        ✓ USB / OTG
+                      </span>
+                    </div>
+
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => !isScanningDevices && setIsDeviceDropdownOpen(!isDeviceDropdownOpen)}
+                        disabled={isCapturingBiometric}
+                        className="flex w-full items-center justify-between rounded-xl border border-purple-100 bg-white p-3 transition-all hover:border-purple-300 disabled:opacity-60"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#7c3aed]">
+                            <Fingerprint className={`h-5 w-5 ${isScanningDevices ? 'animate-pulse' : ''}`} />
+                          </div>
+                          <div className="text-left">
+                            <h4 className="text-sm font-bold text-[#171717]">{selectedDeviceName}</h4>
+                            <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[#087f5b]">
+                              <span className={`h-2 w-2 rounded-full ${availableDevices.length > 0 ? 'bg-[#20a873]' : isScanningDevices ? 'bg-amber-500' : 'bg-red-500'}`} />
+                              {availableDevices.length > 0 ? "Ready · RD Service Active" : isScanningDevices ? "Searching devices..." : "No Device Found"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleScanDevices();
+                            }}
+                            disabled={isScanningDevices || isCapturingBiometric}
+                            className="flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+                            title="Scan for connected devices"
+                          >
+                            <RefreshCw className={`h-3 w-3 transition-transform ${isScanningDevices ? "animate-spin" : ""}`} />
+                            Scan
+                          </button>
+                          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isDeviceDropdownOpen ? "rotate-180" : ""}`} />
+                        </div>
+                      </button>
+
+                      {isDeviceDropdownOpen && availableDevices.length > 0 && (
+                        <div className="absolute left-0 right-0 mt-2 z-20 overflow-hidden rounded-xl border border-slate-100 bg-white shadow-xl max-h-48 overflow-y-auto">
+                          {availableDevices.map((device) => (
+                            <button
+                              key={device.port}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDevicePort(device.port);
+                                setSelectedDeviceName(device.name);
+                                setIsDeviceDropdownOpen(false);
+                              }}
+                              className={`w-full border-b border-slate-50 px-3.5 py-2.5 text-left text-xs transition-colors last:border-0 hover:bg-slate-50 ${
+                                selectedDevicePort === device.port ? "bg-purple-50/70 font-bold text-purple-700" : "font-medium text-slate-700"
+                              }`}
+                            >
+                              <div className="flex flex-col gap-0.5">
+                                <div className="font-semibold text-slate-800">{device.name}</div>
+                                <div className="text-[10px] text-slate-500">
+                                  Port: {device.port}
+                                  {device.model && ` • Model: ${device.model}`}
+                                  {device.serialNumber && ` • S/N: ${device.serialNumber.slice(0, 8)}...`}
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Fingerprint Scanner Visual */}
-                  <div className="my-6 flex flex-col items-center text-center">
+                  <div className="my-5 flex flex-col items-center text-center">
                     <div
                       className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 ${
                         isCapturingBiometric
@@ -2043,7 +2250,7 @@ const Dmt = () => {
                     )}
                   </div>
 
-                  <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
+                  <div className="mt-5 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
                     <button
                       type="button"
                       disabled={isCapturingBiometric}
@@ -2057,7 +2264,7 @@ const Dmt = () => {
                     </button>
                     <button
                       type="button"
-                      disabled={isCapturingBiometric}
+                      disabled={isCapturingBiometric || isScanningDevices}
                       onClick={handleCaptureBiometricAndDoKyc}
                       className="flex items-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white hover:bg-[#6d28d9] disabled:opacity-50"
                     >

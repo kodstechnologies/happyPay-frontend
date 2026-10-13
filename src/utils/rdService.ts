@@ -9,17 +9,28 @@ export interface RDDeviceResponse {
 export interface ActiveDevice {
   port: number;
   name: string;
+  type?: "mantra" | "morpho" | "secugen" | "precision" | "startek" | "nextrd" | "unknown";
+  capturePath?: string;
+  status?: string;
 }
 
 class RDService {
-  // Common ports used by Mantra, Morpho, SecuGen, etc.
-  private static readonly PORTS = [11100, 11101, 11102, 11103, 11104, 11105];
+  // Standard port range used by biometric RD services (11100 to 11120 matching provider reference)
+  private static readonly PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 
-  // The XML configuration requested by UIDAI
-  private static getPidOptions() {
+  // The XML configuration requested by UIDAI (default fType="2" for ISO 19794-2 banking standard)
+  private static getPidOptions(wadh?: string, fType: string = "2") {
+    const safeWadh = (wadh || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;");
+    const wadhAttr = safeWadh ? ` wadh="${safeWadh}"` : "";
+    const safeFType = fType || "2";
     return `
       <PidOptions ver="1.0">
-          <Opts fCount="1" fType="0" iCount="0" iType="0" pCount="0" pType="0" format="0" pidVer="2.0" timeout="10000" posh="UNKNOWN" env="P" />
+          <Opts fCount="1" fType="${safeFType}" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" posh="UNKNOWN" env="P"${wadhAttr} />
+          <CustOpts>
+              <Param name="mantrakey" value="" />
+          </CustOpts>
       </PidOptions>
     `.trim();
   }
@@ -44,12 +55,56 @@ class RDService {
           console.log(`Port ${port} response:`, { status: response.status, data: deviceInfo });
           
           if (typeof deviceInfo === "string" && deviceInfo.includes("RDService")) {
-            // Extract the 'info' attribute for the device name (e.g. info="Mantra MFS100")
-            const match = deviceInfo.match(/info="([^"]+)"/i);
-            const deviceName = match ? match[1] : `Unknown Device (Port ${port})`;
-            
-            console.log(`Found device on port ${port}: ${deviceName}`);
-            activeDevices.push({ port, name: deviceName });
+            // Parse XML to extract device type and interface paths (matching provider reference)
+            let deviceType: ActiveDevice["type"] = "unknown";
+            let deviceName = `Device (Port ${port})`;
+            let capturePath = "/rd/capture";
+            let status = "";
+
+            try {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(deviceInfo, "text/xml");
+              const rdServiceEl = doc.querySelector("RDService");
+              status = rdServiceEl?.getAttribute("status") || "";
+              const info = rdServiceEl?.getAttribute("info") || "";
+
+              if (/\bMantra\b/i.test(info)) {
+                deviceType = "mantra";
+                deviceName = "Mantra MFS Series";
+              } else if (/\bMorpho_RD_Service\b/i.test(info) || /\bMorpho\b/i.test(info)) {
+                deviceType = "morpho";
+                deviceName = "Morpho MSO Series";
+              } else if (/\bSecuGen\b/i.test(info)) {
+                deviceType = "secugen";
+                deviceName = "SecuGen Hamster";
+              } else if (/\bPrecision\b/i.test(info)) {
+                deviceType = "precision";
+                deviceName = "Precision Biometric";
+              } else if (/\bStartek\b/i.test(info)) {
+                deviceType = "startek";
+                deviceName = "Startek FM220";
+              } else if (/\bNEXT\b/i.test(info)) {
+                deviceType = "nextrd";
+                deviceName = "Next Biometrics";
+              } else if (info) {
+                deviceName = info;
+              }
+
+              // Dynamic interface path discovery matching provider reference
+              const interfaces = Array.from(doc.querySelectorAll("Interface"));
+              const captureInterface = interfaces.find(
+                (el) => el.getAttribute("path")?.includes("capture") || el.getAttribute("id")?.toUpperCase() === "CAPTURE"
+              );
+              if (captureInterface) {
+                capturePath = captureInterface.getAttribute("path") || "/rd/capture";
+              }
+            } catch {
+              const match = deviceInfo.match(/info="([^"]+)"/i);
+              if (match) deviceName = match[1];
+            }
+
+            console.log(`Found device on port ${port}: ${deviceName} (${capturePath})`);
+            activeDevices.push({ port, name: deviceName, type: deviceType, capturePath, status });
           }
         }
       } catch (error) {
@@ -66,18 +121,31 @@ class RDService {
 
   /**
    * Captures the fingerprint from a SPECIFIC port
+   * Supports both legacy signature (port, wadh) and options object { wadh, fType, capturePath }
    */
-  public async captureFingerprint(port: number | null): Promise<RDDeviceResponse> {
+  public async captureFingerprint(
+    port: number | null,
+    wadhOrOptions?: string | { wadh?: string; fType?: string; capturePath?: string }
+  ): Promise<RDDeviceResponse> {
     if (!port) {
       return { success: false, message: "Please select a Biometric Device first.", data: null };
     }
 
+    const options = typeof wadhOrOptions === "string" 
+      ? { wadh: wadhOrOptions, fType: "2", capturePath: "/rd/capture" } 
+      : wadhOrOptions || {};
+
+    const wadh = options.wadh;
+    const fType = options.fType || "2";
+    const capturePath = options.capturePath || "/rd/capture";
+
     try {
-      console.log(`Starting fingerprint capture on port ${port}...`);
+      console.log(`Starting fingerprint capture on port ${port} (${capturePath}, fType=${fType})...`);
+      const pidOptions = RDService.getPidOptions(wadh, fType);
       
       // First try the regular captureBiometric method
       try {
-        const response = await captureBiometric(port, RDService.getPidOptions());
+        const response = await captureBiometric(port, pidOptions, capturePath);
         const pidData = response.data;
         
         console.log(`Capture response for port ${port}:`, { status: response.status, dataLength: pidData?.length });
@@ -99,7 +167,7 @@ class RDService {
         // Fallback to fetch method if axios fails
         try {
           const { captureBiometricFetch } = await import("../apis/bioKyc");
-          const fetchResponse = await captureBiometricFetch(port, RDService.getPidOptions());
+          const fetchResponse = await captureBiometricFetch(port, pidOptions, capturePath);
           const pidData = fetchResponse.data;
           
           console.log(`Fetch capture response for port ${port}:`, { status: fetchResponse.status, dataLength: pidData?.length });

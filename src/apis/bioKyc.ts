@@ -106,11 +106,13 @@ export const getDeviceInfo = async (port: number) => {
 
 export const captureBiometric = async (
   port: number,
-  pidOptions: string
+  pidOptions: string,
+  capturePath: string = "/rd/capture"
 ) => {
+  const cleanPath = capturePath.startsWith("/") ? capturePath : `/${capturePath}`;
   return axios({
     method: "CAPTURE",
-    url: `https://127.0.0.1:${port}/rd/capture`,
+    url: `http://127.0.0.1:${port}${cleanPath}`,
     data: pidOptions,
     timeout: 30000,
     headers: {
@@ -120,20 +122,19 @@ export const captureBiometric = async (
   });
 };
 
-
-
-
-
-
-
-
-
 // Alternative implementation using native fetch (in case axios has issues)
-export const captureBiometricFetch = async (port: number, pidOptions: string) => {
-  const endpoints = [
+export const captureBiometricFetch = async (
+  port: number,
+  pidOptions: string,
+  capturePath: string = "/rd/capture"
+) => {
+  const cleanPath = capturePath.startsWith("/") ? capturePath : `/${capturePath}`;
+  const endpoints: { method: string; url: string; contentType: string; isFormData?: boolean }[] = [
+    { method: 'CAPTURE', url: `http://127.0.0.1:${port}${cleanPath}`, contentType: 'text/xml' },
+    { method: 'POST', url: `http://127.0.0.1:${port}${cleanPath}`, contentType: 'text/xml' },
     { method: 'POST', url: `http://127.0.0.1:${port}/capture`, contentType: 'text/xml' },
+    { method: 'POST', url: `http://127.0.0.1:${port}/rd/capture`, contentType: 'text/xml' },
     { method: 'POST', url: `http://127.0.0.1:${port}/`, contentType: 'text/xml' },
-    { method: 'POST', url: `http://127.0.0.1:${port}/capture`, contentType: 'application/x-www-form-urlencoded', isFormData: true },
   ];
 
   for (let i = 0; i < endpoints.length; i++) {
