@@ -778,11 +778,9 @@ const Aeps = () => {
   /*
    * Balance Enquiry
    */
-  const [balanceEnquiryAadhaar, setBalanceEnquiryAadhaar] = useState("");
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
   const [balanceResult, setBalanceResult] = useState<Record<string, unknown> | null>(null);
   const [balanceError, setBalanceError] = useState("");
-  const [showBalanceEnquiryAadhaar, setShowBalanceEnquiryAadhaar] = useState(false);
 
   /*
    * Modal
@@ -1858,111 +1856,51 @@ const Aeps = () => {
           <p className="mt-2 text-base text-slate-500">Choose whether you want to deposit or withdraw cash.</p>
         </div>
         
-        {!showBalanceEnquiryAadhaar ? (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button
-              onClick={() => {
-                setFlowMode("withdraw");
-                setStep(2);
-              }}
-              className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
-            >
-              <WalletCards className="h-12 w-12 text-[#7c3aed] mb-4" />
-              <span className="text-xl font-bold text-slate-900">Cash Withdraw</span>
-            </button>
-            <button
-              onClick={() => {
-                setFlowMode("deposit");
-                setStep(2);
-              }}
-              className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
-            >
-              <Banknote className="h-12 w-12 text-[#7c3aed] mb-4" />
-              <span className="text-xl font-bold text-slate-900">Cash Deposit</span>
-            </button>
-            <button
-              onClick={() => setShowBalanceEnquiryAadhaar(true)}
-              className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-emerald-500 hover:shadow-lg transition-all"
-            >
-              <Banknote className="h-12 w-12 text-emerald-600 mb-4" />
-              <span className="text-xl font-bold text-slate-900">Balance Enquiry</span>
-            </button>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <button
+            onClick={() => {
+              setFlowMode("withdraw");
+              setStep(2);
+            }}
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
+          >
+            <WalletCards className="h-12 w-12 text-[#7c3aed] mb-4" />
+            <span className="text-xl font-bold text-slate-900">Cash Withdraw</span>
+          </button>
+          <button
+            onClick={() => {
+              setFlowMode("deposit");
+              setStep(2);
+            }}
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
+          >
+            <Banknote className="h-12 w-12 text-[#7c3aed] mb-4" />
+            <span className="text-xl font-bold text-slate-900">Cash Deposit</span>
+          </button>
+          <button
+            onClick={handleBalanceEnquiry}
+            disabled={isCheckingBalance}
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-emerald-500 hover:shadow-lg transition-all disabled:opacity-50"
+          >
+            <Banknote className="h-12 w-12 text-emerald-600 mb-4" />
+            <span className="text-xl font-bold text-slate-900">
+              {isCheckingBalance ? "Checking..." : "Balance Enquiry"}
+            </span>
+          </button>
+        </div>
+
+        {balanceError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+            {balanceError}
           </div>
-        ) : (
-          <div className="rounded-2xl border border-emerald-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                <Banknote className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-[#171717]">Balance Enquiry</h2>
-                <p className="mt-0.5 text-sm text-[#8992a3]">Enter customer Aadhaar number to check balance</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowBalanceEnquiryAadhaar(false);
-                  setBalanceEnquiryAadhaar("");
-                  setBalanceError("");
-                  setBalanceResult(null);
-                }}
-                className="ml-auto text-slate-400 hover:text-slate-600"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-            </div>
+        )}
 
-            <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 mb-3">
-              <IdCard className="h-5 w-5 shrink-0 text-emerald-600" />
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={12}
-                value={balanceEnquiryAadhaar}
-                onChange={(e) => {
-                  const value = e.target.value.replace(/\D/g, "").slice(0, 12);
-                  setBalanceEnquiryAadhaar(value);
-                  setBalanceError("");
-                }}
-                disabled={isCheckingBalance}
-                placeholder="Enter 12-digit Aadhaar number"
-                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-              />
-            </div>
-
-            {balanceError && (
-              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
-                {balanceError}
-              </div>
-            )}
-
-            {balanceResult && (
-              <div className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                <p className="text-xs font-semibold text-emerald-700 mb-2">Balance Enquiry Result</p>
-                <pre className="text-xs text-emerald-800 overflow-auto max-h-32">
-                  {JSON.stringify(balanceResult, null, 2)}
-                </pre>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleBalanceEnquiry}
-              disabled={balanceEnquiryAadhaar.length !== 12 || isCheckingBalance}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white shadow-md transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isCheckingBalance ? (
-                <>
-                  <RefreshCw className="h-5 w-5 animate-spin" />
-                  CHECKING...
-                </>
-              ) : (
-                <>
-                  <Banknote className="h-5 w-5" />
-                  CHECK BALANCE
-                </>
-              )}
-            </button>
+        {balanceResult && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-xs font-semibold text-emerald-700 mb-2">Balance Enquiry Result</p>
+            <pre className="text-xs text-emerald-800 overflow-auto max-h-32">
+              {JSON.stringify(balanceResult, null, 2)}
+            </pre>
           </div>
         )}
       </div>
@@ -2336,11 +2274,6 @@ const Aeps = () => {
     ];
 
   const handleBalanceEnquiry = async () => {
-    if (balanceEnquiryAadhaar.length !== 12) {
-      setBalanceError("Please enter a valid 12-digit Aadhaar number");
-      return;
-    }
-
     setIsCheckingBalance(true);
     setBalanceError("");
     setBalanceResult(null);
@@ -2349,6 +2282,7 @@ const Aeps = () => {
       const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
       const outletId = stored.outletId || stored.outletid || "";
       const referenceKey = stored.referenceKey || "";
+      const retailerAadhaar = stored.aadhaarNumber || stored.aadhaar || "";
 
       if (!outletId) {
         throw new Error("Outlet ID is missing. Please check your retailer account.");
@@ -2356,6 +2290,10 @@ const Aeps = () => {
 
       if (!referenceKey) {
         throw new Error("Reference key is missing. Please complete eKYC first.");
+      }
+
+      if (!retailerAadhaar || retailerAadhaar.length !== 12) {
+        throw new Error("Retailer Aadhaar number is missing or invalid. Please complete your profile.");
       }
 
       // Get geolocation
@@ -2370,7 +2308,7 @@ const Aeps = () => {
         referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        aadhaar: balanceEnquiryAadhaar,
+        aadhaar: retailerAadhaar,
         ts: new Date().toISOString(),
       };
 
