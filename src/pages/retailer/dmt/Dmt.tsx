@@ -389,13 +389,13 @@ const Dmt = () => {
   const [txnOtpTimer, setTxnOtpTimer] = useState<number>(0);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (txnOtpTimer > 0) {
-      interval = setInterval(() => {
-        setTxnOtpTimer((prev) => prev - 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
+    if (txnOtpTimer <= 0) return;
+
+    const timer = setInterval(() => {
+      setTxnOtpTimer((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
   }, [txnOtpTimer]);
 
   /* =========================
