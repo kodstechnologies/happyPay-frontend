@@ -539,6 +539,39 @@ export function updateRetailerBankDetails(payload: UpdateBankDetailsPayload) {
   );
 }
 
+// ============================================================
+// GET BANK LIST
+// ============================================================
+
+export interface Bank {
+  id: number;
+  bank_id: number;
+  name: string;
+  iin: string;
+  aeps_enabled: number;
+  aadhaarpay_enabled: number;
+  aeps_failure_rate: string;
+  aadhaarpay_failure_rate: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BankListMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export function getBankList() {
+  return apiClient<ApiEnvelope<{ data: Bank[]; meta: BankListMeta }>>(
+    "/api/v1/auth/banks",
+    {
+      method: "GET",
+    },
+  );
+}
+
 export function verifyRetailerLoginOtp(payload: {
   mobile: string;
   otp: string;

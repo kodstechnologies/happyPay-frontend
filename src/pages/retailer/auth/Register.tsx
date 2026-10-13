@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ArrowLeft,
   ArrowRight,
@@ -93,12 +93,24 @@ type RetailerRegisterProps = {
 
 const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const [currentStep, setCurrentStep] = useState(0);
   const [retailerUserId, setRetailerUserId] = useState<string>(
     () => localStorage.getItem("retailerUserId") ?? ""
   );
   const [isLoading, setIsLoading] = useState(true);
+
+  // Handle step from URL query parameter
+  useEffect(() => {
+    const stepParam = searchParams.get("step");
+    if (stepParam) {
+      const stepIndex = parseInt(stepParam, 10);
+      if (!isNaN(stepIndex) && stepIndex >= 0 && stepIndex < steps.length) {
+        setCurrentStep(stepIndex);
+      }
+    }
+  }, [searchParams]);
 
   // Refs for step components that use imperative handles
   const aboutStepRef = useRef<AboutRetailerStepHandle>(null);
@@ -143,6 +155,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
     };
 
     fetchCurrentStep();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /*
