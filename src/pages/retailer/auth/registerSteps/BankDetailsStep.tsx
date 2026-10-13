@@ -213,9 +213,9 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       setBioEkycResponse(result);
       setKycStep("Biometric eKYC response received. Registration complete!");
       onRegistrationComplete?.();
-    } catch (error: any) {
-      setBiometricError(error.message || "Biometric eKYC failed.");
-      setKycStep(error.message || "Biometric eKYC failed.");
+    } catch (error: unknown) {
+      setBiometricError(error instanceof Error ? error.message : "Biometric eKYC failed.");
+      setKycStep(error instanceof Error ? error.message : "Biometric eKYC failed.");
     } finally {
       setCapturingBiometric(false);
     }

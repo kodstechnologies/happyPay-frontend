@@ -109,6 +109,31 @@ export interface VerifyEmailOtpResult {
 // GET CURRENT REGISTRATION STEP
 // ============================================================
 
+
+
+export interface ShopAddress {
+  addressLine: string | null;
+  city: string | null;
+  state: string | null;
+  pincode: string | null;
+}
+
+export interface ShopLocation {
+  latitude: number | null;
+  longitude: number | null;
+}
+
+export interface RegistrationShopDetails {
+  name: string | null;
+  category: string | null;
+  propertyType: string | null;
+  address: ShopAddress;
+  completeAddress: string | null;
+  location: ShopLocation;
+}
+
+
+
 export interface CurrentRegistrationStepResult {
   userId: string;
   mobile: string;
@@ -123,40 +148,26 @@ export interface CurrentRegistrationStepResult {
   filledData: {
     panNumber: string | null;
     panDocument: string | null;
-    shop: {
-      name: string | null;
-      category: any;
-      propertyType: any;
-      address: {
-        addressLine: string | null;
-        city: string | null;
-        state: string | null;
-        pincode: string | null;
-      };
-      completeAddress: string | null;
-      location: {
-        latitude: number | null;
-        longitude: number | null;
-      };
-    } | null;
+    shop: RegistrationShopDetails | null;
     shopInsidePhoto: string | null;
     shopOutsidePhoto: string | null;
     shopLocationPhoto: string | null;
-    businessProofType: any;
+    businessProofType: string | null;
     businessProofDocument: string | null;
     name: string | null;
     selfie: string | null;
     gender: string | null;
     maritalStatus: string | null;
-    educationalQualification: any;
+    educationalQualification: string | null;
     dob: string | null;
     aadhaarNumber: string | null;
     aadhaarDocument: string | null;
     aadhaarConsent: boolean;
     aadhaarVerified: boolean;
-    banks: any[];
+    banks: unknown[];
   };
 }
+
 
 
 

@@ -107,6 +107,7 @@ const ShopDetailsStep = ({
     };
 
     fetchMasterData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ==========================================================
