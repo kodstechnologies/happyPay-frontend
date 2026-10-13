@@ -67,7 +67,8 @@ interface Beneficiary {
   beneficiaryId: number | string;
   name: string;
   initials: string;
-  bankName: string;
+  bank: string;
+  bankName?: string;
   accountNumber: string;
   ifsc: string;
   mobile?: string;
@@ -239,12 +240,14 @@ const Dmt = () => {
         const mapped = list.map((b: any) => {
           const beneId = b.beneficiaryId || b.bene_id || b.id || "";
           const beneName = b.bene_name || b.name || "Unknown";
+          const bankVal = String(b.bank || b.bankname || b.bank_name || b.bankName || "Bank").trim();
           return {
             id: beneId,
             beneficiaryId: beneId,
             name: beneName,
             initials: getInitials(beneName),
-            bankName: b.bankname || b.bank_name || b.bankName || "Bank",
+            bank: bankVal,
+            bankName: bankVal,
             accountNumber: b.account || b.account_number || b.accountNumber || "",
             ifsc: b.ifsc || "",
             mobile: b.mobile || customerMobile || "",
@@ -2432,7 +2435,7 @@ const Dmt = () => {
                 </h2>
 
                 <p className="mt-1 text-base font-semibold text-slate-900">
-                  {selectedBeneficiary.bankName}
+                  {selectedBeneficiary.bank || selectedBeneficiary.bankName}
                 </p>
 
                 <p className="mt-1 text-sm text-[#555b67]">
@@ -2669,7 +2672,7 @@ const Dmt = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Account:</span>
-                      <span className="font-semibold text-slate-900">{selectedBeneficiary.accountNumber} ({selectedBeneficiary.bankName})</span>
+                      <span className="font-semibold text-slate-900">{selectedBeneficiary.accountNumber} ({selectedBeneficiary.bank || selectedBeneficiary.bankName})</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-slate-500">Amount:</span>
@@ -2824,7 +2827,7 @@ const Dmt = () => {
                 </span>
 
                 <span className="text-right font-semibold text-[#172033]">
-                  {selectedBeneficiary.bankName}
+                  {selectedBeneficiary.bank || selectedBeneficiary.bankName}
                 </span>
               </div>
 
