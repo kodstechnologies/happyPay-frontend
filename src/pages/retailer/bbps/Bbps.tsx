@@ -37,6 +37,8 @@ import {
   payBillApi,
   type BbpsCategoryItem,
   type BillerItem,
+  type ViewBillPayload,
+  type PayBillPayload,
 } from "../../../apis/bbps.apis";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 
@@ -419,9 +421,22 @@ const BBPS: React.FC = () => {
     return resolveCategoryMeta(selectedCategory?.service_name || "");
   }, [selectedCategory]);
 
+  // Check if current category or biller belongs to Life Insurance or Insurance
+  const isInsuranceCategory = useMemo(() => {
+    const catName = (selectedCategory?.service_name || "").toLowerCase().trim();
+    const serviceType = (selectedBiller?.service_type || "").toLowerCase().trim();
+    return (
+      catName.includes("life insurance") ||
+      catName.includes("insurance") ||
+      serviceType.includes("life insurance") ||
+      serviceType.includes("insurance")
+    );
+  }, [selectedCategory, selectedBiller]);
+
   // Dynamic Field Labels based on currently selected Biller
   const primaryFieldLabel = selectedBiller?.CUSTNO || activeMeta.defaultInputLabel;
-  const secondaryFieldLabel = selectedBiller?.FIELD1;
+  const secondaryFieldLabel =
+    selectedBiller?.FIELD1 || (isInsuranceCategory ? "Date of Birth (DOB)" : undefined);
   const mobileFieldLabel = selectedBiller?.REFMOBILENO || "Mobile Number";
 
   const handleFetchBill = async () => {
@@ -432,7 +447,22 @@ const BBPS: React.FC = () => {
       return;
     }
 
-    if (secondaryFieldLabel && !consumerValues[secondaryFieldLabel]?.trim()) {
+    // Resolve secondary field value (DOB for Insurance / Life Insurance)
+    const secondaryInput =
+      (secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : "")?.trim() ||
+      consumerValues["FIELD1"]?.trim() ||
+      consumerValues["Date of Birth (DOB)"]?.trim() ||
+      consumerValues["DOB"]?.trim() ||
+      consumerValues["dob"]?.trim() ||
+      "";
+
+    // Enforce DOB for Insurance and Life Insurance categories
+    if (isInsuranceCategory) {
+      if (!secondaryInput) {
+        toast.error(`Please enter Date of Birth (DOB).`);
+        return;
+      }
+    } else if (secondaryFieldLabel && !secondaryInput) {
       toast.error(`Please enter ${secondaryFieldLabel}.`);
       return;
     }
@@ -474,14 +504,15 @@ const BBPS: React.FC = () => {
         paymentAmount.trim() ||
         "0";
 
-      // 6 Required BBPS parameters
-      const payload = {
+      // 6 Required BBPS parameters + FIELD1 (only for Insurance & Life Insurance)
+      const payload: ViewBillPayload = {
         REFMOBILENO: refMobileNo,
         AMT: amtValue,
         CUSTNO: custNo,
         orderid: randomOrderId,
         opcode: opcode,
         service_id: serviceId,
+        ...(isInsuranceCategory && secondaryInput ? { FIELD1: secondaryInput } : {}),
       };
 
       const res = await viewBillApi(payload);
@@ -642,8 +673,15 @@ const BBPS: React.FC = () => {
         "0"
       );
       const custNo = primaryInput;
+      const secondaryInput =
+        (secondaryFieldLabel ? consumerValues[secondaryFieldLabel] : "")?.trim() ||
+        consumerValues["FIELD1"]?.trim() ||
+        consumerValues["Date of Birth (DOB)"]?.trim() ||
+        consumerValues["DOB"]?.trim() ||
+        consumerValues["dob"]?.trim() ||
+        "";
 
-      const payload = {
+      const payload: PayBillPayload = {
         // 6 Required BBPS parameters
         REFMOBILENO: refMobileNo,
         AMT: String(payValue),
@@ -659,6 +697,7 @@ const BBPS: React.FC = () => {
         duedate: billDetails.dueDate,
         latitude: "28.6139",
         longitude: "77.2090",
+        ...(isInsuranceCategory && secondaryInput ? { FIELD1: secondaryInput } : {}),
       };
 
       const res = await payBillApi(payload);
@@ -968,6 +1007,9 @@ const BBPS: React.FC = () => {
                       <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-700">
                           {secondaryFieldLabel}
+                          {isInsuranceCategory && (
+                            <span className="ml-1 text-rose-500 font-bold">*</span>
+                          )}
                         </label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
@@ -979,7 +1021,11 @@ const BBPS: React.FC = () => {
                             onChange={(e) =>
                               handleInputChange(secondaryFieldLabel, e.target.value)
                             }
-                            placeholder={`Enter ${secondaryFieldLabel} (e.g. DD/MM/YYYY)`}
+                            placeholder={
+                              isInsuranceCategory
+                                ? "Enter Date of Birth (DD/MM/YYYY or DD-MM-YYYY)"
+                                : `Enter ${secondaryFieldLabel} (e.g. DD/MM/YYYY)`
+                            }
                             className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
                           />
                         </div>
@@ -1245,11 +1291,11 @@ const BBPS: React.FC = () => {
                         {primaryFieldLabel}
                       </span>
                     </div>
-                    {selectedBiller.FIELD1 && (
+                    {(selectedBiller.FIELD1 || isInsuranceCategory) && (
                       <div className="flex justify-between">
                         <span className="text-slate-500">Secondary Field</span>
                         <span className="font-semibold text-slate-700">
-                          {selectedBiller.FIELD1}
+                          {selectedBiller.FIELD1 || "Date of Birth (DOB)"}
                         </span>
                       </div>
                     )}

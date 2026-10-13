@@ -43,6 +43,7 @@ import {
   executeTransactionApi,
   getBanksApi
 } from "../../../apis/dmt.apis";
+import { getGeolocationCoordinates } from "../../../utils/geolocation";
 
 type Screen =
   | "transfer-details"
@@ -828,22 +829,7 @@ const Dmt = () => {
 
     try {
       // Obtain geolocation (fallback gracefully if blocked)
-      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({ latitude: "28.7041", longitude: "77.1025" });
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            resolve({
-              latitude: String(pos.coords.latitude),
-              longitude: String(pos.coords.longitude),
-            });
-          },
-          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
-          { timeout: 4000 }
-        );
-      });
+      const coords = await getGeolocationCoordinates();
 
       // Generate random unique client transaction ID
       const clientTxnId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
@@ -1143,17 +1129,7 @@ const Dmt = () => {
 
       // 3. Geolocation
       setKycStep("Acquiring location coordinates...");
-      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({ latitude: "28.7041", longitude: "77.1025" });
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }),
-          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
-          { timeout: 4000 }
-        );
-      });
+      const coords = await getGeolocationCoordinates();
 
       // 4. Generate unique txnid
       const clientTxnId = generateClientTxnId("EKYC");
@@ -1333,17 +1309,7 @@ const Dmt = () => {
         storedUser?.referenceKey ||
         "";
 
-      const coords = await new Promise<{ latitude: string; longitude: string }>((resolve) => {
-        if (!navigator.geolocation) {
-          resolve({ latitude: "28.7041", longitude: "77.1025" });
-          return;
-        }
-        navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }),
-          () => resolve({ latitude: "28.7041", longitude: "77.1025" }),
-          { timeout: 3000 }
-        );
-      });
+      const coords = await getGeolocationCoordinates();
 
       const clientTxnId = generateClientTxnId("DMT");
 

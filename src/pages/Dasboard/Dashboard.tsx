@@ -27,6 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { apiClient } from "../../services/api/client";
 import { getToken } from "../../utils/auth";
 import { mfs110Service } from "../../services/bimetric/mfs110.service";
+import { getGeolocationCoordinates } from "../../utils/geolocation";
 import {
   checkDoEkyc,
   doBioEkyc,
@@ -337,23 +338,11 @@ const Dashboard = () => {
         return;
       }
 
-      const coords = await new Promise<{ latitude: string; longitude: string }>(
-        (resolve) => {
-          if (!navigator.geolocation) {
-            resolve({ latitude: "0", longitude: "0" });
-            return;
-          }
-          navigator.geolocation.getCurrentPosition(
-            (position) =>
-              resolve({
-                latitude: String(position.coords.latitude),
-                longitude: String(position.coords.longitude),
-              }),
-            () => resolve({ latitude: "0", longitude: "0" }),
-            { timeout: 5000 },
-          );
-        },
-      );
+      const coords = await getGeolocationCoordinates({
+        fallbackLatitude: "0",
+        fallbackLongitude: "0",
+        timeout: 5000,
+      });
 
       setKycStep("Fingerprint captured. Calling biometric eKYC...");
 
