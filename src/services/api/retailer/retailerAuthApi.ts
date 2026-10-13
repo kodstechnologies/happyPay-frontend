@@ -564,7 +564,7 @@ export interface BankListMeta {
 }
 
 export function getBankList() {
-  return apiClient<ApiEnvelope<{ data: Bank[]; meta: BankListMeta }>>(
+  return apiClient<ApiEnvelope<Bank[]>>(
     "/api/v1/auth/banks",
     {
       method: "GET",

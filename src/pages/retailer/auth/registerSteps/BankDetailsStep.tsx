@@ -61,8 +61,9 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       setLoadingBanks(true);
       try {
         const response = await getBankList();
-        if (response.success && response.data && response.data.data) {
-          setBanks(response.data.data);
+        console.log("Bank list API response:", response);
+        if (response.success && response.data) {
+          setBanks(response.data);
         }
       } catch (err) {
         console.error("Failed to fetch bank list:", err);
