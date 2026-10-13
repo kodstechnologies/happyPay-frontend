@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -15,11 +15,12 @@ import {
 import StepIndicator from "../../../components/common/StepIndicator";
 import AccountStep from "./registerSteps/AccountSteps";
 import ShopDetailsStep from "./registerSteps/ShopDetailsStep";
-import AboutRetailerStep from "./registerSteps/AboutRetailerStep";
+import AboutRetailerStep, { type AboutRetailerStepHandle } from "./registerSteps/AboutRetailerStep";
 // import PanVerificationStep from "./registerSteps/PanVerificationStep";
-import AadhaarStep from "./registerSteps/AadhaarStep";
+import AadhaarStep, { type AadhaarStepHandle } from "./registerSteps/AadhaarStep";
 // import DobStep from "./registerSteps/DobStep"; // Removed - DOB field moved to AboutRetailerStep
-import BankDetailsStep from "./registerSteps/BankDetailsStep";
+import BankDetailsStep, { type BankDetailsStepHandle } from "./registerSteps/BankDetailsStep";
+import { getCurrentRegistrationStep } from "../../../services/api/retailer/retailerAuthApi";
 
 const steps = [
   {
@@ -97,6 +98,52 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const [retailerUserId, setRetailerUserId] = useState<string>(
     () => localStorage.getItem("retailerUserId") ?? ""
   );
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Refs for step components that use imperative handles
+  const aboutStepRef = useRef<AboutRetailerStepHandle>(null);
+  const aadhaarStepRef = useRef<AadhaarStepHandle>(null);
+  const bankStepRef = useRef<BankDetailsStepHandle>(null);
+
+  // Fetch current registration step on component mount
+  useEffect(() => {
+    const fetchCurrentStep = async () => {
+      const userId = localStorage.getItem("retailerUserId");
+      const mobile = localStorage.getItem("pendingRetailerMobile") || localStorage.getItem("registeredRetailerMobile");
+
+      if (!userId && !mobile) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await getCurrentRegistrationStep({
+          userId: userId || undefined,
+          mobile: mobile || undefined,
+        });
+        const { currentRegistrationStep, userId: returnedUserId } = response.data;
+
+        // Map backend step numbers to frontend step indices
+        // Backend steps: 1=Account, 2=ShopDetails, 3=AboutRetailer, 4=Aadhaar, 5=BankDetails
+        // Frontend steps: 0=Account, 1=ShopDetails, 2=AboutRetailer, 3=Aadhaar, 4=BankDetails
+        const stepIndex = Math.max(0, (currentRegistrationStep || 1) - 1);
+
+        setCurrentStep(stepIndex);
+        if (returnedUserId) {
+          setRetailerUserId(returnedUserId);
+          localStorage.setItem("retailerUserId", returnedUserId);
+        }
+      } catch (error) {
+        console.error("Error fetching current registration step:", error);
+        // If there's an error, start from the beginning
+        setCurrentStep(0);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCurrentStep();
+  }, []);
 
   /*
    * ==========================================================
@@ -112,90 +159,27 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   };
 
 
-  const nextStep = () => {
+  const nextStep = async () => {
+    // Handle step-specific submission before moving forward
+    if (currentStep === 2 && aboutStepRef.current) {
+      const success = await aboutStepRef.current.submit();
+      if (!success) return;
+    }
+    if (currentStep === 3 && aadhaarStepRef.current) {
+      const success = await aadhaarStepRef.current.submit();
+      if (!success) return;
+    }
+    if (currentStep === 4 && bankStepRef.current) {
+      const success = await bankStepRef.current.submit();
+      if (!success) return;
+    }
+
     if (currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
 
       scrollToTop();
 
       return;
-    }
-    // Submitting is handled by the form onSubmit!
-  };
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-
-    // Ensure mobile is present even if input was readOnly or stored in localStorage
-    if (!formData.get("mobile")) {
-      const storedMobile =
-        localStorage.getItem("pendingRetailerMobile") ||
-        localStorage.getItem("retailerMobile");
-      if (storedMobile) {
-        formData.set("mobile", storedMobile);
-      }
-    }
-
-    // Ensure gender & maritalStatus have defaults if omitted
-    if (!formData.get("gender")) {
-      formData.set("gender", "Male");
-    }
-    if (!formData.get("maritalStatus")) {
-      formData.set("maritalStatus", "Single");
-    }
-
-    // Mock ObjectIds for master data
-    formData.set("shopCategory", "64d5ec49f1b2c8b1f8e4e1a1");
-    formData.set("propertyType", "64d5ec49f1b2c8b1f8e4e1a2");
-    formData.set("educationalQualification", "64d5ec49f1b2c8b1f8e4e1a3");
-    formData.set("businessProof", "64d5ec49f1b2c8b1f8e4e1a4");
-
-    // Clean up formats
-    const aadhaar = formData.get("aadhaar") as string;
-    if (aadhaar) {
-      formData.set("aadhaar", aadhaar.replace(/\s/g, ""));
-    }
-
-    const dob = formData.get("dob") as string;
-    if (dob && dob.includes("/")) {
-      const [dd, mm, yyyy] = dob.split("/");
-      formData.set("dob", `${yyyy}-${mm}-${dd}`);
-    }
-
-    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:7000";
-
-    try {
-      const res = await fetch(`${apiUrl}/api/v1/auth/retailer/register`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        const errorMsg = data.errors ? data.errors.join(", ") : (data.message || "Registration failed");
-        throw new Error(errorMsg);
-      }
-
-      const pendingMobile = localStorage.getItem("pendingRetailerMobile") || (formData.get("mobile") as string);
-      if (pendingMobile) {
-        localStorage.setItem("registeredRetailerMobile", pendingMobile);
-        localStorage.removeItem("pendingRetailerMobile");
-        localStorage.removeItem("retailerMobile");
-      }
-
-      if (onExit) {
-        onExit();
-        return;
-      }
-
-      navigate("/retailer/kyc-pending", { replace: true });
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        alert("Error: " + error.message);
-      } else {
-        alert("Error: " + String(error));
-      }
     }
   };
 
@@ -217,10 +201,24 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   };
 
   const CurrentStepIcon =
-    steps[currentStep].icon;
+    steps[currentStep]?.icon || UserRound;
 
   const progress =
     ((currentStep + 1) / steps.length) * 100;
+
+  // Show loading spinner while fetching initial step
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 px-3 py-3 text-slate-900 sm:px-5 sm:py-5">
+        <div className="mx-auto flex min-h-[calc(100vh-24px)] w-full max-w-3xl items-center justify-center sm:min-h-[calc(100vh-40px)]">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#7c3aed] border-t-transparent"></div>
+            <p className="text-sm text-[#737c8c]">Loading registration...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-3 text-slate-900 sm:px-5 sm:py-5">
@@ -291,7 +289,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     </p>
 
                     <p className="mt-1 text-sm font-bold text-[#172033]">
-                      {steps[currentStep].title}
+                      {steps[currentStep]?.title}
                     </p>
                   </div>
 
@@ -331,7 +329,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     <div className="min-w-0">
 
                       <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#7c3aed]">
-                        {steps[currentStep].title}
+                        {steps[currentStep]?.title}
                       </p>
 
                       <h2 className="mt-1.5 text-[25px] font-bold leading-tight tracking-[-0.03em] text-[#172033] sm:text-[28px]">
@@ -368,7 +366,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
 
 
-                <form id="retailer-register-form" className="flex-1" onSubmit={handleSubmit}>
+                <form id="retailer-register-form" className="flex-1">
 
                   <div
                     className={
@@ -380,6 +378,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     <AccountStep
                       onAccountCreated={(id) => {
                         setRetailerUserId(id);
+                        localStorage.setItem("retailerUserId", id);
                         nextStep();
                       }}
                     />
@@ -405,7 +404,10 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                         : "hidden"
                     }
                   >
-                    <AboutRetailerStep />
+                    <AboutRetailerStep
+                      ref={aboutStepRef}
+                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                    />
                   </div>
 
                   <div
@@ -415,7 +417,10 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                         : "hidden"
                     }
                   >
-                    <AadhaarStep />
+                    <AadhaarStep
+                      ref={aadhaarStepRef}
+                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                    />
                   </div>
 
                   <div
@@ -425,7 +430,17 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                         : "hidden"
                     }
                   >
-                    <BankDetailsStep />
+                    <BankDetailsStep
+                      ref={bankStepRef}
+                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      onRegistrationComplete={() => {
+                        if (onExit) {
+                          onExit();
+                          return;
+                        }
+                        navigate("/retailer/kyc-pending", { replace: true });
+                      }}
+                    />
                   </div>
 
                 </form>
@@ -453,27 +468,26 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     </button>
 
                     {/* NEXT — hidden on step 0 & 1 (those steps self-advance) */}
-                    {currentStep !== 0 && currentStep !== 1 && (
+                    {currentStep !== 0 && currentStep !== 1 && currentStep !== 4 && (
                       <button
-                        type={currentStep === steps.length - 1 ? "submit" : "button"}
-                        form={currentStep === steps.length - 1 ? "retailer-register-form" : undefined}
-                        onClick={currentStep === steps.length - 1 ? undefined : nextStep}
-                        className={`flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition ${currentStep === steps.length - 1
-                          ? "bg-[#10a88a] hover:bg-[#0d8a70]"
-                          : "bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
-                        }`}
+                        type="button"
+                        onClick={nextStep}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
                       >
-                        <span>
-                          {currentStep === steps.length - 1
-                            ? "Submit Registration"
-                            : "Continue"}
-                        </span>
+                        <span>Continue</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    )}
 
-                        {currentStep === steps.length - 1 ? (
-                          <Check className="h-4 w-4" strokeWidth={2.5} />
-                        ) : (
-                          <ArrowRight className="h-4 w-4" />
-                        )}
+                    {/* SUBMIT — only on final step */}
+                    {currentStep === 4 && (
+                      <button
+                        type="button"
+                        onClick={nextStep}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-[#10a88a] hover:bg-[#0d8a70]"
+                      >
+                        <span>Submit Registration</span>
+                        <Check className="h-4 w-4" strokeWidth={2.5} />
                       </button>
                     )}
 
