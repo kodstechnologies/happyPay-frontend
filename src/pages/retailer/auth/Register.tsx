@@ -95,22 +95,20 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [currentStep, setCurrentStep] = useState(0);
-  const [retailerUserId, setRetailerUserId] = useState<string>(
-    () => localStorage.getItem("retailerUserId") ?? ""
-  );
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Handle step from URL query parameter
-  useEffect(() => {
+  const [currentStep, setCurrentStep] = useState(() => {
     const stepParam = searchParams.get("step");
     if (stepParam) {
       const stepIndex = parseInt(stepParam, 10);
       if (!isNaN(stepIndex) && stepIndex >= 0 && stepIndex < steps.length) {
-        setCurrentStep(stepIndex);
+        return stepIndex;
       }
     }
-  }, [searchParams]);
+    return 0;
+  });
+  const [retailerUserId, setRetailerUserId] = useState<string>(
+    () => localStorage.getItem("retailerUserId") ?? ""
+  );
+  const [isLoading, setIsLoading] = useState(true);
 
   // Refs for step components that use imperative handles
   const aboutStepRef = useRef<AboutRetailerStepHandle>(null);
