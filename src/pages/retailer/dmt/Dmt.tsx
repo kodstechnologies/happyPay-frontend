@@ -950,14 +950,29 @@ const Dmt = () => {
 
       setKycStep("Submitting remitter eKYC to bank provider...");
 
+      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "");
+
       // 5. Call remitterEkycApi
       const res = await remitterEkycApi({
-        ...biometricData,
         mobile: customerMobile,
-        txnid: clientTxnId,
+        outletid: effectiveOutletId,
+        referenceKey: currentRefKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
-        ...(currentRefKey ? { referenceKey: currentRefKey } : {}),
+        txnid: clientTxnId,
+        ci: biometricData.ci,
+        hmac: biometricData.hmac,
+        Piddata: biometricData.Piddata,
+        ts: biometricData.ts,
+        dpId: biometricData.dpId,
+        dc: biometricData.dc,
+        mi: biometricData.mi,
+        mc: biometricData.mc,
+        rdsVer: biometricData.rdsVer,
+        rdsId: biometricData.rdsId,
+        sessionKey: biometricData.sessionKey,
+        srno: biometricData.srno,
       });
 
       if (res?.success || res?.status) {
