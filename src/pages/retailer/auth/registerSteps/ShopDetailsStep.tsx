@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   Mail,
   Store,
@@ -13,6 +13,8 @@ import {
   Upload,
   Loader2,
   ShieldCheck,
+  CreditCard,
+  FileText,
 } from "lucide-react";
 
 import {
@@ -20,6 +22,13 @@ import {
   verifyRetailerEmailOtp,
   updateRetailerShopDetails,
 } from "../../../../services/api/retailer/retailerAuthApi";
+
+import {
+  getCategories,
+  getPropertyTypes,
+  getProofTypes,
+  type MasterDataItem,
+} from "../../../../services/api/masterData/masterDataApi";
 
 type ShopDetailsStepProps = {
   userId?: string;
@@ -37,6 +46,7 @@ const ShopDetailsStep = ({
   const outsideShopInputRef = useRef<HTMLInputElement | null>(null);
   const shopLocationInputRef = useRef<HTMLInputElement | null>(null);
   const businessProofInputRef = useRef<HTMLInputElement | null>(null);
+  const panInputRef = useRef<HTMLInputElement | null>(null);
 
   // -------- Email OTP phase --------
   const [email, setEmail] = useState("");
@@ -61,35 +71,44 @@ const ShopDetailsStep = ({
   const [insideShopFile, setInsideShopFile] = useState<File | null>(null);
   const [outsideShopFile, setOutsideShopFile] = useState<File | null>(null);
   const [shopLocationFile, setShopLocationFile] = useState<File | null>(null);
+  const [pan, setPan] = useState("");
+  const [panFile, setPanFile] = useState<File | null>(null);
+
+  // -------- Master data --------
+  const [categories, setCategories] = useState<MasterDataItem[]>([]);
+  const [propertyTypes, setPropertyTypes] = useState<MasterDataItem[]>([]);
+  const [proofTypes, setProofTypes] = useState<MasterDataItem[]>([]);
+  const [masterDataLoading, setMasterDataLoading] = useState(true);
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const categories = [
-    "Grocery",
-    "Electronics",
-    "Medical",
-    "Clothing",
-    "Restaurant",
-    "Mobile Shop",
-    "General Store",
-    "Other",
-  ];
+  // ========================================
+  // FETCH MASTER DATA ON COMPONENT MOUNT
+  // ========================================
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const [categoriesRes, propertyTypesRes, proofTypesRes] = await Promise.all([
+          getCategories(),
+          getPropertyTypes(),
+          getProofTypes(),
+        ]);
+        console.log("================",categories,propertyType,proofTypes)
+        setCategories(categoriesRes.data.filter(item => item.isActive));
+        setPropertyTypes(propertyTypesRes.data.filter(item => item.isActive));
+        setProofTypes(proofTypesRes.data.filter(item => item.isActive));
+      } catch (err) {
+        console.error("Error fetching master data:", err);
+        setError("Failed to load form options. Please refresh the page.");
+      } finally {
+        setMasterDataLoading(false);
+      }
+    };
 
-  const propertyTypes = ["Owned", "Rented", "Leased", "Co-owned", "Other"];
-
-  const proofOptions = [
-    "GST Certificate",
-    "UDYAM Certificate",
-    "MSME Certificate",
-    "Electricity Bill",
-    "Rental Agreement",
-    "Business Agreement",
-    "Shop Lease Agreement",
-    "Premises Agreement",
-    "Gumasta License",
-    "Other Valid Business Proof",
-  ];
+    fetchMasterData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ==========================================================
   // EMAIL OTP — send
@@ -173,6 +192,19 @@ const ShopDetailsStep = ({
     if (f) setShopLocationFile(f);
   };
 
+  const handlePanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) setPanFile(f);
+  };
+
+  const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 10);
+    setPan(value);
+  };
+
   // ==========================================================
   // SUBMIT FULL SHOP DETAILS
   // ==========================================================
@@ -180,6 +212,8 @@ const ShopDetailsStep = ({
     setError("");
     if (!userId) return setError("User not registered.");
     if (!emailVerified) return setError("Please verify your email first.");
+    if (!pan) return setError("PAN number is required.");
+    if (!panFile) return setError("PAN document is required.");
     if (!shopName.trim()) return setError("Shop name is required.");
     if (!category) return setError("Shop category is required.");
     if (!propertyType) return setError("Property type is required.");
@@ -192,19 +226,21 @@ const ShopDetailsStep = ({
     try {
       await updateRetailerShopDetails({
         userId,
+        panNumber: pan,
         shopName,
-        shopCategory: category,
-        propertyType,
+        shopCategory: category, // This is now an ID from the API
+        propertyType, // This is now an ID from the API
         address,
         city,
         pincode,
         latitude,
         longitude,
-        businessProofType: businessProof,
+        businessProofType: businessProof, // This is now an ID from the API
         shopInsidePhoto: insideShopFile,
         shopOutsidePhoto: outsideShopFile,
         shopLocationPhoto: shopLocationFile,
         businessProofDocument: businessProofFile,
+        panDocument: panFile,
       });
 
       onShopDetailsSaved?.();
@@ -220,6 +256,17 @@ const ShopDetailsStep = ({
   // ==========================================================
   // RENDER
   // ==========================================================
+
+  // Show loading while master data is being fetched
+  if (masterDataLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-[#7c3aed]" />
+        <p className="mt-3 text-sm text-[#737c8c]">Loading form options...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* =====================================================
@@ -342,6 +389,79 @@ const ShopDetailsStep = ({
         disabled={!emailVerified}
         className={emailVerified ? "" : "pointer-events-none opacity-50"}
       >
+        {/* PAN Number + PAN Document */}
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <div>
+            <label
+              htmlFor="shop-pan"
+              className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
+            >
+              PAN Number
+            </label>
+            <div className="relative">
+              <CreditCard
+                className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
+                strokeWidth={2}
+              />
+              <input
+                id="shop-pan"
+                name="panNumber"
+                type="text"
+                value={pan}
+                onChange={handlePanChange}
+                placeholder="Enter PAN number"
+                maxLength={10}
+                autoComplete="off"
+                className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-semibold uppercase tracking-[0.04em] text-[#172033] outline-none transition-all placeholder:normal-case placeholder:tracking-normal placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${pan ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+                  }`}
+              />
+            </div>
+            <p className="mt-2 text-[12px] leading-5 text-[#9299a7]">
+              Enter your 10-character PAN number.
+            </p>
+          </div>
+
+          <div>
+            <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
+              PAN Document
+            </label>
+            <input
+              ref={panInputRef}
+              type="file"
+              accept="image/*,.pdf"
+              name="panDocument"
+              onChange={handlePanUpload}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => panInputRef.current?.click()}
+              className="group flex h-[54px] w-full items-center justify-between gap-3 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                {panFile ? (
+                  <CheckCircle2
+                    className="h-5 w-5 shrink-0 text-[#08ae82]"
+                    strokeWidth={2}
+                  />
+                ) : (
+                  <FileText
+                    className="h-5 w-5 shrink-0 text-[#7c3aed]"
+                    strokeWidth={2}
+                  />
+                )}
+                <p className="truncate text-[14px] font-medium text-[#172033]">
+                  {panFile ? panFile.name : "Upload PAN Document"}
+                </p>
+              </div>
+              <Upload
+                className="h-4.5 w-4.5 shrink-0 text-[#7c3aed] transition group-hover:scale-105"
+                strokeWidth={2.3}
+              />
+            </button>
+          </div>
+        </div>
+
         {/* Shop Name */}
         <div>
           <label
@@ -536,9 +656,9 @@ const ShopDetailsStep = ({
               <option value="" disabled>
                 Select proof type
               </option>
-              {proofOptions.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
+              {proofTypes.map((opt) => (
+                <option key={opt._id} value={opt._id}>
+                  {opt.name}
                 </option>
               ))}
             </select>
@@ -606,7 +726,7 @@ const SelectField = ({
   value: string;
   onChange: (v: string) => void;
   icon: React.ReactNode;
-  options: string[];
+  options: MasterDataItem[];
 }) => (
   <div>
     <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
@@ -627,8 +747,8 @@ const SelectField = ({
           Select {label.toLowerCase()}
         </option>
         {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+          <option key={o._id} value={o._id}>
+            {o.name}
           </option>
         ))}
       </select>

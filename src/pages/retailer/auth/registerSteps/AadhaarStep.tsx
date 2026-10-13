@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, forwardRef, useImperativeHandle } from "react";
 import {
   Fingerprint,
   FileText,
@@ -6,39 +6,100 @@ import {
   Upload,
   Circle,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 
-const AadhaarStep = () => {
-  const aadhaarInputRef = useRef<HTMLInputElement | null>(null);
+import { updateRetailerAadhaarDetails } from "../../../../services/api/retailer/retailerAuthApi";
 
-  const [consent, setConsent] = useState(false);
-  const [linkedMobile, setLinkedMobile] = useState<"yes" | "no">("no");
-  const [aadhaarNumber, setAadhaarNumber] = useState("");
-  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+export type AadhaarStepHandle = {
+  submit: () => Promise<boolean>;
+};
 
-  const handleAadhaarUpload = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
+type AadhaarStepProps = {
+  userId?: string;
+};
 
-    if (file) {
-      setAadhaarFile(file);
-    }
-  };
+const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
+  ({ userId: userIdProp }, ref) => {
+    const userId =
+      userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
-  const handleAadhaarChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const value = event.target.value
-      .replace(/\D/g, "")
-      .slice(0, 12);
+    const aadhaarInputRef = useRef<HTMLInputElement | null>(null);
 
-    setAadhaarNumber(value);
-  };
+    const [consent, setConsent] = useState(false);
+    const [linkedMobile, setLinkedMobile] = useState<"yes" | "no">("no");
+    const [aadhaarNumber, setAadhaarNumber] = useState("");
+    const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+    const [error, setError] = useState("");
+    const [submitting, setSubmitting] = useState(false);
 
-  const formatAadhaar = (value: string) => {
-    return value.replace(/(.{4})/g, "$1 ").trim();
-  };
+    const handleAadhaarUpload = (
+      event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      const file = event.target.files?.[0];
+
+      if (file) {
+        setAadhaarFile(file);
+      }
+    };
+
+    const handleAadhaarChange = (
+      event: React.ChangeEvent<HTMLInputElement>,
+    ) => {
+      const value = event.target.value
+        .replace(/\D/g, "")
+        .slice(0, 12);
+
+      setAadhaarNumber(value);
+    };
+
+    const formatAadhaar = (value: string) => {
+      return value.replace(/(.{4})/g, "$1 ").trim();
+    };
+
+    const handleSubmit = async (): Promise<boolean> => {
+      setError("");
+
+      if (!userId) {
+        setError("User not registered. Please complete step 1.");
+        return false;
+      }
+      if (!consent) {
+        setError("Please provide consent for Aadhaar verification.");
+        return false;
+      }
+      if (aadhaarNumber.length !== 12) {
+        setError("Please enter a valid 12-digit Aadhaar number.");
+        return false;
+      }
+      if (!aadhaarFile) {
+        setError("Aadhaar document is required.");
+        return false;
+      }
+
+      setSubmitting(true);
+      try {
+        await updateRetailerAadhaarDetails({
+          userId,
+          aadhaarNumber,
+          aadhaarDocument: aadhaarFile,
+          aadhaarConsent: consent,
+          isAdharConsentGiven: consent,
+          aadhaarMobileLinked: linkedMobile === "yes",
+        });
+
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to save Aadhaar details");
+        return false;
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    useImperativeHandle(ref, () => ({
+      submit: handleSubmit,
+    }));
 
   return (
     <div className="space-y-6">
@@ -223,6 +284,21 @@ const AadhaarStep = () => {
         className="hidden"
       />
 
+      {/* ERROR */}
+      {error && (
+        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
+          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
+        </div>
+      )}
+
+      {/* Submitting indicator */}
+      {submitting && (
+        <div className="flex items-center justify-center gap-2 text-[12px] text-[#7c3aed]">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Saving Aadhaar details...
+        </div>
+      )}
+
       {/* SECURITY INFORMATION */}
       <div className="flex items-start gap-3 rounded-xl border border-[#d9e0f5] bg-[#f1f4ff] px-4 py-3.5">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e4e9ff]">
@@ -240,6 +316,8 @@ const AadhaarStep = () => {
       </div>
     </div>
   );
-};
+});
+
+AadhaarStep.displayName = "AadhaarStep";
 
 export default AadhaarStep;
