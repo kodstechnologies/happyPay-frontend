@@ -1248,13 +1248,24 @@ const Dmt = () => {
       return;
     }
 
+    const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+    const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+    const effectiveRefKey =
+      activeReferenceKey ||
+      referenceKeyRef.current ||
+      sessionStorage.getItem("dmt_remitter_ref_key") ||
+      storedUser?.referenceKey ||
+      "";
+
     setIsSendingTxnOtp(true);
 
     try {
       const res = await generateTransactionOtpApi({
-        mobile: customerMobile.trim(),
+        referenceKey: effectiveRefKey,
         amount: numericSendAmount,
-        bene_id: targetBeneId,
+        beneficiaryId: targetBeneId,
+        outletid: effectiveOutletId,
+        remitterMobile: customerMobile.trim(),
       });
 
       if (res?.success !== false && res?.status !== "FAILED") {

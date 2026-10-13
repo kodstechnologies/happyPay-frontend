@@ -62,10 +62,11 @@ export interface BeneficiaryPayload extends RemitterPayload {
 }
 
 export interface TransactionOtpPayload {
-  mobile: string;
+  referenceKey: string;
   amount: number | string;
-  bene_id?: string | number;
-  beneficiaryId?: string | number;
+  beneficiaryId: string | number;
+  outletid: string | number;
+  remitterMobile: string;
 }
 
 export interface TransactionPayload {
@@ -247,9 +248,11 @@ export const verifyDeleteBeneficiaryOtpApi = async (payload: VerifyDeleteBenefic
  */
 export const generateTransactionOtpApi = async (payload: TransactionOtpPayload) => {
   const cleanPayload = {
-    mobile: String(payload.mobile).trim(),
+    referenceKey: String(payload.referenceKey).trim(),
     amount: payload.amount,
-    ...(payload.bene_id || payload.beneficiaryId ? { bene_id: payload.bene_id || payload.beneficiaryId } : {}),
+    beneficiaryId: payload.beneficiaryId,
+    outletid: String(payload.outletid).trim(),
+    remitterMobile: String(payload.remitterMobile).trim(),
   };
   const response = await api.post("/api/v1/dmt/generate-transaction-otp", cleanPayload);
   return response.data;
