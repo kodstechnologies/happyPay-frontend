@@ -286,6 +286,7 @@ const Dmt = () => {
   /* Delete Beneficiary State */
   const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
   const [deleteOtp, setDeleteOtp] = useState<string>("");
+  const [deleteReferenceKey, setDeleteReferenceKey] = useState<string>("");
   const [isInitiatingDelete, setIsInitiatingDelete] = useState<boolean>(false);
   const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
@@ -984,15 +985,30 @@ const Dmt = () => {
 
     setDeletingBeneficiary(beneficiary);
     setDeleteOtp("");
+    setDeleteReferenceKey("");
     setIsInitiatingDelete(true);
 
     try {
+      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+
       const res = await deleteBeneficiaryApi({
         beneficiaryId: targetBeneficiaryId,
+        outletid: effectiveOutletId,
         remitterMobile: customerMobile.trim(),
       });
 
       if (res?.success !== false && res?.status !== "FAILED") {
+        const receivedRefKey =
+          res?.data?.referenceKey ||
+          res?.referenceKey ||
+          res?.data?.data?.referenceKey ||
+          res?.data?.refKey ||
+          res?.refKey ||
+          "";
+        if (receivedRefKey) {
+          setDeleteReferenceKey(receivedRefKey);
+        }
         toast.info(res?.message || res?.msg || "OTP sent to customer mobile to confirm beneficiary deletion.");
         setShowDeleteModal(true);
       } else {
@@ -1015,9 +1031,20 @@ const Dmt = () => {
     setIsVerifyingDeleteOtp(true);
 
     try {
+      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const currentRefKey =
+        deleteReferenceKey ||
+        activeReferenceKey ||
+        referenceKeyRef.current ||
+        sessionStorage.getItem("dmt_remitter_ref_key") ||
+        "";
+
       const res = await verifyDeleteBeneficiaryOtpApi({
         beneficiaryId: targetBeneficiaryId,
+        outletid: effectiveOutletId,
         remitterMobile: customerMobile.trim(),
+        referenceKey: currentRefKey,
         otp: deleteOtp.trim(),
       });
 
@@ -1026,6 +1053,7 @@ const Dmt = () => {
         setShowDeleteModal(false);
         setDeletingBeneficiary(null);
         setDeleteOtp("");
+        setDeleteReferenceKey("");
         await fetchBeneficiariesList();
       } else {
         toast.error(res?.message || res?.msg || "Failed to verify delete OTP");
@@ -1162,19 +1190,37 @@ const Dmt = () => {
         srno: biometricData.srno,
       });
 
-      if (res?.success || res?.status) {
-        toast.success(res?.message || "Remitter eKYC completed successfully!");
+      const isSuccessMsg = (msg: unknown) =>
+        typeof msg === "string" && /successful|success/i.test(msg);
+
+      if (
+        res?.success ||
+        res?.status === "SUCCESS" ||
+        res?.status === true ||
+        isSuccessMsg(res?.message) ||
+        isSuccessMsg(res?.data?.msg) ||
+        isSuccessMsg(res?.msg)
+      ) {
+        toast.success(res?.message || res?.data?.msg || res?.msg || "Remitter eKYC completed successfully!");
         setIsRemitterEkycDone(true);
         setShowDoKycModal(false);
+        setKycError("");
       } else {
-        const errorMsg = res?.message || "eKYC verification failed";
+        const errorMsg = res?.message || res?.data?.msg || res?.msg || "eKYC verification failed";
         setKycError(errorMsg);
         toast.error(errorMsg);
       }
     } catch (err: unknown) {
       const errorMsg = getApiErrorMessage(err, "Failed to perform remitter eKYC");
-      setKycError(errorMsg);
-      toast.error(errorMsg);
+      if (/successful|success/i.test(errorMsg)) {
+        toast.success(errorMsg);
+        setIsRemitterEkycDone(true);
+        setShowDoKycModal(false);
+        setKycError("");
+      } else {
+        setKycError(errorMsg);
+        toast.error(errorMsg);
+      }
     } finally {
       setIsCapturingBiometric(false);
     }
@@ -2113,6 +2159,7 @@ const Dmt = () => {
                       setShowDeleteModal(false);
                       setDeletingBeneficiary(null);
                       setDeleteOtp("");
+                      setDeleteReferenceKey("");
                     }}
                     className="text-slate-400 hover:text-slate-600"
                   >
@@ -2151,6 +2198,7 @@ const Dmt = () => {
                         setShowDeleteModal(false);
                         setDeletingBeneficiary(null);
                         setDeleteOtp("");
+                        setDeleteReferenceKey("");
                       }}
                       className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50"
                     >
