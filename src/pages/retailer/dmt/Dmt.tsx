@@ -914,7 +914,7 @@ const Dmt = () => {
       }
 
       setKycStep("Fingerprint captured. Parsing biometric data...");
-
+        console.log("cpatire data",capture?.data)
       // 2. Parse PID XML using reusable extractBiometricData utility
       const biometricData = extractBiometricData(capture.data);
 
