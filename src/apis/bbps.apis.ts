@@ -28,6 +28,7 @@ export interface BillerItem {
   service_type: string;
   CUSTNO?: string;
   FIELD1?: string;
+  FIELD2?: string;
   AMT?: string;
   REFMOBILENO?: string;
   state?: string;
@@ -49,6 +50,7 @@ export interface ViewBillPayload {
   opcode: string;
   service_id: string | number;
   FIELD1?: string;
+  FIELD2?: string;
   [key: string]: unknown;
 }
 
@@ -66,6 +68,7 @@ export interface PayBillPayload {
   latitude?: string;
   longitude?: string;
   FIELD1?: string;
+  FIELD2?: string;
   [key: string]: unknown;
 }
 
