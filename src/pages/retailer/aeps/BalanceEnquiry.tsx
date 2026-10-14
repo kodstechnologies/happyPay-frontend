@@ -172,6 +172,7 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
       }
 
       const result = await balanceEnquiry(payload);
+      console.log("Balance enquiry result:=====", result);
       setBalanceResult(result.data as Record<string, unknown> | null);
       setStatusMessage("Balance enquiry completed successfully.");
     } catch (error: unknown) {
