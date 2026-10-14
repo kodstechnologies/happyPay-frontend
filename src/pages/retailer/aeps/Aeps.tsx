@@ -34,6 +34,7 @@ import {
 } from "../../../services/api/retailer/aepsApi";
 import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { getToken } from "../../../utils/auth";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -1010,9 +1011,15 @@ const Aeps = () => {
        */
       if (serviceId === "balance-check") {
         try {
-          const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-          const outletId = stored.outletId || stored.outletid || "";
-          const referenceKey = stored.referenceKey || "";
+          const token = getToken();
+          if (!token) {
+            throw new Error("Authentication token not found. Please login again.");
+          }
+
+          // Decode JWT token to get outletId and referenceKey
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+          const referenceKey = tokenPayload.referenceKey || "";
 
           if (!outletId || !referenceKey) {
             throw new Error("Outlet ID or Reference key is missing. Please complete eKYC first.");
