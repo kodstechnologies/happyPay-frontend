@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
+import MiniStatement from "./MiniStatement";
 import {
   ArrowLeft,
   ArrowRight,
@@ -21,7 +22,6 @@ import {
   Printer,
   RefreshCw,
   LockKeyhole,
-  FileText,
   ReceiptText,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -672,6 +672,8 @@ const Aeps = () => {
   const [receiptData, setReceiptData] =
     useState<ReceiptData | null>(null);
 
+  const [showMiniStatement, setShowMiniStatement] = useState(false);
+
   /*
    * ============================================================
    * COMMON HELPERS
@@ -1112,7 +1114,7 @@ const Aeps = () => {
        * C. MINI STATEMENT
        */
       if (serviceId === "mini-statement") {
-        completeTransaction("mini-statement");
+        setShowMiniStatement(true);
         return;
       }
 
@@ -2514,73 +2516,6 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * MINI STATEMENT
-   * ============================================================
-   */
-
-  const renderRecentTransactions = (
-    transactions: Transaction[]
-  ) => {
-    return (
-      <div className="mt-8 rounded-2xl border-2 border-slate-200 bg-white p-6 sm:p-6">
-        <div className="flex items-center gap-4 border-b border-slate-200 pb-5">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50">
-            <FileText className="h-7 w-7 text-[#172033]" />
-          </div>
-
-          <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
-            Recent 5 Transactions
-          </h3>
-        </div>
-
-        <div className="mt-4 space-y-7">
-          {transactions.map(
-            (transaction, index) => (
-              <div
-                key={`${transaction.description}-${index}`}
-                className="flex items-center justify-between gap-4"
-              >
-                <div className="min-w-0">
-                  <p className="text-base font-bold text-slate-900 sm:text-xl">
-                    {transaction.description}
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-600 sm:text-base">
-                    {transaction.date}
-                  </p>
-                </div>
-
-                <div className="shrink-0 text-right">
-                  <p
-                    className={`text-base font-bold sm:text-xl ${transaction.type ===
-                      "CREDIT"
-                      ? "text-[#172033]"
-                      : "text-slate-900"
-                      }`}
-                  >
-                    {transaction.amount}
-                  </p>
-
-                  <span
-                    className={`mt-1 inline-block rounded-lg px-2.5 py-1 text-xs font-bold ${transaction.type ===
-                      "CREDIT"
-                      ? "bg-purple-50 text-[#172033]"
-                      : "bg-[#e8e8ee] text-slate-700"
-                      }`}
-                  >
-                    {transaction.type}
-                  </span>
-                </div>
-              </div>
-            )
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  /*
-   * ============================================================
    * RECEIPT SCREEN
    * ============================================================
    */
@@ -2589,10 +2524,6 @@ const Aeps = () => {
     if (!showReceipt || !receiptData) {
       return null;
     }
-
-    const isMiniStatement =
-      receiptData.receiptType ===
-      "mini-statement";
 
     const isWithdrawal =
       receiptData.receiptType ===
@@ -2708,11 +2639,6 @@ const Aeps = () => {
               </div>
             </div>
 
-            {isMiniStatement &&
-              renderRecentTransactions(
-                receiptData.transactions
-              )}
-
             <div className="mt-8 space-y-5">
               <button
                 type="button"
@@ -2764,6 +2690,22 @@ const Aeps = () => {
 
   if (showReceipt) {
     return renderReceipt();
+  }
+
+  if (showMiniStatement) {
+    if (!selectedBank) {
+      setShowMiniStatement(false);
+      return null;
+    }
+    return (
+      <MiniStatement
+        customerMobile={customerMobile}
+        customerAadhaar={customerAadhaar}
+        selectedBank={selectedBank}
+        selectedDevicePort={selectedDevicePort}
+        onBack={() => setShowMiniStatement(false)}
+      />
+    );
   }
 
   return (

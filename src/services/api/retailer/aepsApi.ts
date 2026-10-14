@@ -290,3 +290,41 @@ export function balanceEnquiry(payload: {
     body: JSON.stringify(payload),
   });
 }
+
+export function miniStatement(payload: {
+  outlet_id: string;
+  referenceKey: string;
+  latitude: string;
+  longitude: string;
+  aadhaar: string;
+  ts: string;
+  dc?: string;
+  ci?: string;
+  hmac?: string;
+  mc?: string;
+  dpId?: string;
+  PidDatatype?: string;
+  Piddata?: string;
+  rdsId?: string;
+  rdsVer?: string;
+  sessionKey?: string;
+  mi?: string;
+  errInfo?: string;
+  errCode?: string;
+  fCount?: string;
+  fType?: string;
+  iCount?: string;
+  iType?: string;
+  pCount?: string;
+  pType?: string;
+  qScore?: string;
+  nmPoints?: string;
+  srno?: string;
+  sysid?: string;
+}) {
+  return apiClient<Envelope<unknown>>("/api/v1/aeps/mini-statement", {
+    ...authOptions(),
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
