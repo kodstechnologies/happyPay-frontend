@@ -16,6 +16,7 @@ import {
   GraduationCap,
   Hash,
   Landmark,
+  Mail,
   Menu,
   Phone,
   Printer,
@@ -433,10 +434,26 @@ const BBPS: React.FC = () => {
     );
   }, [selectedCategory, selectedBiller]);
 
+  // Lookup logged-in retailer email as a fallback
+  const storedRetailerEmail = useMemo(() => {
+    try {
+      const stored = localStorage.getItem("retailerUser");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed?.email || "";
+      }
+    } catch {
+      // ignore
+    }
+    return "";
+  }, []);
+
   // Dynamic Field Labels based on currently selected Biller
   const primaryFieldLabel = selectedBiller?.CUSTNO || activeMeta.defaultInputLabel;
   const secondaryFieldLabel =
     selectedBiller?.FIELD1 || (isInsuranceCategory ? "Date of Birth (DOB)" : undefined);
+  const tertiaryFieldLabel =
+    (selectedBiller?.FIELD2 as string) || (isInsuranceCategory ? "Email ID" : undefined);
   const mobileFieldLabel = selectedBiller?.REFMOBILENO || "Mobile Number";
 
   const handleFetchBill = async () => {
@@ -459,7 +476,7 @@ const BBPS: React.FC = () => {
     // Enforce DOB for Insurance and Life Insurance categories
     if (isInsuranceCategory) {
       if (!secondaryInput) {
-        toast.error(`Please enter Date of Birth (DOB).`);
+        toast.error("Please enter Date of Birth (DOB).");
         return;
       }
     } else if (secondaryFieldLabel && !secondaryInput) {
@@ -467,10 +484,61 @@ const BBPS: React.FC = () => {
       return;
     }
 
+    // Resolve tertiary field value (Email ID for Insurance / Life Insurance)
+    const tertiaryInput =
+      (tertiaryFieldLabel ? consumerValues[tertiaryFieldLabel] : "")?.trim() ||
+      consumerValues["FIELD2"]?.trim() ||
+      consumerValues["Email ID"]?.trim() ||
+      consumerValues["Email"]?.trim() ||
+      consumerValues["email"]?.trim() ||
+      storedRetailerEmail ||
+      "";
+
+    // Enforce Email ID for Insurance and Life Insurance categories
+    if (isInsuranceCategory) {
+      if (!tertiaryInput) {
+        toast.error("Please enter Email ID.");
+        return;
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(tertiaryInput)) {
+        toast.error("Please enter a valid Email ID (e.g. name@example.com).");
+        return;
+      }
+    } else if (tertiaryFieldLabel && !tertiaryInput) {
+      toast.error(`Please enter ${tertiaryFieldLabel}.`);
+      return;
+    }
+
+    const enteredMobile =
+      (mobileFieldLabel && consumerValues[mobileFieldLabel]?.trim()) ||
+      consumerValues["REFMOBILENO"]?.trim() ||
+      consumerValues["mobile"]?.trim() ||
+      consumerValues["Mobile Number"]?.trim() ||
+      "";
+
     if (selectedBiller?.REFMOBILENO && !consumerValues[selectedBiller.REFMOBILENO]?.trim()) {
       toast.error(`Please enter ${selectedBiller.REFMOBILENO}.`);
       return;
     }
+
+    if (enteredMobile && !/^[6-9]\d{9}$/.test(enteredMobile)) {
+      toast.error("Please enter a valid 10-digit mobile number.");
+      return;
+    }
+
+    const opcode = String(selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : ""));
+    if (!opcode) {
+      toast.error("Operator code (opcode) is missing for this biller.");
+      return;
+    }
+
+    const serviceId = String(
+      selectedBiller?.service_id ??
+      selectedBiller?.id ??
+      selectedCategory?.id ??
+      "0"
+    );
 
     setIsFetching(true);
 
@@ -478,24 +546,10 @@ const BBPS: React.FC = () => {
       // 11-digit unique numeric order ID (e.g. 45645634434)
       const randomOrderId = `${Math.floor(1 + Math.random() * 9)}${Math.floor(1000000000 + Math.random() * 9000000000)}`;
 
-      const enteredMobile =
-        (mobileFieldLabel && consumerValues[mobileFieldLabel]?.trim()) ||
-        consumerValues["REFMOBILENO"]?.trim() ||
-        consumerValues["mobile"]?.trim() ||
-        consumerValues["Mobile Number"]?.trim() ||
-        "";
-
       const refMobileNo =
         enteredMobile ||
         (primaryInput.match(/^[6-9]\d{9}$/) ? primaryInput : "9876543210");
 
-      const opcode = String(selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : ""));
-      const serviceId = String(
-        selectedBiller?.service_id ??
-        selectedBiller?.id ??
-        selectedCategory?.id ??
-        "0"
-      );
       const custNo = primaryInput;
       const amtValue =
         (selectedBiller?.AMT && consumerValues[selectedBiller.AMT]?.trim()) ||
@@ -504,7 +558,7 @@ const BBPS: React.FC = () => {
         paymentAmount.trim() ||
         "0";
 
-      // 6 Required BBPS parameters + FIELD1 (only for Insurance & Life Insurance)
+      // 6 Required BBPS parameters + FIELD1 + FIELD2 (Email ID for Insurance & Life Insurance)
       const payload: ViewBillPayload = {
         REFMOBILENO: refMobileNo,
         AMT: amtValue,
@@ -512,7 +566,8 @@ const BBPS: React.FC = () => {
         orderid: randomOrderId,
         opcode: opcode,
         service_id: serviceId,
-        ...(isInsuranceCategory && secondaryInput ? { FIELD1: secondaryInput } : {}),
+        ...(secondaryInput ? { FIELD1: secondaryInput } : {}),
+        ...(tertiaryInput ? { FIELD2: tertiaryInput } : {}),
       };
 
       const res = await viewBillApi(payload);
@@ -681,6 +736,15 @@ const BBPS: React.FC = () => {
         consumerValues["dob"]?.trim() ||
         "";
 
+      const tertiaryInput =
+        (tertiaryFieldLabel ? consumerValues[tertiaryFieldLabel] : "")?.trim() ||
+        consumerValues["FIELD2"]?.trim() ||
+        consumerValues["Email ID"]?.trim() ||
+        consumerValues["Email"]?.trim() ||
+        consumerValues["email"]?.trim() ||
+        storedRetailerEmail ||
+        "";
+
       const payload: PayBillPayload = {
         // 6 Required BBPS parameters
         REFMOBILENO: refMobileNo,
@@ -697,7 +761,8 @@ const BBPS: React.FC = () => {
         duedate: billDetails.dueDate,
         latitude: "28.6139",
         longitude: "77.2090",
-        ...(isInsuranceCategory && secondaryInput ? { FIELD1: secondaryInput } : {}),
+        ...(secondaryInput ? { FIELD1: secondaryInput } : {}),
+        ...(tertiaryInput ? { FIELD2: tertiaryInput } : {}),
       };
 
       const res = await payBillApi(payload);
@@ -1032,6 +1097,42 @@ const BBPS: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Tertiary Field (FIELD2 - e.g. Email ID) */}
+                    {tertiaryFieldLabel && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                          {tertiaryFieldLabel}
+                          {isInsuranceCategory && (
+                            <span className="ml-1 text-rose-500 font-bold">*</span>
+                          )}
+                        </label>
+                        <div className="relative">
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
+                            <Mail size={17} />
+                          </div>
+                          <input
+                            type="email"
+                            value={
+                              consumerValues[tertiaryFieldLabel] !== undefined
+                                ? consumerValues[tertiaryFieldLabel]
+                                : isInsuranceCategory
+                                ? storedRetailerEmail
+                                : ""
+                            }
+                            onChange={(e) =>
+                              handleInputChange(tertiaryFieldLabel, e.target.value)
+                            }
+                            placeholder={
+                              isInsuranceCategory
+                                ? "Enter Email ID (e.g. name@example.com)"
+                                : `Enter ${tertiaryFieldLabel}`
+                            }
+                            className="h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-10 pr-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     {/* Mobile Field (REFMOBILENO) */}
                     {mobileFieldLabel && mobileFieldLabel !== primaryFieldLabel && (
                       <div>
@@ -1296,6 +1397,14 @@ const BBPS: React.FC = () => {
                         <span className="text-slate-500">Secondary Field</span>
                         <span className="font-semibold text-slate-700">
                           {selectedBiller.FIELD1 || "Date of Birth (DOB)"}
+                        </span>
+                      </div>
+                    )}
+                    {(selectedBiller.FIELD2 || isInsuranceCategory) && (
+                      <div className="flex justify-between">
+                        <span className="text-slate-500">Email Field</span>
+                        <span className="font-semibold text-slate-700">
+                          {selectedBiller.FIELD2 || "Email ID"}
                         </span>
                       </div>
                     )}

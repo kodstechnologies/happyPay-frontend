@@ -474,7 +474,8 @@ const Dmt = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWallet();
     fetchAllBanks();
-  }, [fetchWallet, fetchAllBanks]);
+    
+  }, [fetchWallet,fetchAllBanks]);
 
   /*
    * Demo values matching the reference UI.
@@ -2592,7 +2593,7 @@ const Dmt = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* <div className="flex items-center justify-between">
                   <span className="text-[#555b67]">
                     Your Commission
                   </span>
@@ -2600,7 +2601,7 @@ const Dmt = () => {
                   <span className="font-bold text-[#10a66d]">
                     +₹{commission.toFixed(2)}
                   </span>
-                </div>
+                </div> */}
 
                 <div className="border-t border-slate-200 pt-5">
                   <div className="flex items-center justify-between">
