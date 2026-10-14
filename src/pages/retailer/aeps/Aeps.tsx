@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
@@ -576,25 +576,30 @@ const Aeps = () => {
     useState<Bank | null>(null);
   const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
+  const [banksFetched, setBanksFetched] = useState(false);
+  const bankSelectRef = useRef<HTMLSelectElement>(null);
 
-  // Fetch bank list on mount
-  useEffect(() => {
-    const fetchBanks = async () => {
-      setLoadingBanks(true);
-      try {
-        const response = await getBankList();
-        if (response.success && response.data) {
-          setAvailableBanks([...response.data]);
-        }
-      } catch (err) {
-        console.error("Failed to fetch bank list:", err);
-      } finally {
-        setLoadingBanks(false);
+  // Fetch bank list when dropdown is opened
+  const fetchBanks = async () => {
+    if (banksFetched) return; // Don't fetch if already fetched
+    
+    setLoadingBanks(true);
+    try {
+      const response = await getBankList();
+      if (response.success && response.data) {
+        setAvailableBanks([...response.data]);
+        setBanksFetched(true);
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch bank list:", err);
+    } finally {
+      setLoadingBanks(false);
+    }
+  };
 
-    fetchBanks();
-  }, []);
+  const handleBankDropdownOpen = () => {
+    void fetchBanks();
+  };
 
 
 
@@ -1847,11 +1852,14 @@ const Aeps = () => {
           <div className="relative">
             <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
             <select
+              ref={bankSelectRef}
               value={selectedBank?.iin || ""}
               onChange={(e) => {
                 const bank = availableBanks.find(b => b.iin === e.target.value);
                 if (bank) handleBankSelect(bank);
               }}
+              onFocus={handleBankDropdownOpen}
+              onClick={handleBankDropdownOpen}
               disabled={loadingBanks}
               className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50"
             >
