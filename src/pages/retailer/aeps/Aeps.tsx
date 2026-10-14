@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import AepsDeposit from "./AepsDeposit";
+import BalanceEnquiry from "./BalanceEnquiry";
+import CashWithdrawal from "./CashWithdrawal";
+import CashDeposit from "./CashDeposit";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
 import {
@@ -30,9 +33,9 @@ import {
   checkAepsLoginStatus,
   verifyTfa,
   parsePidXml,
-  balanceEnquiry,
   type TfaPayload,
 } from "../../../services/api/retailer/aepsApi";
+import { getRetailerAadhaarAndMobile } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
@@ -49,6 +52,12 @@ type ModalType =
   | "otp"
   | "biometric"
   | "balance-enquiry";
+
+type TransactionType =
+  | ""
+  | "balance-enquiry"
+  | "cash-withdrawal"
+  | "cash-deposit";
 
 type ReceiptType =
   | ""
@@ -637,8 +646,11 @@ const Aeps = () => {
     }
   });
 
-  const [retailerAadhaar, setRetailerAadhaar] = useState(
-    () => storedRetailer?.aadhaarNumber || storedRetailer?.aadhaar || ""
+  const [retailerAadhaar, setRetailerAadhaar] = useState("");
+  const [retailerMobile, setRetailerMobile] = useState(() =>
+    storedRetailer?.mobile ||
+    localStorage.getItem("retailerMobile") ||
+    "+91 1234567890"
   );
 
   const [isCapturingRetailer, setIsCapturingRetailer] =
@@ -746,6 +758,33 @@ const Aeps = () => {
 
     void checkStatus();
   }, []);
+
+  // Fetch retailer Aadhaar and mobile on mount
+  useEffect(() => {
+    const fetchRetailerDetails = async () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+        const userId = stored.id || stored._id || stored.userId;
+
+        if (userId) {
+          const response = await getRetailerAadhaarAndMobile(userId);
+          if (response.success && response.data) {
+            if (response.data.aadhaarNumber) {
+              setRetailerAadhaar(response.data.aadhaarNumber);
+            }
+            if (response.data.mobile) {
+              setRetailerMobile(response.data.mobile);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch retailer details:", error);
+      }
+    };
+
+    void fetchRetailerDetails();
+  }, []);
+
   /*
    * Customer Aadhaar
    */
@@ -776,11 +815,9 @@ const Aeps = () => {
     useState<ServiceId | "">("");
 
   /*
-   * Balance Enquiry
+   * Transaction Type
    */
-  const [isCheckingBalance, setIsCheckingBalance] = useState(false);
-  const [balanceResult, setBalanceResult] = useState<Record<string, unknown> | null>(null);
-  const [balanceError, setBalanceError] = useState("");
+  const [transactionType, setTransactionType] = useState<TransactionType>("");
 
   /*
    * Modal
@@ -814,11 +851,6 @@ const Aeps = () => {
 
   const [receiptData, setReceiptData] =
     useState<ReceiptData | null>(null);
-
-  const retailerMobile =
-    storedRetailer?.mobile ||
-    localStorage.getItem("retailerMobile") ||
-    "+91 1234567890";
 
   const customerMobile = "+91 98XXXX832";
 
@@ -1849,6 +1881,38 @@ const Aeps = () => {
    * ============================================================
    */
   const renderFlowSelection = () => {
+    if (transactionType === "balance-enquiry") {
+      return (
+        <BalanceEnquiry
+          onBack={() => setTransactionType("")}
+        />
+      );
+    }
+
+    if (transactionType === "cash-withdrawal") {
+      return (
+        <CashWithdrawal
+          onBack={() => setTransactionType("")}
+          onNext={() => {
+            setFlowMode("withdraw");
+            setStep(2);
+          }}
+        />
+      );
+    }
+
+    if (transactionType === "cash-deposit") {
+      return (
+        <CashDeposit
+          onBack={() => setTransactionType("")}
+          onNext={() => {
+            setFlowMode("deposit");
+            setStep(2);
+          }}
+        />
+      );
+    }
+
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div>
@@ -1858,51 +1922,27 @@ const Aeps = () => {
         
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <button
-            onClick={() => {
-              setFlowMode("withdraw");
-              setStep(2);
-            }}
+            onClick={() => setTransactionType("cash-withdrawal")}
             className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
           >
             <WalletCards className="h-12 w-12 text-[#7c3aed] mb-4" />
             <span className="text-xl font-bold text-slate-900">Cash Withdraw</span>
           </button>
           <button
-            onClick={() => {
-              setFlowMode("deposit");
-              setStep(2);
-            }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
+            onClick={() => setTransactionType("cash-deposit")}
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-blue-500 hover:shadow-lg transition-all"
           >
-            <Banknote className="h-12 w-12 text-[#7c3aed] mb-4" />
+            <Banknote className="h-12 w-12 text-blue-600 mb-4" />
             <span className="text-xl font-bold text-slate-900">Cash Deposit</span>
           </button>
           <button
-            onClick={handleBalanceEnquiry}
-            disabled={isCheckingBalance}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-emerald-500 hover:shadow-lg transition-all disabled:opacity-50"
+            onClick={() => setTransactionType("balance-enquiry")}
+            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-emerald-500 hover:shadow-lg transition-all"
           >
             <Banknote className="h-12 w-12 text-emerald-600 mb-4" />
-            <span className="text-xl font-bold text-slate-900">
-              {isCheckingBalance ? "Checking..." : "Balance Enquiry"}
-            </span>
+            <span className="text-xl font-bold text-slate-900">Balance Enquiry</span>
           </button>
         </div>
-
-        {balanceError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
-            {balanceError}
-          </div>
-        )}
-
-        {balanceResult && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-xs font-semibold text-emerald-700 mb-2">Balance Enquiry Result</p>
-            <pre className="text-xs text-emerald-800 overflow-auto max-h-32">
-              {JSON.stringify(balanceResult, null, 2)}
-            </pre>
-          </div>
-        )}
       </div>
     );
   };
@@ -2272,54 +2312,6 @@ const Aeps = () => {
         bgClass: "bg-purple-50",
       },
     ];
-
-  const handleBalanceEnquiry = async () => {
-    setIsCheckingBalance(true);
-    setBalanceError("");
-    setBalanceResult(null);
-
-    try {
-      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const outletId = stored.outletId || stored.outletid || "";
-      const referenceKey = stored.referenceKey || "";
-      const retailerAadhaar = stored.aadhaarNumber || stored.aadhaar || "";
-
-      if (!outletId) {
-        throw new Error("Outlet ID is missing. Please check your retailer account.");
-      }
-
-      if (!referenceKey) {
-        throw new Error("Reference key is missing. Please complete eKYC first.");
-      }
-
-      if (!retailerAadhaar || retailerAadhaar.length !== 12) {
-        throw new Error("Retailer Aadhaar number is missing or invalid. Please complete your profile.");
-      }
-
-      // Get geolocation
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
-
-      const payload = {
-        outlet_id: outletId,
-        referenceKey,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        aadhaar: retailerAadhaar,
-        ts: new Date().toISOString(),
-      };
-
-      const result = await balanceEnquiry(payload);
-      setBalanceResult(result.data as Record<string, unknown> | null);
-    } catch (error: unknown) {
-      setBalanceError(error instanceof Error ? error.message : "Failed to check balance");
-    } finally {
-      setIsCheckingBalance(false);
-    }
-  };
 
   const renderServices = () => {
     return (
