@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
@@ -22,7 +22,6 @@ import {
   LockKeyhole,
   FileText,
   ReceiptText,
-  X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
@@ -577,11 +576,6 @@ const Aeps = () => {
     useState<Bank | null>(null);
   const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
-  const [visibleBanks, setVisibleBanks] = useState<Bank[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const BATCH_SIZE = 20;
 
   // Fetch bank list on mount
   useEffect(() => {
@@ -591,7 +585,6 @@ const Aeps = () => {
         const response = await getBankList();
         if (response.success && response.data) {
           setAvailableBanks([...response.data]);
-          setVisibleBanks(response.data.slice(0, BATCH_SIZE));
         }
       } catch (err) {
         console.error("Failed to fetch bank list:", err);
@@ -601,18 +594,6 @@ const Aeps = () => {
     };
 
     fetchBanks();
-  }, []);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
 
@@ -940,30 +921,6 @@ const Aeps = () => {
 
   const handleBankSelect = (bank: Bank) => {
     setSelectedBank(bank);
-    setIsDropdownOpen(false);
-    setSearchTerm("");
-  };
-
-  // Filter banks based on search term
-  const filteredBanks = availableBanks.filter(bank =>
-    bank.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Handle scroll to load more banks
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-    if (scrollHeight - scrollTop <= clientHeight + 50) {
-      const currentLength = visibleBanks.length;
-      const nextBatch = filteredBanks.slice(currentLength, currentLength + BATCH_SIZE);
-      if (nextBatch.length > 0) {
-        setVisibleBanks(prev => [...prev, ...nextBatch]);
-      }
-    }
-  };
-
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setVisibleBanks(filteredBanks.slice(0, BATCH_SIZE));
   };
 
   /*
@@ -1887,67 +1844,23 @@ const Aeps = () => {
             Select Bank
           </h3>
 
-          <div className="relative" ref={dropdownRef}>
-            <div className="relative">
-              <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
-              <button
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                disabled={loadingBanks}
-                className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50 text-left"
-              >
-                {selectedBank ? selectedBank.name : (loadingBanks ? "Loading banks..." : "PLEASE SELECT BANK")}
-              </button>
-              {selectedBank && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedBank(null);
-                  }}
-                  className="absolute right-12 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              )}
-              <ChevronDown className={`pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""}`} />
-            </div>
-
-            {isDropdownOpen && (
-              <div className="absolute z-10 mt-2 w-full rounded-xl border border-slate-200 bg-white shadow-lg max-h-80 overflow-hidden">
-                <div className="p-3 border-b border-slate-100">
-                  <input
-                    type="text"
-                    placeholder="Search banks..."
-                    value={searchTerm}
-                    onChange={handleSearchChange}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-[#7c3aed]"
-                  />
-                </div>
-                <div
-                  className="overflow-y-auto max-h-60"
-                  onScroll={handleScroll}
-                >
-                  {visibleBanks.map((bank) => (
-                    <button
-                      key={bank.iin}
-                      type="button"
-                      onClick={() => handleBankSelect(bank)}
-                      className={`w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 ${
-                        selectedBank?.iin === bank.iin ? "bg-purple-50 text-purple-700 font-semibold" : "text-slate-700"
-                      }`}
-                    >
-                      {bank.name}
-                    </button>
-                  ))}
-                  {visibleBanks.length < filteredBanks.length && (
-                    <div className="px-4 py-3 text-center text-sm text-slate-500">
-                      Loading more banks...
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+          <div className="relative">
+            <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
+            <select
+              value={selectedBank?.iin || ""}
+              onChange={(e) => {
+                const bank = availableBanks.find(b => b.iin === e.target.value);
+                if (bank) handleBankSelect(bank);
+              }}
+              disabled={loadingBanks}
+              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <option value="" disabled>{loadingBanks ? "Loading banks..." : "PLEASE SELECT BANK"}</option>
+              {availableBanks.map(bank => (
+                <option key={bank.iin} value={bank.iin}>{bank.name}</option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
           </div>
         </section>
 
