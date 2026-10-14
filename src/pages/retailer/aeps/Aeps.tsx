@@ -5,6 +5,7 @@ import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import {
   ArrowLeft,
   ArrowRight,
+  ArrowDown,
   Banknote,
   Building2,
   Check,
@@ -578,27 +579,53 @@ const Aeps = () => {
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [banksFetched, setBanksFetched] = useState(false);
   const bankSelectRef = useRef<HTMLSelectElement>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const BANKS_PER_PAGE = 50;
 
   // Fetch bank list when dropdown is opened
-  const fetchBanks = async () => {
-    if (banksFetched) return; // Don't fetch if already fetched
+  const fetchBanks = async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoadingBanks(true);
+    }
     
-    setLoadingBanks(true);
     try {
-      const response = await getBankList();
+      const response = await getBankList(page, BANKS_PER_PAGE);
       if (response.success && response.data) {
-        setAvailableBanks([...response.data]);
+        if (append) {
+          setAvailableBanks(prev => [...prev, ...response.data]);
+        } else {
+          setAvailableBanks([...response.data]);
+        }
         setBanksFetched(true);
+        // Update total pages from meta if available
+        if (response.meta && typeof response.meta === 'object' && 'totalPages' in response.meta) {
+          setTotalPages((response.meta as { totalPages: number }).totalPages);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch bank list:", err);
     } finally {
       setLoadingBanks(false);
+      setLoadingMore(false);
     }
   };
 
   const handleBankDropdownOpen = () => {
-    void fetchBanks();
+    if (!banksFetched) {
+      void fetchBanks(1, false);
+    }
+  };
+
+  const handleLoadMoreBanks = () => {
+    if (currentPage < totalPages) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      void fetchBanks(nextPage, true);
+    }
   };
 
 
@@ -1870,6 +1897,27 @@ const Aeps = () => {
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
           </div>
+
+          {banksFetched && currentPage < totalPages && (
+            <button
+              type="button"
+              onClick={handleLoadMoreBanks}
+              disabled={loadingMore}
+              className="mt-3 flex items-center gap-2 text-sm font-medium text-purple-600 hover:text-purple-700 disabled:opacity-50"
+            >
+              {loadingMore ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Loading more banks...
+                </>
+              ) : (
+                <>
+                  <ArrowDown className="h-4 w-4" />
+                  Load more banks ({currentPage} / {totalPages})
+                </>
+              )}
+            </button>
+          )}
         </section>
 
         <label className="flex cursor-pointer items-start gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5">

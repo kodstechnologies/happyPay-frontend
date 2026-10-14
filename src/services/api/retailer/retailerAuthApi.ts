@@ -563,9 +563,13 @@ export interface BankListMeta {
   totalPages: number;
 }
 
-export function getBankList() {
+export function getBankList(page?: number, limit?: number) {
+  const params = new URLSearchParams();
+  if (page) params.append('page', page.toString());
+  if (limit) params.append('limit', limit.toString());
+
   return apiClient<ApiEnvelope<Bank[]>>(
-    "/api/v1/auth/banks",
+    `/api/v1/auth/banks${params.toString() ? `?${params.toString()}` : ''}`,
     {
       method: "GET",
     },
