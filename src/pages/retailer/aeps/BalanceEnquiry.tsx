@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Banknote, ArrowLeft, IdCard, Fingerprint } from "lucide-react";
+import { Banknote, ArrowLeft, IdCard, Fingerprint, Phone } from "lucide-react";
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import { getToken } from "../../../utils/auth";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
@@ -12,6 +12,7 @@ interface BalanceEnquiryProps {
 
 const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
   const [aadhaarNumber, setAadhaarNumber] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [isCapturingBiometric, setIsCapturingBiometric] = useState(false);
   const [balanceResult, setBalanceResult] = useState<Record<string, unknown> | null>(null);
   const [balanceError, setBalanceError] = useState("");
@@ -20,6 +21,11 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
   const handleBalanceEnquiry = async () => {
     if (aadhaarNumber.length !== 12) {
       setBalanceError("Please enter a valid 12-digit Aadhaar number");
+      return;
+    }
+
+    if (mobileNumber.length !== 10) {
+      setBalanceError("Please enter a valid 10-digit mobile number");
       return;
     }
 
@@ -71,7 +77,7 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
         latitude: coords.latitude,
         longitude: coords.longitude,
         aadhaar: aadhaarNumber,
-        mobile: tokenPayload.mobile || "",
+        mobile: mobileNumber,
         ...pidData,
       };
 
@@ -94,6 +100,12 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
   const handleAadhaarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value.replace(/\D/g, "").slice(0, 12);
     setAadhaarNumber(value);
+    setBalanceError("");
+  };
+
+  const handleMobileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value.replace(/\D/g, "").slice(0, 10);
+    setMobileNumber(value);
     setBalanceError("");
   };
 
@@ -144,6 +156,26 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
           </div>
         </div>
 
+        <div className="mb-4">
+          <label className="mb-2 block text-sm font-bold text-slate-900">
+            Mobile Number
+          </label>
+          <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3">
+            <Phone className="h-5 w-5 shrink-0 text-emerald-600" />
+            <span className="text-slate-400 text-sm">+91</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              value={mobileNumber}
+              onChange={handleMobileChange}
+              disabled={isCapturingBiometric}
+              placeholder="Enter 10-digit mobile number"
+              className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
         {statusMessage && (
           <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-medium text-emerald-700">
             {statusMessage}
@@ -153,7 +185,7 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
         <button
           type="button"
           onClick={handleBalanceEnquiry}
-          disabled={aadhaarNumber.length !== 12 || isCapturingBiometric}
+          disabled={aadhaarNumber.length !== 12 || mobileNumber.length !== 10 || isCapturingBiometric}
           className="flex min-h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white shadow-md transition-all hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isCapturingBiometric ? (
