@@ -71,6 +71,7 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
         latitude: coords.latitude,
         longitude: coords.longitude,
         aadhaar: aadhaarNumber,
+        mobile: tokenPayload.mobile || "",
         ...pidData,
       };
 
