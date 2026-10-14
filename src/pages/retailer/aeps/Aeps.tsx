@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
+import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import {
   ArrowLeft,
   ArrowRight,
@@ -31,7 +32,7 @@ import {
   parsePidXml,
   type TfaPayload,
 } from "../../../services/api/retailer/aepsApi";
-import { getRetailerAadhaarAndMobile } from "../../../services/api/retailer/retailerAuthApi";
+import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
@@ -57,9 +58,12 @@ type ReceiptType =
   | "balance-withdrawal";
 
 interface Bank {
+  id: number;
+  bank_id: number;
   name: string;
-  code: string;
-  shortName: string;
+  iin: string;
+  aeps_enabled: number;
+  aadhaarpay_enabled: number;
 }
 
 interface Transaction {
@@ -168,230 +172,7 @@ const extractActcode = (response: unknown): string => {
   return typeof value === "string" ? value : "";
 };
 
-/*
- * ============================================================
- * BANK LIST
- * ============================================================
- *
- * Existing banks are preserved.
- */
-const banks: Bank[] = [
-  {
-    name: "State Bank of India",
-    code: "SBIN",
-    shortName: "SBI",
-  },
-  {
-    name: "HDFC Bank",
-    code: "HDFC",
-    shortName: "HDFC",
-  },
-  {
-    name: "ICICI Bank",
-    code: "ICIC",
-    shortName: "ICICI",
-  },
-  {
-    name: "Punjab National Bank",
-    code: "PUNB",
-    shortName: "PNB",
-  },
-  {
-    name: "Bank of Baroda",
-    code: "BARB",
-    shortName: "BOB",
-  },
-  {
-    name: "Axis Bank",
-    code: "UTIB",
-    shortName: "AXIS",
-  },
-  {
-    name: "Canara Bank",
-    code: "CNRB",
-    shortName: "CNRB",
-  },
-  {
-    name: "Union Bank of India",
-    code: "UBIN",
-    shortName: "UBI",
-  },
-  {
-    name: "Bank of India",
-    code: "BKID",
-    shortName: "BOI",
-  },
-  {
-    name: "Kotak Mahindra Bank",
-    code: "KKBK",
-    shortName: "KOTAK",
-  },
-  {
-    name: "Central Bank of India",
-    code: "CBIN",
-    shortName: "CBI",
-  },
-  {
-    name: "Indian Bank",
-    code: "IDIB",
-    shortName: "IB",
-  },
-  {
-    name: "Yes Bank",
-    code: "YESB",
-    shortName: "YES",
-  },
-  {
-    name: "IndusInd Bank",
-    code: "INDB",
-    shortName: "INDUS",
-  },
-  {
-    name: "IDBI Bank",
-    code: "IBKL",
-    shortName: "IDBI",
-  },
-  {
-    name: "UCO Bank",
-    code: "UCBA",
-    shortName: "UCO",
-  },
-  {
-    name: "Punjab & Sind Bank",
-    code: "PSIB",
-    shortName: "PSB",
-  },
-  {
-    name: "Federal Bank",
-    code: "FDRL",
-    shortName: "FED",
-  },
-  {
-    name: "Bank of Maharashtra",
-    code: "MAHB",
-    shortName: "BOM",
-  },
-  {
-    name: "Indian Overseas Bank",
-    code: "IOBA",
-    shortName: "IOB",
-  },
-  {
-    name: "Karnataka Bank",
-    code: "KARB",
-    shortName: "KBL",
-  },
-  {
-    name: "South Indian Bank",
-    code: "SIBL",
-    shortName: "SIB",
-  },
-  {
-    name: "RBL Bank",
-    code: "RATN",
-    shortName: "RBL",
-  },
-  {
-    name: "Bandhan Bank",
-    code: "BDBL",
-    shortName: "BANDHAN",
-  },
-  {
-    name: "IDFC FIRST Bank",
-    code: "IDFB",
-    shortName: "IDFC",
-  },
-  {
-    name: "AU Small Finance Bank",
-    code: "AUBL",
-    shortName: "AU",
-  },
-  {
-    name: "Equitas Small Finance Bank",
-    code: "ESFB",
-    shortName: "EQUITAS",
-  },
-  {
-    name: "Ujjivan Small Finance Bank",
-    code: "UJVN",
-    shortName: "UJJIVAN",
-  },
-  {
-    name: "Jana Small Finance Bank",
-    code: "JSFB",
-    shortName: "JANA",
-  },
-  {
-    name: "ESAF Small Finance Bank",
-    code: "ESMF",
-    shortName: "ESAF",
-  },
-  {
-    name: "Suryoday Small Finance Bank",
-    code: "SURY",
-    shortName: "SURYODAY",
-  },
-  {
-    name: "DCB Bank",
-    code: "DCBL",
-    shortName: "DCB",
-  },
-  {
-    name: "City Union Bank",
-    code: "CIUB",
-    shortName: "CUB",
-  },
-  {
-    name: "Tamilnad Mercantile Bank",
-    code: "TMBL",
-    shortName: "TMB",
-  },
-  {
-    name: "Karur Vysya Bank",
-    code: "KVBL",
-    shortName: "KVB",
-  },
-  {
-    name: "Dhanlaxmi Bank",
-    code: "DLXB",
-    shortName: "DLB",
-  },
-  {
-    name: "Karnataka Gramin Bank",
-    code: "PKGB",
-    shortName: "KGB",
-  },
-  {
-    name: "Kerala Gramin Bank",
-    code: "KLGB",
-    shortName: "KGB",
-  },
-  {
-    name: "Rajasthan Marudhara Gramin Bank",
-    code: "RMGB",
-    shortName: "RMGB",
-  },
-  {
-    name: "Andhra Pradesh Grameena Vikas Bank",
-    code: "APGV",
-    shortName: "APGVB",
-  },
-  {
-    name: "Telangana Grameena Bank",
-    code: "TGBL",
-    shortName: "TGB",
-  },
-  {
-    name: "Odisha Gramya Bank",
-    code: "IOBA",
-    shortName: "OGB",
-  },
-  {
-    name: "Baroda Gujarat Gramin Bank",
-    code: "BARB",
-    shortName: "BGGB",
-  },
-];
+
 
 /*
  * ============================================================
@@ -792,6 +573,27 @@ const Aeps = () => {
    */
   const [selectedBank, setSelectedBank] =
     useState<Bank | null>(null);
+  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+
+  // Fetch bank list on mount
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setLoadingBanks(true);
+      try {
+        const response = await getBankList();
+        if (response.success && response.data) {
+          setAvailableBanks([...response.data]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch bank list:", err);
+      } finally {
+        setLoadingBanks(false);
+      }
+    };
+
+    fetchBanks();
+  }, []);
 
 
 
@@ -1198,13 +1000,72 @@ const Aeps = () => {
       const pidDataXML = captureResult.data;
       console.log("Captured PidData XML ready for backend:", pidDataXML);
 
+      // Parse the captured RD Service PID XML
+      const pidData = parsePidXml(pidDataXML || "");
+
       setIsProcessing(false);
 
       /*
        * B. BALANCE CHECK
        */
       if (serviceId === "balance-check") {
-        completeTransaction("balance");
+        try {
+          const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+          const outletId = stored.outletId || stored.outletid || "";
+          const referenceKey = stored.referenceKey || "";
+
+          if (!outletId || !referenceKey) {
+            throw new Error("Outlet ID or Reference key is missing. Please complete eKYC first.");
+          }
+
+          // Get geolocation
+          const coords = await getGeolocationCoordinates({
+            fallbackLatitude: "0",
+            fallbackLongitude: "0",
+            timeout: 5000,
+          });
+
+          const payload = {
+            outlet_id: outletId,
+            referenceKey,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            aadhaar: customerAadhaar,
+            mobile: customerMobile,
+            bankiin: selectedBank?.iin || "",
+            ...pidData,
+          };
+
+          // Ensure ts is present
+          if (!payload.ts) {
+            payload.ts = new Date().toISOString();
+          }
+
+          console.log("Balance enquiry payload:", payload);
+          const result = await balanceEnquiry(payload);
+          console.log("Balance enquiry result:", result);
+
+          // Store the result and show it in the receipt
+          const resultData = result.data as Record<string, unknown>;
+          setReceiptData({
+            receiptType: "balance",
+            bankName: selectedBank?.name || "Unknown Bank",
+            amount: 0,
+            balance: (resultData?.balance as number) || 0,
+            aadhaar: `XXXX XXXX ${customerAadhaar.slice(-4)}`,
+            mobile: `+91 ${customerMobile}`,
+            transactionId: generateTransactionId(),
+            rrn: generateRRN(),
+            biometricDevice: "Mantra MFS100",
+            authMode: "Biometric Verified",
+            status: "SUCCESS",
+            transactions: [],
+          });
+          setShowReceipt(true);
+        } catch (error) {
+          console.error("Balance enquiry failed:", error);
+          alert(error instanceof Error ? error.message : "Failed to check balance");
+        }
         return;
       }
 
@@ -1979,16 +1840,17 @@ const Aeps = () => {
           <div className="relative">
             <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
             <select
-              value={selectedBank?.code || ""}
+              value={selectedBank?.iin || ""}
               onChange={(e) => {
-                const bank = banks.find(b => b.code === e.target.value);
+                const bank = availableBanks.find(b => b.iin === e.target.value);
                 if (bank) handleBankSelect(bank);
               }}
-              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer"
+              disabled={loadingBanks}
+              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50"
             >
-              <option value="" disabled>PLEASE SELECT BANK</option>
-              {banks.map(bank => (
-                <option key={bank.code} value={bank.code}>{bank.name}</option>
+              <option value="" disabled>{loadingBanks ? "Loading banks..." : "PLEASE SELECT BANK"}</option>
+              {availableBanks.map(bank => (
+                <option key={bank.iin} value={bank.iin}>{bank.name}</option>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
@@ -2115,10 +1977,6 @@ const Aeps = () => {
                   {selectedBank?.name}
                 </p>
               </div>
-
-              <span className="rounded-xl bg-purple-50 px-3 py-2 font-bold text-[#172033]">
-                {selectedBank?.shortName}
-              </span>
 
               <button
                 type="button"
