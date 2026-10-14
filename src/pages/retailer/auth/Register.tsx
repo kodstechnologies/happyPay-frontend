@@ -153,7 +153,6 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
     };
 
     fetchCurrentStep();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /*

@@ -572,6 +572,18 @@ export function getBankList() {
   );
 }
 
+export function getRetailerAadhaarAndMobile(userId: string) {
+  return apiClient<
+    ApiEnvelope<{
+      aadhaarNumber: string | null;
+      mobile: string | null;
+    }>
+  >("/api/v1/auth/retailer/aadhaar-mobile", {
+    method: "POST",
+    body: JSON.stringify({ userId }),
+  });
+}
+
 export function verifyRetailerLoginOtp(payload: {
   mobile: string;
   otp: string;

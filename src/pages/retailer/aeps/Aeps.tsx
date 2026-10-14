@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import AepsDeposit from "./AepsDeposit";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
+import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,10 +30,11 @@ import {
   checkAepsLoginStatus,
   verifyTfa,
   parsePidXml,
-  balanceEnquiry,
   type TfaPayload,
 } from "../../../services/api/retailer/aepsApi";
+import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { getToken } from "../../../utils/auth";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -58,9 +59,12 @@ type ReceiptType =
   | "balance-withdrawal";
 
 interface Bank {
+  id: number;
+  bank_id: number;
   name: string;
-  code: string;
-  shortName: string;
+  iin: string;
+  aeps_enabled: number;
+  aadhaarpay_enabled: number;
 }
 
 interface Transaction {
@@ -169,230 +173,7 @@ const extractActcode = (response: unknown): string => {
   return typeof value === "string" ? value : "";
 };
 
-/*
- * ============================================================
- * BANK LIST
- * ============================================================
- *
- * Existing banks are preserved.
- */
-const banks: Bank[] = [
-  {
-    name: "State Bank of India",
-    code: "SBIN",
-    shortName: "SBI",
-  },
-  {
-    name: "HDFC Bank",
-    code: "HDFC",
-    shortName: "HDFC",
-  },
-  {
-    name: "ICICI Bank",
-    code: "ICIC",
-    shortName: "ICICI",
-  },
-  {
-    name: "Punjab National Bank",
-    code: "PUNB",
-    shortName: "PNB",
-  },
-  {
-    name: "Bank of Baroda",
-    code: "BARB",
-    shortName: "BOB",
-  },
-  {
-    name: "Axis Bank",
-    code: "UTIB",
-    shortName: "AXIS",
-  },
-  {
-    name: "Canara Bank",
-    code: "CNRB",
-    shortName: "CNRB",
-  },
-  {
-    name: "Union Bank of India",
-    code: "UBIN",
-    shortName: "UBI",
-  },
-  {
-    name: "Bank of India",
-    code: "BKID",
-    shortName: "BOI",
-  },
-  {
-    name: "Kotak Mahindra Bank",
-    code: "KKBK",
-    shortName: "KOTAK",
-  },
-  {
-    name: "Central Bank of India",
-    code: "CBIN",
-    shortName: "CBI",
-  },
-  {
-    name: "Indian Bank",
-    code: "IDIB",
-    shortName: "IB",
-  },
-  {
-    name: "Yes Bank",
-    code: "YESB",
-    shortName: "YES",
-  },
-  {
-    name: "IndusInd Bank",
-    code: "INDB",
-    shortName: "INDUS",
-  },
-  {
-    name: "IDBI Bank",
-    code: "IBKL",
-    shortName: "IDBI",
-  },
-  {
-    name: "UCO Bank",
-    code: "UCBA",
-    shortName: "UCO",
-  },
-  {
-    name: "Punjab & Sind Bank",
-    code: "PSIB",
-    shortName: "PSB",
-  },
-  {
-    name: "Federal Bank",
-    code: "FDRL",
-    shortName: "FED",
-  },
-  {
-    name: "Bank of Maharashtra",
-    code: "MAHB",
-    shortName: "BOM",
-  },
-  {
-    name: "Indian Overseas Bank",
-    code: "IOBA",
-    shortName: "IOB",
-  },
-  {
-    name: "Karnataka Bank",
-    code: "KARB",
-    shortName: "KBL",
-  },
-  {
-    name: "South Indian Bank",
-    code: "SIBL",
-    shortName: "SIB",
-  },
-  {
-    name: "RBL Bank",
-    code: "RATN",
-    shortName: "RBL",
-  },
-  {
-    name: "Bandhan Bank",
-    code: "BDBL",
-    shortName: "BANDHAN",
-  },
-  {
-    name: "IDFC FIRST Bank",
-    code: "IDFB",
-    shortName: "IDFC",
-  },
-  {
-    name: "AU Small Finance Bank",
-    code: "AUBL",
-    shortName: "AU",
-  },
-  {
-    name: "Equitas Small Finance Bank",
-    code: "ESFB",
-    shortName: "EQUITAS",
-  },
-  {
-    name: "Ujjivan Small Finance Bank",
-    code: "UJVN",
-    shortName: "UJJIVAN",
-  },
-  {
-    name: "Jana Small Finance Bank",
-    code: "JSFB",
-    shortName: "JANA",
-  },
-  {
-    name: "ESAF Small Finance Bank",
-    code: "ESMF",
-    shortName: "ESAF",
-  },
-  {
-    name: "Suryoday Small Finance Bank",
-    code: "SURY",
-    shortName: "SURYODAY",
-  },
-  {
-    name: "DCB Bank",
-    code: "DCBL",
-    shortName: "DCB",
-  },
-  {
-    name: "City Union Bank",
-    code: "CIUB",
-    shortName: "CUB",
-  },
-  {
-    name: "Tamilnad Mercantile Bank",
-    code: "TMBL",
-    shortName: "TMB",
-  },
-  {
-    name: "Karur Vysya Bank",
-    code: "KVBL",
-    shortName: "KVB",
-  },
-  {
-    name: "Dhanlaxmi Bank",
-    code: "DLXB",
-    shortName: "DLB",
-  },
-  {
-    name: "Karnataka Gramin Bank",
-    code: "PKGB",
-    shortName: "KGB",
-  },
-  {
-    name: "Kerala Gramin Bank",
-    code: "KLGB",
-    shortName: "KGB",
-  },
-  {
-    name: "Rajasthan Marudhara Gramin Bank",
-    code: "RMGB",
-    shortName: "RMGB",
-  },
-  {
-    name: "Andhra Pradesh Grameena Vikas Bank",
-    code: "APGV",
-    shortName: "APGVB",
-  },
-  {
-    name: "Telangana Grameena Bank",
-    code: "TGBL",
-    shortName: "TGB",
-  },
-  {
-    name: "Odisha Gramya Bank",
-    code: "IOBA",
-    shortName: "OGB",
-  },
-  {
-    name: "Baroda Gujarat Gramin Bank",
-    code: "BARB",
-    shortName: "BGGB",
-  },
-];
+
 
 /*
  * ============================================================
@@ -421,8 +202,9 @@ const generateRRN = () => {
 
 const ProgressHeader = ({ step }: { step: Step }) => {
   const progressSteps = [
-    { label: "Aadhaar Auth" },
-    { label: "Bank Selection" },
+    { label: "Mobile" },
+    { label: "Aadhaar" },
+    { label: "Bank" },
     { label: "Review" },
     { label: "Service" },
   ];
@@ -448,14 +230,14 @@ const Aeps = () => {
 
   /*
    * Step 0 = Retailer 2FA
-   * Step 1 = Aadhaar & Biometric
-   * Step 2 = Bank & Mobile
-   * Step 3 = Review
-   * Step 4 = AEPS Service
+   * Step 1 = Mobile Number
+   * Step 2 = Aadhaar Number
+   * Step 3 = Bank Selection
+   * Step 4 = Review
+   * Step 5 = Services (Cash Withdrawal, Balance Enquiry)
    */
 
   const [step, setStep] = useState<Step>(0);
-  const [flowMode, setFlowMode] = useState<"withdraw" | "deposit" | "">("");
 
   // Real Biometric States
   const [availableDevices, setAvailableDevices] = useState<(import("../../../utils/rdService").ActiveDevice & {
@@ -637,8 +419,11 @@ const Aeps = () => {
     }
   });
 
-  const [retailerAadhaar, setRetailerAadhaar] = useState(
-    () => storedRetailer?.aadhaarNumber || storedRetailer?.aadhaar || ""
+  const [retailerAadhaar, setRetailerAadhaar] = useState("");
+  const [retailerMobile, setRetailerMobile] = useState(() =>
+    storedRetailer?.mobile ||
+    localStorage.getItem("retailerMobile") ||
+    "+91 1234567890"
   );
 
   const [isCapturingRetailer, setIsCapturingRetailer] =
@@ -746,23 +531,70 @@ const Aeps = () => {
 
     void checkStatus();
   }, []);
+
+  // Fetch retailer Aadhaar and mobile on mount
+  useEffect(() => {
+    const fetchRetailerDetails = async () => {
+      try {
+        const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+        const userId = stored.id || stored._id || stored.userId;
+
+        if (userId) {
+          const response = await getRetailerAadhaarAndMobile(userId);
+          if (response.success && response.data) {
+            if (response.data.aadhaarNumber) {
+              setRetailerAadhaar(response.data.aadhaarNumber);
+            }
+            if (response.data.mobile) {
+              setRetailerMobile(response.data.mobile);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch retailer details:", error);
+      }
+    };
+
+    void fetchRetailerDetails();
+  }, []);
+
+  /*
+   * Customer Mobile
+   */
+  const [customerMobile, setCustomerMobile] = useState("");
+
   /*
    * Customer Aadhaar
    */
   const [customerAadhaar, setCustomerAadhaar] =
     useState("");
 
-  const [customerVerified, setCustomerVerified] =
-    useState(false);
-
-  const [isVerifyingCustomer, setIsVerifyingCustomer] =
-    useState(false);
-
   /*
    * Bank
    */
   const [selectedBank, setSelectedBank] =
     useState<Bank | null>(null);
+  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(false);
+
+  // Fetch bank list on mount
+  useEffect(() => {
+    const fetchBanks = async () => {
+      setLoadingBanks(true);
+      try {
+        const response = await getBankList();
+        if (response.success && response.data) {
+          setAvailableBanks([...response.data]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch bank list:", err);
+      } finally {
+        setLoadingBanks(false);
+      }
+    };
+
+    fetchBanks();
+  }, []);
 
 
 
@@ -774,13 +606,6 @@ const Aeps = () => {
    */
   const [selectedService, setSelectedService] =
     useState<ServiceId | "">("");
-
-  /*
-   * Balance Enquiry
-   */
-  const [isCheckingBalance, setIsCheckingBalance] = useState(false);
-  const [balanceResult, setBalanceResult] = useState<Record<string, unknown> | null>(null);
-  const [balanceError, setBalanceError] = useState("");
 
   /*
    * Modal
@@ -815,13 +640,6 @@ const Aeps = () => {
   const [receiptData, setReceiptData] =
     useState<ReceiptData | null>(null);
 
-  const retailerMobile =
-    storedRetailer?.mobile ||
-    localStorage.getItem("retailerMobile") ||
-    "+91 1234567890";
-
-  const customerMobile = "+91 98XXXX832";
-
   /*
    * ============================================================
    * COMMON HELPERS
@@ -852,12 +670,6 @@ const Aeps = () => {
       .slice(0, 12);
 
     setCustomerAadhaar(value);
-
-    /*
-     * If Aadhaar is edited after verification,
-     * verification should be reset.
-     */
-    setCustomerVerified(false);
   };
 
   /*
@@ -1101,28 +913,6 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * CUSTOMER AADHAAR
-   * ============================================================
-   */
-
-  const handleCustomerVerify = () => {
-    if (customerAadhaar.length !== 12) {
-      return;
-    }
-
-    setIsVerifyingCustomer(true);
-
-    /*
-     * Temporary frontend simulation.
-     */
-    setTimeout(() => {
-      setIsVerifyingCustomer(false);
-      setCustomerVerified(true);
-    }, 2000);
-  };
-
-  /*
-   * ============================================================
    * BANK SELECTION
    * ============================================================
    */
@@ -1211,13 +1001,78 @@ const Aeps = () => {
       const pidDataXML = captureResult.data;
       console.log("Captured PidData XML ready for backend:", pidDataXML);
 
+      // Parse the captured RD Service PID XML
+      const pidData = parsePidXml(pidDataXML || "");
+
       setIsProcessing(false);
 
       /*
        * B. BALANCE CHECK
        */
       if (serviceId === "balance-check") {
-        completeTransaction("balance");
+        try {
+          const token = getToken();
+          if (!token) {
+            throw new Error("Authentication token not found. Please login again.");
+          }
+
+          // Decode JWT token to get outletId and referenceKey
+          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+          const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+          const referenceKey = tokenPayload.referenceKey || "";
+
+          if (!outletId || !referenceKey) {
+            throw new Error("Outlet ID or Reference key is missing. Please complete eKYC first.");
+          }
+
+          // Get geolocation
+          const coords = await getGeolocationCoordinates({
+            fallbackLatitude: "0",
+            fallbackLongitude: "0",
+            timeout: 5000,
+          });
+
+          const payload = {
+            outlet_id: outletId,
+            referenceKey,
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            aadhaar: customerAadhaar,
+            mobile: customerMobile,
+            bankiin: selectedBank?.iin || "",
+            ...pidData,
+          };
+
+          // Ensure ts is present
+          if (!payload.ts) {
+            payload.ts = new Date().toISOString();
+          }
+
+          console.log("Balance enquiry payload:", payload);
+          const result = await balanceEnquiry(payload);
+          console.log("Balance enquiry result:", result);
+
+          // Store the result and show it in the receipt
+          const resultData = result.data as Record<string, unknown>;
+          setReceiptData({
+            receiptType: "balance",
+            bankName: selectedBank?.name || "Unknown Bank",
+            amount: 0,
+            balance: (resultData?.balance as number) || 0,
+            aadhaar: `XXXX XXXX ${customerAadhaar.slice(-4)}`,
+            mobile: `+91 ${customerMobile}`,
+            transactionId: generateTransactionId(),
+            rrn: generateRRN(),
+            biometricDevice: "Mantra MFS100",
+            authMode: "Biometric Verified",
+            status: "SUCCESS",
+            transactions: [],
+          });
+          setShowReceipt(true);
+        } catch (error) {
+          console.error("Balance enquiry failed:", error);
+          alert(error instanceof Error ? error.message : "Failed to check balance");
+        }
         return;
       }
 
@@ -1845,67 +1700,65 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 1: FLOW SELECTION
+   * STEP 1: CUSTOMER MOBILE
    * ============================================================
    */
-  const renderFlowSelection = () => {
+  const renderCustomerMobile = () => {
     return (
-      <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <>
         <div>
-          <h2 className="text-2xl font-bold text-slate-900">Step 1: Select Transaction</h2>
-          <p className="mt-2 text-base text-slate-500">Choose whether you want to deposit or withdraw cash.</p>
-        </div>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button
-            onClick={() => {
-              setFlowMode("withdraw");
-              setStep(2);
-            }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
-          >
-            <WalletCards className="h-12 w-12 text-[#7c3aed] mb-4" />
-            <span className="text-xl font-bold text-slate-900">Cash Withdraw</span>
-          </button>
-          <button
-            onClick={() => {
-              setFlowMode("deposit");
-              setStep(2);
-            }}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-[#7c3aed] hover:shadow-lg transition-all"
-          >
-            <Banknote className="h-12 w-12 text-[#7c3aed] mb-4" />
-            <span className="text-xl font-bold text-slate-900">Cash Deposit</span>
-          </button>
-          <button
-            onClick={handleBalanceEnquiry}
-            disabled={isCheckingBalance}
-            className="flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-slate-200 bg-white hover:border-emerald-500 hover:shadow-lg transition-all disabled:opacity-50"
-          >
-            <Banknote className="h-12 w-12 text-emerald-600 mb-4" />
-            <span className="text-xl font-bold text-slate-900">
-              {isCheckingBalance ? "Checking..." : "Balance Enquiry"}
-            </span>
-          </button>
+          <h2 className="text-2xl font-bold text-slate-900">
+            Step 1: Customer Mobile Number
+          </h2>
+          <p className="mt-2 text-base text-slate-500">
+            Enter the customer's registered mobile number
+          </p>
         </div>
 
-        {balanceError && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
-            {balanceError}
-          </div>
-        )}
+        <section className="w-full max-w-2xl">
+          <label
+            htmlFor="customer-mobile"
+            className="mb-2 block text-sm font-bold text-slate-900"
+          >
+            Mobile Number
+          </label>
 
-        {balanceResult && (
-          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-            <p className="text-xs font-semibold text-emerald-700 mb-2">Balance Enquiry Result</p>
-            <pre className="text-xs text-emerald-800 overflow-auto max-h-32">
-              {JSON.stringify(balanceResult, null, 2)}
-            </pre>
+          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
+            <span className="text-sm font-bold text-slate-500">+91</span>
+            <input
+              id="customer-mobile"
+              type="text"
+              inputMode="numeric"
+              maxLength={10}
+              value={customerMobile}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                setCustomerMobile(value);
+              }}
+              placeholder="Enter 10-digit mobile number"
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+            />
           </div>
-        )}
-      </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={() => setStep(2)}
+          disabled={customerMobile.length !== 10}
+          className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
+        >
+          <ArrowRight className="h-5 w-5" />
+          CONTINUE TO AADHAAR
+        </button>
+      </>
     );
   };
+
+  /*
+   * ============================================================
+   * STEP 2: CUSTOMER AADHAAR
+   * ============================================================
+   */
 
   /*
    * ============================================================
@@ -1921,13 +1774,12 @@ const Aeps = () => {
     return (
       <>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            Step 2: Aadhaar & Biometric
+          <h2 className="text-2xl font-bold text-slate-900">
+            Step 2: Customer Aadhaar Number
           </h2>
 
-          <p className="mt-1 text-sm text-slate-500">
-            Verify customer identity using connected
-            biometric device.
+          <p className="mt-2 text-base text-slate-500">
+            Enter the customer's Aadhaar number for verification
           </p>
         </div>
 
@@ -1936,15 +1788,10 @@ const Aeps = () => {
             htmlFor="customer-aadhaar"
             className="mb-2 block text-sm font-bold text-slate-900"
           >
-            Customer Aadhaar Number
+            Aadhaar Number
           </label>
 
-          <div
-            className={`flex min-h-[52px] items-center gap-3 rounded-xl border-2 bg-white px-4 ${customerVerified
-              ? "border-slate-200"
-              : "border-slate-200 focus-within:border-[#172033]"
-              }`}
-          >
+          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
             <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
 
             <input
@@ -1953,70 +1800,17 @@ const Aeps = () => {
               inputMode="numeric"
               maxLength={12}
               value={customerAadhaar}
-              onChange={
-                handleCustomerAadhaarChange
-              }
-              disabled={
-                customerVerified ||
-                isVerifyingCustomer
-              }
+              onChange={handleCustomerAadhaarChange}
               placeholder="Enter 12-digit Aadhaar number"
               className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
             />
-
-            {!customerVerified &&
-              customerAadhaar.length ===
-              12 && (
-                <button
-                  type="button"
-                  onClick={
-                    handleCustomerVerify
-                  }
-                  disabled={
-                    isVerifyingCustomer
-                  }
-                  className="shrink-0 text-xs font-bold text-[#172033] hover:text-[#101827] disabled:opacity-60"
-                >
-                  {isVerifyingCustomer
-                    ? "VERIFYING..."
-                    : "VERIFY"}
-                </button>
-              )}
-
-            {customerVerified && (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-purple-600 transition hover:bg-purple-700">
-                <Check className="h-4 w-4 text-white" />
-              </div>
-            )}
           </div>
         </section>
 
-        {customerVerified && (
-          <div className="w-full max-w-2xl flex items-center justify-between rounded-xl border-2 border-[#cbd3e3] bg-purple-50 p-4">
-            <div className="flex items-center gap-3">
-              <Phone className="h-5 w-5 text-[#172033]" />
-
-              <div>
-                <p className="text-xs font-semibold text-slate-600">
-                  Registered Mobile with Aadhaar
-                </p>
-
-                <p className="mt-0.5 text-sm font-bold text-slate-900">
-                  {customerMobile}
-                </p>
-              </div>
-            </div>
-
-            <span className="rounded-full bg-purple-50 px-2 py-1 text-xs font-bold text-[#172033]">
-              ✓ Verified
-            </span>
-          </div>
-        )}
-
         <button
           type="button"
-          onClick={() => setStep(4)}
-          disabled={!customerVerified}
+          onClick={() => setStep(3)}
+          disabled={customerAadhaar.length !== 12}
           className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
         >
           <ArrowRight className="h-5 w-5" />
@@ -2028,8 +1822,7 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 2
-   * BANK SELECTION
+   * STEP 3: BANK SELECTION
    * ============================================================
    */
 
@@ -2038,11 +1831,11 @@ const Aeps = () => {
       <>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Step 2: Bank
+            Step 3: Bank Selection
           </h2>
 
           <p className="mt-2 text-base text-slate-500">
-            select the linked bank account.
+            Select the customer's linked bank account
           </p>
         </div>
 
@@ -2054,16 +1847,17 @@ const Aeps = () => {
           <div className="relative">
             <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
             <select
-              value={selectedBank?.code || ""}
+              value={selectedBank?.iin || ""}
               onChange={(e) => {
-                const bank = banks.find(b => b.code === e.target.value);
+                const bank = availableBanks.find(b => b.iin === e.target.value);
                 if (bank) handleBankSelect(bank);
               }}
-              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer"
+              disabled={loadingBanks}
+              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50"
             >
-              <option value="" disabled>PLEASE SELECT BANK</option>
-              {banks.map(bank => (
-                <option key={bank.code} value={bank.code}>{bank.name}</option>
+              <option value="" disabled>{loadingBanks ? "Loading banks..." : "PLEASE SELECT BANK"}</option>
+              {availableBanks.map(bank => (
+                <option key={bank.iin} value={bank.iin}>{bank.name}</option>
               ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
@@ -2092,7 +1886,7 @@ const Aeps = () => {
 
         <button
           type="button"
-          onClick={() => setStep(3)}
+          onClick={() => setStep(4)}
           disabled={!selectedBank || !consent}
           className="flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md disabled:bg-[#aab2c0] sm:text-xl"
         >
@@ -2105,8 +1899,7 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 3
-   * REVIEW
+   * STEP 4: REVIEW
    * ============================================================
    */
 
@@ -2119,8 +1912,7 @@ const Aeps = () => {
           </h2>
 
           <p className="mt-2 text-base text-slate-500">
-            Please confirm the details before
-            proceeding to services.
+            Please confirm the details before proceeding to services
           </p>
         </div>
 
@@ -2130,6 +1922,30 @@ const Aeps = () => {
           </h3>
 
           <div className="overflow-hidden rounded-2xl border-2 border-slate-200 bg-white">
+            <div className="flex items-center gap-4 border-b-2 border-slate-200 p-5">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
+                <Phone className="h-7 w-7 text-[#172033]" />
+              </div>
+
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-slate-500">
+                  Mobile Number
+                </p>
+
+                <p className="mt-1 text-lg font-bold text-slate-900">
+                  +91 {customerMobile}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
+              >
+                <Edit3 className="h-5 w-5" />
+              </button>
+            </div>
+
             <div className="flex items-center gap-4 border-b-2 border-slate-200 p-5">
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
                 <IdCard className="h-7 w-7 text-[#172033]" />
@@ -2145,37 +1961,9 @@ const Aeps = () => {
                 </p>
               </div>
 
-              <span className="rounded-full bg-purple-50 px-3 py-2 text-sm font-bold text-[#172033]">
-                ✓ Verified
-              </span>
-
               <button
                 type="button"
-                onClick={() => setStep(1)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
-              >
-                <Edit3 className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-4 border-b-2 border-slate-200 p-5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
-                <Phone className="h-7 w-7 text-[#172033]" />
-              </div>
-
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-500">
-                  Mobile Number
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-slate-900">
-                  {customerMobile}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(1)}
+                onClick={() => setStep(2)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
               >
                 <Edit3 className="h-5 w-5" />
@@ -2197,13 +1985,9 @@ const Aeps = () => {
                 </p>
               </div>
 
-              <span className="rounded-xl bg-purple-50 px-3 py-2 font-bold text-[#172033]">
-                {selectedBank?.shortName}
-              </span>
-
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(3)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
               >
                 <Edit3 className="h-5 w-5" />
@@ -2272,54 +2056,6 @@ const Aeps = () => {
         bgClass: "bg-purple-50",
       },
     ];
-
-  const handleBalanceEnquiry = async () => {
-    setIsCheckingBalance(true);
-    setBalanceError("");
-    setBalanceResult(null);
-
-    try {
-      const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const outletId = stored.outletId || stored.outletid || "";
-      const referenceKey = stored.referenceKey || "";
-      const retailerAadhaar = stored.aadhaarNumber || stored.aadhaar || "";
-
-      if (!outletId) {
-        throw new Error("Outlet ID is missing. Please check your retailer account.");
-      }
-
-      if (!referenceKey) {
-        throw new Error("Reference key is missing. Please complete eKYC first.");
-      }
-
-      if (!retailerAadhaar || retailerAadhaar.length !== 12) {
-        throw new Error("Retailer Aadhaar number is missing or invalid. Please complete your profile.");
-      }
-
-      // Get geolocation
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
-
-      const payload = {
-        outlet_id: outletId,
-        referenceKey,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        aadhaar: retailerAadhaar,
-        ts: new Date().toISOString(),
-      };
-
-      const result = await balanceEnquiry(payload);
-      setBalanceResult(result.data as Record<string, unknown> | null);
-    } catch (error: unknown) {
-      setBalanceError(error instanceof Error ? error.message : "Failed to check balance");
-    } finally {
-      setIsCheckingBalance(false);
-    }
-  };
 
   const renderServices = () => {
     return (
@@ -3000,7 +2736,7 @@ const Aeps = () => {
 
 
       <section className="hp-card overflow-hidden rounded-2xl p-5 sm:p-7">
-        {step > 1 && flowMode === "withdraw" && (
+        {step > 0 && step <= 5 && (
           <div className="mx-auto mt-4 w-full max-w-3xl rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
             <ProgressHeader step={step as Step} />
           </div>
@@ -3011,12 +2747,11 @@ const Aeps = () => {
             {modalType === "" ? (
               <>
                 {step === 0 && renderRetailerAuth()}
-                {step === 1 && renderFlowSelection()}
-                {step === 2 && flowMode === "deposit" && <AepsDeposit />}
-                {step === 2 && flowMode === "withdraw" && renderCustomerAadhaar()}
-                {step === 3 && flowMode === "withdraw" && renderBankSelection()}
-                {step === 4 && flowMode === "withdraw" && renderReview()}
-                {step === 5 && flowMode === "withdraw" && renderServices()}
+                {step === 1 && renderCustomerMobile()}
+                {step === 2 && renderCustomerAadhaar()}
+                {step === 3 && renderBankSelection()}
+                {step === 4 && renderReview()}
+                {step === 5 && renderServices()}
               </>
             ) : (
               <div className="flex w-full items-center justify-center bg-white rounded-2xl">
