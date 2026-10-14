@@ -67,7 +67,8 @@ interface Beneficiary {
   beneficiaryId: number | string;
   name: string;
   initials: string;
-  bankName: string;
+  bank: string;
+  bankName?: string;
   accountNumber: string;
   ifsc: string;
   mobile?: string;
@@ -239,12 +240,14 @@ const Dmt = () => {
         const mapped = list.map((b: any) => {
           const beneId = b.beneficiaryId || b.bene_id || b.id || "";
           const beneName = b.bene_name || b.name || "Unknown";
+          const bankVal = String(b.bank || b.bankname || b.bank_name || b.bankName || "Bank").trim();
           return {
             id: beneId,
             beneficiaryId: beneId,
             name: beneName,
             initials: getInitials(beneName),
-            bankName: b.bankname || b.bank_name || b.bankName || "Bank",
+            bank: bankVal,
+            bankName: bankVal,
             accountNumber: b.account || b.account_number || b.accountNumber || "",
             ifsc: b.ifsc || "",
             mobile: b.mobile || customerMobile || "",
@@ -384,11 +387,11 @@ const Dmt = () => {
   const [isProcessingTransfer, setIsProcessingTransfer] =
     useState(false);
 
-  /* Transaction OTP for amounts > 5000 */
+  /* Transaction OTP */
   const [transactionOtp, setTransactionOtp] = useState<string>("");
   const [isSendingTxnOtp, setIsSendingTxnOtp] = useState<boolean>(false);
-  const [txnOtpSent, setTxnOtpSent] = useState<boolean>(false);
   const [txnOtpTimer, setTxnOtpTimer] = useState<number>(0);
+  const [showTxnOtpModal, setShowTxnOtpModal] = useState<boolean>(false);
 
   useEffect(() => {
     if (txnOtpTimer <= 0) return;
@@ -1223,8 +1226,8 @@ const Dmt = () => {
     setTransferMode("IMPS");
 
     setTransactionOtp("");
-    setTxnOtpSent(false);
     setTxnOtpTimer(0);
+    setShowTxnOtpModal(false);
 
     setScreen("send-money");
   };
@@ -1234,7 +1237,8 @@ const Dmt = () => {
   ========================= */
 
   const handleSendTransactionOtp = async () => {
-    if (!customerMobile || numericSendAmount <= 5000) {
+    if (!customerMobile || numericSendAmount <= 0) {
+      toast.error("Please enter a valid transfer amount.");
       return;
     }
 
@@ -1244,19 +1248,30 @@ const Dmt = () => {
       return;
     }
 
+    const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
+    const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+    const effectiveRefKey =
+      activeReferenceKey ||
+      referenceKeyRef.current ||
+      sessionStorage.getItem("dmt_remitter_ref_key") ||
+      storedUser?.referenceKey ||
+      "";
+
     setIsSendingTxnOtp(true);
 
     try {
       const res = await generateTransactionOtpApi({
-        mobile: customerMobile.trim(),
+        referenceKey: effectiveRefKey,
         amount: numericSendAmount,
-        bene_id: targetBeneId,
+        beneficiaryId: targetBeneId,
+        outletid: effectiveOutletId,
+        remitterMobile: customerMobile.trim(),
       });
 
       if (res?.success !== false && res?.status !== "FAILED") {
         toast.success(res?.message || res?.msg || "Transaction OTP sent to customer mobile successfully.");
-        setTxnOtpSent(true);
         setTxnOtpTimer(60);
+        setShowTxnOtpModal(true);
       } else {
         toast.error(res?.message || res?.msg || "Failed to generate transaction OTP");
       }
@@ -1269,31 +1284,43 @@ const Dmt = () => {
 
   const canTransfer =
     numericSendAmount > 0 &&
-    numericSendAmount <= availableBalance &&
-    (numericSendAmount <= 5000 || transactionOtp.trim().length >= 4);
+    numericSendAmount <= availableBalance;
 
   /* =========================
-     TRANSFER NOW
+     INITIATE TRANSFER (SEND OTP)
   ========================= */
 
-  const handleTransferNow = async () => {
+  const handleInitiateTransfer = async () => {
+    if (!selectedBeneficiary) {
+      toast.error("Please select a beneficiary.");
+      return;
+    }
+
+    if (numericSendAmount <= 0) {
+      toast.error("Please enter a valid transfer amount.");
+      return;
+    }
+
+    if (numericSendAmount > availableBalance) {
+      toast.error("Amount cannot exceed available wallet balance.");
+      return;
+    }
+
+    setTransactionOtp("");
+    await handleSendTransactionOtp();
+  };
+
+  /* =========================
+     CONFIRM TRANSFER WITH OTP
+  ========================= */
+
+  const handleConfirmTransferWithOtp = async () => {
     if (!selectedBeneficiary) {
       return;
     }
 
-    if (!canTransfer) {
-      return;
-    }
-
-    // Amount > 5000 requires customer OTP validation
-    if (numericSendAmount > 5000 && !txnOtpSent) {
-      toast.info("Please request and enter the OTP to authorize transactions above ₹5,000.");
-      await handleSendTransactionOtp();
-      return;
-    }
-
-    if (numericSendAmount > 5000 && transactionOtp.trim().length < 4) {
-      toast.error("Please enter the OTP sent to customer mobile to confirm transfer above ₹5,000.");
+    if (!transactionOtp.trim() || transactionOtp.trim().length < 4) {
+      toast.error("Please enter a valid OTP (at least 4 digits).");
       return;
     }
 
@@ -1324,7 +1351,7 @@ const Dmt = () => {
         account: selectedBeneficiary.accountNumber.trim(),
         remitterMobile: customerMobile.trim(),
         outletid: effectiveOutletId,
-        ...(numericSendAmount > 5000 ? { otp: transactionOtp.trim() } : {}),
+        otp: transactionOtp.trim(),
       };
 
       const res = await executeTransactionApi(payload);
@@ -1338,10 +1365,11 @@ const Dmt = () => {
       
       const txnId = res?.data?.txnid || res?.data?.reference_id || clientTxnId;
       setTransactionId(txnId);
+      setShowTxnOtpModal(false);
       setTransactionOtp("");
-      setTxnOtpSent(false);
       fetchWallet();
       setScreen("success");
+      toast.success("Transfer completed successfully!");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Failed to execute DMT transfer"));
     } finally {
@@ -1361,8 +1389,8 @@ const Dmt = () => {
     setOtpTimer(30);
 
     setTransactionOtp("");
-    setTxnOtpSent(false);
     setTxnOtpTimer(0);
+    setShowTxnOtpModal(false);
 
     setSelectedBeneficiary(null);
 
@@ -2076,7 +2104,7 @@ const Dmt = () => {
                       </h3>
 
                       <p className="mt-0.5 text-sm font-medium text-[#555b67]">
-                        {beneficiary.bankName}
+                        {beneficiary?.bank}
                       </p>
 
                       <p className="mt-0.5 text-xs text-[#555b67] sm:text-sm">
@@ -2418,7 +2446,7 @@ const Dmt = () => {
                 </h2>
 
                 <p className="mt-1 text-base font-semibold text-slate-900">
-                  {selectedBeneficiary.bankName}
+                  {selectedBeneficiary.bank || selectedBeneficiary.bankName}
                 </p>
 
                 <p className="mt-1 text-sm text-[#555b67]">
@@ -2533,58 +2561,6 @@ const Dmt = () => {
             </div>
           </section>
 
-          {/* OTP Section for amounts > 5000 */}
-          {numericSendAmount > 5000 && (
-            <section className="mt-6 rounded-[18px] border border-amber-200 bg-amber-50/60 p-5 shadow-xs sm:p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h4 className="flex items-center gap-2 text-sm font-bold text-amber-950">
-                    <ShieldCheck className="h-4 w-4 text-amber-600" />
-                    Transaction OTP Required (&gt; ₹5,000)
-                  </h4>
-                  <p className="mt-1 text-xs text-amber-800">
-                    Per RBI regulations, transfers exceeding ₹5,000 require customer OTP authorization sent to{" "}
-                    <span className="font-semibold text-amber-950">+91 {customerMobile}</span>.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSendTransactionOtp}
-                  disabled={isSendingTxnOtp || txnOtpTimer > 0}
-                  className="w-fit rounded-xl bg-[#7c3aed] px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-[#6d28d9] disabled:opacity-50"
-                >
-                  {isSendingTxnOtp
-                    ? "Sending..."
-                    : txnOtpTimer > 0
-                    ? `Resend in ${txnOtpTimer}s`
-                    : txnOtpSent
-                    ? "Resend OTP"
-                    : "Send OTP"}
-                </button>
-              </div>
-
-              <div className="mt-4">
-                <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  Enter Customer OTP
-                </label>
-                <div className="flex max-w-[280px] items-center rounded-xl border border-slate-300 bg-white px-3 py-2 focus-within:border-[#7c3aed]">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={8}
-                    value={transactionOtp}
-                    onChange={(e) => setTransactionOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
-                    placeholder="Enter 4-8 digit OTP"
-                    className="w-full bg-transparent text-sm font-bold tracking-widest text-slate-900 outline-none"
-                  />
-                  {transactionOtp.length >= 4 && (
-                    <Check className="h-4 w-4 text-emerald-600" />
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-
           {/* Summary */}
           {numericSendAmount > 0 && (
             <section className="mt-6 rounded-[18px] border border-slate-200 bg-white p-5 sm:p-6">
@@ -2644,17 +2620,18 @@ const Dmt = () => {
           {/* Transfer Now */}
           <button
             type="button"
-            onClick={handleTransferNow}
-            disabled={
-              !canTransfer ||
-              isProcessingTransfer
-            }
-            className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#c90026] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
+            onClick={handleInitiateTransfer}
+            disabled={!canTransfer || isSendingTxnOtp || isProcessingTransfer}
+            className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
           >
-            {isProcessingTransfer ? (
+            {isSendingTxnOtp ? (
               <div className="flex items-center gap-3">
                 <span className="h-6 w-6 animate-spin rounded-full border-3 border-white/30 border-t-white" />
-
+                SENDING OTP...
+              </div>
+            ) : isProcessingTransfer ? (
+              <div className="flex items-center gap-3">
+                <span className="h-6 w-6 animate-spin rounded-full border-3 border-white/30 border-t-white" />
                 PROCESSING...
               </div>
             ) : (
@@ -2669,6 +2646,120 @@ const Dmt = () => {
           >
             SAVE
           </button>
+
+          {/* Transaction OTP Verification Modal */}
+          {showTxnOtpModal && selectedBeneficiary && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-100 text-[#7c3aed]">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900">Authorize Money Transfer</h3>
+                      <p className="text-[11px] text-slate-500">Transaction Verification</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isProcessingTransfer}
+                    onClick={() => {
+                      if (!isProcessingTransfer) {
+                        setShowTxnOtpModal(false);
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <div className="rounded-xl border border-slate-100 bg-[#f8fafc] p-3 text-xs space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Beneficiary:</span>
+                      <span className="font-semibold text-slate-900">{selectedBeneficiary.name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Account:</span>
+                      <span className="font-semibold text-slate-900">{selectedBeneficiary.accountNumber} ({selectedBeneficiary.bank || selectedBeneficiary.bankName})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Amount:</span>
+                      <span className="font-bold text-[#7c3aed]">₹{numericSendAmount.toFixed(2)} ({transferMode})</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Customer Mobile:</span>
+                      <span className="font-semibold text-slate-900">+91 {customerMobile}</span>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-xs text-slate-600">
+                    Enter the OTP sent to customer mobile <span className="font-bold text-slate-900">+91 {customerMobile}</span> to authorize this transfer:
+                  </p>
+
+                  <div className="mt-3 flex justify-center">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={8}
+                      autoFocus
+                      value={transactionOtp}
+                      onChange={(e) => setTransactionOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+                      placeholder="Enter OTP"
+                      disabled={isProcessingTransfer}
+                      className="h-12 w-full rounded-xl border border-slate-300 bg-white px-4 text-center text-lg font-bold tracking-widest text-slate-900 outline-none focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/20"
+                    />
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
+                    <span>Didn't receive OTP?</span>
+                    {txnOtpTimer > 0 ? (
+                      <span className="font-semibold text-slate-600">
+                        Resend in {txnOtpTimer}s
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={isSendingTxnOtp || isProcessingTransfer}
+                        onClick={handleSendTransactionOtp}
+                        className="font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
+                      >
+                        {isSendingTxnOtp ? "Sending..." : "Resend OTP"}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      disabled={isProcessingTransfer}
+                      onClick={() => setShowTxnOtpModal(false)}
+                      className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={transactionOtp.trim().length < 4 || isProcessingTransfer}
+                      onClick={handleConfirmTransferWithOtp}
+                      className="rounded-xl bg-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white shadow-md hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:bg-[#b8bec9]"
+                    >
+                      {isProcessingTransfer ? (
+                        <div className="flex items-center gap-2">
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                          Processing...
+                        </div>
+                      ) : (
+                        "Confirm & Transfer"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     );
@@ -2747,7 +2838,7 @@ const Dmt = () => {
                 </span>
 
                 <span className="text-right font-semibold text-[#172033]">
-                  {selectedBeneficiary.bankName}
+                  {selectedBeneficiary.bank || selectedBeneficiary.bankName}
                 </span>
               </div>
 
