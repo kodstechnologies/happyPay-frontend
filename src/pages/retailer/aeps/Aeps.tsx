@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
-import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import MiniStatement from "./MiniStatement";
 import {
   ArrowLeft,
@@ -31,7 +30,14 @@ import {
   checkAepsLoginStatus,
   verifyTfa,
   parsePidXml,
+  balanceEnquiry,
+  cashWithdrawal,
+  cashDeposit,
+  sendAepsOtp,
   type TfaPayload,
+  type CashWithdrawalPayload,
+  type CashDepositPayload,
+  type AepsServicePayload,
 } from "../../../services/api/retailer/aepsApi";
 import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
@@ -43,7 +49,8 @@ type ServiceId =
   | "cash-withdrawal"
   | "balance-check"
   | "mini-statement"
-  | "balance-withdrawal";
+  | "balance-withdrawal"
+  | "cash-deposit";
 
 type ModalType =
   | ""
@@ -57,7 +64,8 @@ type ReceiptType =
   | "withdrawal"
   | "balance"
   | "mini-statement"
-  | "balance-withdrawal";
+  | "balance-withdrawal"
+  | "cash-deposit";
 
 interface Bank {
   id: number;
@@ -662,6 +670,7 @@ const Aeps = () => {
    * OTP
    */
   const [otp, setOtp] = useState("");
+  const [otpReferenceKey, setOtpReferenceKey] = useState("");
 
   /*
    * Receipt
@@ -969,7 +978,8 @@ const Aeps = () => {
     setSelectedService(serviceId);
 
     if (
-      serviceId === "cash-withdrawal"
+      serviceId === "cash-withdrawal" ||
+      serviceId === "cash-deposit"
     ) {
       setModalType("amount");
     } else if (serviceId === "balance-withdrawal") {
@@ -1015,13 +1025,99 @@ const Aeps = () => {
    * could use the previous service value.
    */
 
+  const prepareAepsPayload = async (
+    pidData: ReturnType<typeof parsePidXml>,
+    overrideReferenceKey?: string
+  ): Promise<AepsServicePayload> => {
+    const token = getToken();
+    if (!token) {
+      throw new Error("Authentication token not found. Please login again.");
+    }
+
+    const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+    const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+    const retailerRefKey = tokenPayload.referenceKey || "";
+
+    const referenceKey = overrideReferenceKey || retailerRefKey;
+
+    if (!outletId || !referenceKey) {
+      throw new Error(
+        "Outlet ID or Reference key is missing. Please complete eKYC first."
+      );
+    }
+
+    const coords = await getGeolocationCoordinates({
+      fallbackLatitude: "0",
+      fallbackLongitude: "0",
+      timeout: 5000,
+    });
+
+    return {
+      outlet_id: outletId,
+      referenceKey,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      aadhaar: customerAadhaar,
+      mobile: customerMobile,
+      bankiin: selectedBank?.iin || "",
+      ...pidData,
+      ts: pidData.ts || new Date().toISOString(),
+    };
+  };
+
+  const createReceipt = (
+    type: ReceiptType,
+    amount: number,
+    resultData: Record<string, unknown>,
+    fallbackStatus = "SUCCESS"
+  ): ReceiptData => {
+    const rawBalance =
+      resultData.balance ??
+      resultData.balanceamount ??
+      resultData.bankBalance ??
+      resultData.accountBalance;
+    const numericBalance = Number(rawBalance);
+
+    const transactionId =
+      (resultData.transactionId as string) ||
+      (resultData.clientRefId as string) ||
+      (resultData.ackno as string) ||
+      generateTransactionId();
+
+    const rrn =
+      (resultData.rrn as string) ||
+      (resultData.bankrrn as string) ||
+      (resultData.bankRrn as string) ||
+      generateRRN();
+
+    const status =
+      (resultData.status as string) ||
+      (resultData.txnStatus as string) ||
+      fallbackStatus;
+
+    return {
+      receiptType: type,
+      bankName: selectedBank?.name || getSelectedBankName(),
+      amount,
+      balance: isNaN(numericBalance) ? 0 : numericBalance,
+      aadhaar: getCustomerAadhaarDisplay(),
+      mobile: `+91 ${customerMobile}`,
+      transactionId,
+      rrn,
+      biometricDevice: withdrawalDeviceName || "Mantra MFS100",
+      authMode: "Biometric / AEPS Verified",
+      status,
+      transactions: [],
+    };
+  };
+
   const startBiometric = async (
     serviceId: ServiceId
   ) => {
     setIsProcessing(true);
 
     try {
-      // 1. Actually capture the fingerprint using our new optimized service!
+      // 1. Actually capture the fingerprint using RD service
       const captureResult = await rdService.captureFingerprint(selectedDevicePort);
 
       if (!captureResult.success) {
@@ -1031,11 +1127,9 @@ const Aeps = () => {
         return;
       }
 
-      // 2. Here we have the XML payload to send to our Node.js backend
+      // 2. Parse the captured RD Service PID XML
       const pidDataXML = captureResult.data;
       console.log("Captured PidData XML ready for backend:", pidDataXML);
-
-      // Parse the captured RD Service PID XML
       const pidData = parsePidXml(pidDataXML || "");
 
       setIsProcessing(false);
@@ -1045,67 +1139,17 @@ const Aeps = () => {
        */
       if (serviceId === "balance-check") {
         try {
-          const token = getToken();
-          if (!token) {
-            throw new Error("Authentication token not found. Please login again.");
-          }
-
-          // Decode JWT token to get outletId and referenceKey
-          const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-          const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-          const referenceKey = tokenPayload.referenceKey || "";
-
-          if (!outletId || !referenceKey) {
-            throw new Error("Outlet ID or Reference key is missing. Please complete eKYC first.");
-          }
-
-          // Get geolocation
-          const coords = await getGeolocationCoordinates({
-            fallbackLatitude: "0",
-            fallbackLongitude: "0",
-            timeout: 5000,
-          });
-
-          const payload = {
-            outlet_id: outletId,
-            referenceKey,
-            latitude: coords.latitude,
-            longitude: coords.longitude,
-            aadhaar: customerAadhaar,
-            mobile: customerMobile,
-            bankiin: selectedBank?.iin || "",
-            ...pidData,
-          };
-
-          // Ensure ts is present
-          if (!payload.ts) {
-            payload.ts = new Date().toISOString();
-          }
-
+          const payload = await prepareAepsPayload(pidData);
           console.log("Balance enquiry payload:", payload);
           const result = await balanceEnquiry(payload);
           console.log("Balance enquiry result:", result);
 
-          // Store the result and show it in the receipt
-          const resultData = result.data as Record<string, unknown>;
-          setReceiptData({
-            receiptType: "balance",
-            bankName: selectedBank?.name || "Unknown Bank",
-            amount: 0,
-            balance: (resultData?.balance as number) || 0,
-            aadhaar: `XXXX XXXX ${customerAadhaar.slice(-4)}`,
-            mobile: `+91 ${customerMobile}`,
-            transactionId: generateTransactionId(),
-            rrn: generateRRN(),
-            biometricDevice: "Mantra MFS100",
-            authMode: "Biometric Verified",
-            status: "SUCCESS",
-            transactions: [],
-          });
+          const resultData = (result.data || {}) as Record<string, unknown>;
+          setReceiptData(createReceipt("balance", 0, resultData));
           setShowReceipt(true);
         } catch (error) {
           console.error("Balance enquiry failed:", error);
-          alert(error instanceof Error ? error.message : "Failed to check balance");
+          alert(getErrorMessage(error, "Failed to check balance"));
         }
         return;
       }
@@ -1122,25 +1166,142 @@ const Aeps = () => {
        * A. CASH WITHDRAWAL
        */
       if (serviceId === "cash-withdrawal") {
-        completeTransaction("withdrawal");
+        try {
+          const refKeyToUse =
+            withdrawalAmount > 5000 && otpReferenceKey
+              ? otpReferenceKey
+              : undefined;
+          const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
+          const payload: CashWithdrawalPayload = {
+            ...basePayload,
+            amount: withdrawalAmount,
+            ...(otp ? { otp } : {}),
+          };
+
+          console.log("Cash withdrawal payload:", payload);
+          const result = await cashWithdrawal(payload);
+          console.log("Cash withdrawal result:", result);
+
+          const resultData = (result.data || {}) as Record<string, unknown>;
+          setReceiptData(createReceipt("withdrawal", withdrawalAmount, resultData));
+          setModalType("");
+          setOtp("");
+          setOtpReferenceKey("");
+          setShowReceipt(true);
+        } catch (error) {
+          console.error("Cash withdrawal failed:", error);
+          alert(getErrorMessage(error, "Failed to complete cash withdrawal"));
+        }
         return;
       }
 
       /*
        * D. BALANCE CHECK + WITHDRAWAL
        */
-      if (
-        serviceId ===
-        "balance-withdrawal"
-      ) {
+      if (serviceId === "balance-withdrawal") {
         if (!balWithBalanceChecked) {
-          setBalWithBalanceChecked(true);
-          setFetchedBalance(14250);
-          setModalType("amount");
+          try {
+            const payload = await prepareAepsPayload(pidData);
+            const result = await balanceEnquiry(payload);
+            const resultData = (result.data || {}) as Record<string, unknown>;
+            const rawBalance =
+              resultData.balance ??
+              resultData.balanceamount ??
+              resultData.bankBalance;
+            const numericBalance = Number(rawBalance);
+            const verifiedBalance = isNaN(numericBalance) ? 0 : numericBalance;
+
+            setBalWithBalanceChecked(true);
+            setFetchedBalance(verifiedBalance);
+
+            // Auto-adjust default amount if balance is positive and less than current default
+            if (verifiedBalance > 0 && verifiedBalance < withdrawalAmount) {
+              setWithdrawalAmount(Math.min(1000, verifiedBalance));
+            }
+            setModalType("amount");
+          } catch (error) {
+            console.error("Balance check failed in balance-withdrawal:", error);
+            alert(getErrorMessage(error, "Failed to check balance"));
+          }
         } else {
-          completeTransaction(
-            "balance-withdrawal"
-          );
+          try {
+            const refKeyToUse =
+              withdrawalAmount > 5000 && otpReferenceKey
+                ? otpReferenceKey
+                : undefined;
+            const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
+            const payload: CashWithdrawalPayload = {
+              ...basePayload,
+              amount: withdrawalAmount,
+              ...(otp ? { otp } : {}),
+            };
+
+            const result = await cashWithdrawal(payload);
+            const resultData = (result.data || {}) as Record<string, unknown>;
+            setReceiptData(createReceipt("balance-withdrawal", withdrawalAmount, resultData));
+            setModalType("");
+            setOtp("");
+            setOtpReferenceKey("");
+            setBalWithBalanceChecked(false);
+            setFetchedBalance(null);
+            setShowReceipt(true);
+          } catch (error) {
+            console.error("Withdrawal failed:", error);
+            alert(getErrorMessage(error, "Failed to complete withdrawal"));
+          }
+        }
+        return;
+      }
+
+      /*
+       * E. CASH DEPOSIT
+       */
+      if (serviceId === "cash-deposit") {
+        try {
+          const basePayload = await prepareAepsPayload(pidData);
+          const rawPid = pidData as Record<string, unknown>;
+          const payload: CashDepositPayload = {
+            ...basePayload,
+            amount: withdrawalAmount,
+            txnid: generateTransactionId(),
+            pidDatatype: (rawPid.PidDatatype as string) || "X",
+            Piddata: (rawPid.Piddata as string) || "",
+            sysid: (rawPid.sysid as string) || "SYS01",
+            nmPoints: (rawPid.nmPoints as string) || "0",
+            qScore: (rawPid.qScore as string) || "100",
+            pCount: (rawPid.pCount as string) || "0",
+            pType: (rawPid.pType as string) || "0",
+            iCount: (rawPid.iCount as string) || "0",
+            iType: (rawPid.iType as string) || "0",
+            fCount: (rawPid.fCount as string) || "1",
+            fType: (rawPid.fType as string) || "2",
+            srno: (rawPid.srno as string) || "SR001",
+            mi: (rawPid.mi as string) || "Mantra",
+            errCode: (rawPid.errCode as string) || "0",
+            errInfo: (rawPid.errInfo as string) || "",
+            sessionKey: (rawPid.sessionKey as string) || "",
+            rdsVer: (rawPid.rdsVer as string) || "1.0",
+            rdsId: (rawPid.rdsId as string) || "MFS100",
+            dpId: (rawPid.dpId as string) || "MFS100",
+            mc: (rawPid.mc as string) || "",
+            hmac: (rawPid.hmac as string) || "",
+            ci: (rawPid.ci as string) || "",
+            dc: (rawPid.dc as string) || "",
+            mobile: customerMobile,
+            bankiin: selectedBank?.iin || "",
+          };
+
+          console.log("Cash deposit payload:", payload);
+          const result = await cashDeposit(payload);
+          console.log("Cash deposit result:", result);
+
+          const resultData = (result.data || {}) as Record<string, unknown>;
+          setReceiptData(createReceipt("cash-deposit", withdrawalAmount, resultData));
+          setModalType("");
+          setShowReceipt(true);
+        } catch (error) {
+          console.error("Cash deposit failed:", error);
+          alert(getErrorMessage(error, "Failed to complete cash deposit"));
         }
         return;
       }
@@ -1166,7 +1327,7 @@ const Aeps = () => {
    * ============================================================
    */
 
-  const handleConfirmAmount = () => {
+  const handleConfirmAmount = async () => {
     if (withdrawalAmount <= 0) {
       return;
     }
@@ -1175,8 +1336,25 @@ const Aeps = () => {
       selectedService !==
       "cash-withdrawal" &&
       selectedService !==
-      "balance-withdrawal"
+      "balance-withdrawal" &&
+      selectedService !==
+      "cash-deposit"
     ) {
+      return;
+    }
+
+    if (selectedService === "cash-deposit") {
+      setModalType("biometric");
+      startBiometric("cash-deposit");
+      return;
+    }
+
+    if (
+      selectedService === "balance-withdrawal" &&
+      fetchedBalance !== null &&
+      withdrawalAmount > fetchedBalance
+    ) {
+      alert(`Withdrawal amount cannot exceed available balance of ₹${fetchedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`);
       return;
     }
 
@@ -1185,7 +1363,59 @@ const Aeps = () => {
      */
     if (withdrawalAmount > 5000) {
       setOtp("");
-      setModalType("otp");
+      setOtpReferenceKey("");
+      setIsProcessing(true);
+      try {
+        const token = getToken();
+        if (!token) {
+          throw new Error("Authentication token not found. Please login again.");
+        }
+
+        const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+        const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+        const referenceKey = tokenPayload.referenceKey || "";
+        if (!outletId || !referenceKey) {
+          throw new Error(
+            "Outlet ID or Reference key is missing. Please complete eKYC first."
+          );
+        }
+
+        const coords = await getGeolocationCoordinates({
+          fallbackLatitude: "0",
+          fallbackLongitude: "0",
+          timeout: 5000,
+        });
+
+        const otpResponse = await sendAepsOtp({
+          outlet_id: outletId,
+          referenceKey,
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          aadhaar: customerAadhaar,
+          MobileNumber: customerMobile,
+          bankiin: selectedBank?.iin || "",
+          amount: withdrawalAmount,
+        });
+
+        const responseData = otpResponse?.data as Record<string, unknown> | undefined;
+        const innerData =
+          (responseData?.data as Record<string, unknown> | undefined) || responseData;
+        const sessionRefKey =
+          (innerData?.referenceKey as string) ||
+          (responseData?.referenceKey as string) ||
+          "";
+
+        if (sessionRefKey) {
+          setOtpReferenceKey(sessionRefKey);
+        }
+
+        setModalType("otp");
+      } catch (otpErr) {
+        console.error("Failed to send OTP:", otpErr);
+        alert(getErrorMessage(otpErr, "Failed to send OTP. Please try again."));
+      } finally {
+        setIsProcessing(false);
+      }
       return;
     }
 
@@ -1198,112 +1428,6 @@ const Aeps = () => {
     startBiometric(selectedService);
   };
 
-  /*
-   * ============================================================
-   * OTP
-   * ============================================================
-   */
-
-
-  /*
-   * ============================================================
-   * COMPLETE TRANSACTION
-   * ============================================================
-   */
-
-  const completeTransaction = (
-    type: ReceiptType
-  ) => {
-    const currentBalance = 14250;
-
-    let finalBalance =
-      currentBalance;
-
-    /*
-     * Withdrawal decreases balance.
-     */
-    if (
-      type === "withdrawal" ||
-      type ===
-      "balance-withdrawal"
-    ) {
-      finalBalance =
-        currentBalance -
-        withdrawalAmount;
-    }
-
-    /*
-     * Sample recent transactions
-     * matching the shared UI.
-     */
-    const transactions: Transaction[] =
-      [
-        {
-          description:
-            "UPI/P2A/Grocery",
-          date: "09 Sep",
-          amount: "-₹450.00",
-          type: "DEBIT",
-        },
-        {
-          description:
-            "AEPS Cash Wdl",
-          date: "07 Sep",
-          amount: "-₹2,000.00",
-          type: "DEBIT",
-        },
-        {
-          description:
-            "Salary Credit",
-          date: "05 Sep",
-          amount: "+₹24,500.00",
-          type: "CREDIT",
-        },
-        {
-          description:
-            "ATM Cash Wdl",
-          date: "01 Sep",
-          amount: "-₹1,500.00",
-          type: "DEBIT",
-        },
-        {
-          description:
-            "NEFT Inward",
-          date: "28 Aug",
-          amount: "+₹5,000.00",
-          type: "CREDIT",
-        },
-      ];
-
-    const data: ReceiptData = {
-      receiptType: type,
-      bankName:
-        getSelectedBankName(),
-      amount:
-        type === "balance" ||
-          type === "mini-statement"
-          ? 0
-          : withdrawalAmount,
-      balance: finalBalance,
-      aadhaar:
-        getCustomerAadhaarDisplay(),
-      mobile: customerMobile,
-      transactionId:
-        generateTransactionId(),
-      rrn: generateRRN(),
-      biometricDevice:
-        "Mantra MFS100",
-      authMode:
-        "Biometric / 2FA Verified",
-      status: "SUCCESS",
-      transactions,
-    };
-
-    setReceiptData(data);
-    setModalType("");
-    setOtp("");
-    setShowReceipt(true);
-  };
 
   /*
    * ============================================================
@@ -1317,6 +1441,9 @@ const Aeps = () => {
     setSelectedService("");
     setWithdrawalAmount(1000);
     setOtp("");
+    setOtpReferenceKey("");
+    setBalWithBalanceChecked(false);
+    setFetchedBalance(null);
     setStep(5);
   };
 
@@ -1332,7 +1459,10 @@ const Aeps = () => {
     setSelectedService("");
     setWithdrawalAmount(1000);
     setOtp("");
+    setOtpReferenceKey("");
     setModalType("");
+    setBalWithBalanceChecked(false);
+    setFetchedBalance(null);
     setStep(5);
   };
 
@@ -2083,7 +2213,7 @@ const Aeps = () => {
   }[] = [
       {
         id: "cash-withdrawal",
-        title: "A. Cash Withdrawal",
+        title: "Cash Withdrawal",
         description: "Withdraw cash from A/C",
         icon: WalletCards,
         iconClass: "text-[#172033]",
@@ -2091,7 +2221,7 @@ const Aeps = () => {
       },
       {
         id: "balance-check",
-        title: "B. Balance Enquiry",
+        title: "Balance Enquiry",
         description: "Enquire A/C balance",
         icon: Banknote,
         iconClass: "text-[#172033]",
@@ -2099,7 +2229,7 @@ const Aeps = () => {
       },
       {
         id: "mini-statement",
-        title: "C. Mini Statement",
+        title: "Mini Statement",
         description: "Last 5 transactions",
         icon: ReceiptText,
         iconClass: "text-[#172033]",
@@ -2107,9 +2237,17 @@ const Aeps = () => {
       },
       {
         id: "balance-withdrawal",
-        title: "D. Bal+Withdraw",
+        title: "Bal+Withdraw",
         description: "Check & withdraw",
         icon: ArrowRight,
+        iconClass: "text-[#172033]",
+        bgClass: "bg-purple-50",
+      },
+      {
+        id: "cash-deposit",
+        title: "Cash Deposit",
+        description: "Deposit cash into A/C",
+        icon: ArrowDown,
         iconClass: "text-[#172033]",
         bgClass: "bg-purple-50",
       },
@@ -2190,12 +2328,15 @@ const Aeps = () => {
     }
 
     let title = "Biometric Authentication";
+    let subtitle = "Capturing Fingerprint...";
+    let hint = "Place finger on Mantra MFS100";
 
     if (
       selectedService ===
       "balance-check"
     ) {
       title = "Balance Check";
+      hint = "Place finger to verify account balance";
     }
 
     if (
@@ -2203,13 +2344,22 @@ const Aeps = () => {
       "mini-statement"
     ) {
       title = "Mini Statement";
+      hint = "Place finger to generate mini statement";
     }
 
     if (
       selectedService ===
       "balance-withdrawal"
     ) {
-      title = "Biometric Authentication";
+      if (!balWithBalanceChecked) {
+        title = "Step 1: Check Account Balance";
+        subtitle = "Verifying Bank Balance...";
+        hint = "Place customer finger to fetch live account balance";
+      } else {
+        title = `Step 2: Authorize Withdrawal (₹${withdrawalAmount.toLocaleString("en-IN")})`;
+        subtitle = "Authorizing Cash Withdrawal...";
+        hint = `Place customer finger to withdraw ₹${withdrawalAmount.toLocaleString("en-IN")}`;
+      }
     }
 
     if (
@@ -2220,6 +2370,7 @@ const Aeps = () => {
         withdrawalAmount > 5000
           ? "Biometric Authentication (> ₹5,000)"
           : "Biometric Authentication (≤ ₹5,000)";
+      hint = `Place finger to withdraw ₹${withdrawalAmount.toLocaleString("en-IN")}`;
     }
 
     return (
@@ -2234,11 +2385,11 @@ const Aeps = () => {
           </div>
 
           <h3 className="mt-6 text-lg font-bold text-[#171717] sm:text-xl">
-            Capturing Fingerprint...
+            {subtitle}
           </h3>
 
           <p className="mt-2 text-sm text-slate-500">
-            Place finger on Mantra MFS100
+            {hint}
           </p>
 
           <div className="mx-auto mt-6 h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#7c3aed]" />
@@ -2268,29 +2419,59 @@ const Aeps = () => {
       return null;
     }
 
-    const requiresOtp =
-      withdrawalAmount > 5000;
+    const isDeposit = selectedService === "cash-deposit";
+    const requiresOtp = !isDeposit && withdrawalAmount > 5000;
+    const isBalanceWithdrawal = selectedService === "balance-withdrawal";
+    const hasFetchedBalance = isBalanceWithdrawal && fetchedBalance !== null;
+    const isZeroBalance = hasFetchedBalance && fetchedBalance <= 0;
+    const isAmountExceeded = hasFetchedBalance && withdrawalAmount > fetchedBalance;
+    const isConfirmDisabled =
+      withdrawalAmount <= 0 || (isBalanceWithdrawal && (isZeroBalance || isAmountExceeded));
 
     return (
       <div className="flex items-center justify-center py-8 w-full">
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-purple-100 bg-white p-5 shadow-md sm:p-6">
           <div className="mx-auto mb-7 h-1.5 w-16 rounded-full bg-slate-200 sm:hidden" />
 
+          {isBalanceWithdrawal && hasFetchedBalance && (
+            <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+              <span>Step 2 of 2: Cash Withdrawal</span>
+            </div>
+          )}
+
           <h2 className="text-2xl font-bold text-slate-900">
-            Enter Withdrawal Amount
+            {isDeposit
+              ? "Enter Deposit Amount"
+              : isBalanceWithdrawal
+              ? "Select Withdrawal Amount"
+              : "Enter Withdrawal Amount"}
           </h2>
 
           <p className="mt-2 text-base text-slate-600 sm:text-lg">
-            Amounts above ₹5,000 require
-            Mobile OTP + Biometric validation
+            {isDeposit
+              ? "Customer fingerprint will be validated to deposit cash"
+              : "Amounts above ₹5,000 require Mobile OTP + Biometric validation"}
           </p>
 
-          {selectedService === "balance-withdrawal" && fetchedBalance !== null && (
-            <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-center">
-              <p className="text-sm font-semibold text-emerald-700">Available Balance</p>
-              <p className="text-2xl font-bold text-emerald-700">
+          {hasFetchedBalance && (
+            <div
+              className={`mt-5 rounded-xl border p-4 text-center ${
+                isZeroBalance
+                  ? "border-red-200 bg-red-50 text-red-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wider">
+                Live Available Balance
+              </p>
+              <p className="mt-1 text-2xl font-bold">
                 ₹{fetchedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </p>
+              {isZeroBalance && (
+                <p className="mt-1 text-xs font-medium text-red-600">
+                  Account has ₹0.00 balance. Withdrawal cannot be processed.
+                </p>
+              )}
             </div>
           )}
 
@@ -2310,8 +2491,15 @@ const Aeps = () => {
                 )
               }
               className="ml-2 w-full bg-transparent text-2xl font-bold text-slate-900 outline-none"
+              disabled={isZeroBalance}
             />
           </div>
+
+          {isAmountExceeded && (
+            <div className="mt-2 text-sm font-medium text-amber-600">
+              Amount exceeds available balance of ₹{fetchedBalance?.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </div>
+          )}
 
           <div className="mt-5 grid grid-cols-4 gap-2">
             {amountOptions.map(
@@ -2319,6 +2507,7 @@ const Aeps = () => {
                 const active =
                   withdrawalAmount ===
                   amount;
+                const optionExceeds = hasFetchedBalance && amount > (fetchedBalance || 0);
 
                 return (
                   <button
@@ -2329,10 +2518,14 @@ const Aeps = () => {
                         amount
                       )
                     }
-                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold sm:text-base ${active
-                      ? "border-[#7c3aed] bg-purple-50 text-purple-600"
-                      : "border-slate-200 bg-white text-slate-800"
-                      }`}
+                    disabled={optionExceeds || isZeroBalance}
+                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold transition sm:text-base ${
+                      active
+                        ? "border-[#7c3aed] bg-purple-50 text-purple-600"
+                        : optionExceeds || isZeroBalance
+                        ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
+                        : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
+                    }`}
                   >
                     {active && (
                       <Check className="mr-1 inline h-4 w-4" />
@@ -2344,7 +2537,15 @@ const Aeps = () => {
             )}
           </div>
 
-          {requiresOtp ? (
+          {isDeposit ? (
+            <div className="mt-7 flex items-start gap-4 rounded-2xl border-2 border-[#d8deec] bg-purple-50 p-5">
+              <Fingerprint className="mt-1 h-7 w-7 shrink-0 text-[#172033]" />
+
+              <p className="text-base font-semibold text-[#172033] sm:text-lg">
+                Customer Biometric Fingerprint will be validated to deposit cash.
+              </p>
+            </div>
+          ) : requiresOtp ? (
             <div className="mt-7 flex items-start gap-4 rounded-2xl border-2 border-[#d8deec] bg-purple-50 p-5">
               <LockKeyhole className="mt-1 h-7 w-7 shrink-0 text-[#172033]" />
 
@@ -2366,18 +2567,35 @@ const Aeps = () => {
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={
-              handleConfirmAmount
-            }
-            disabled={
-              withdrawalAmount <= 0
-            }
-            className="mt-6 flex min-h-[52px] w-full items-center justify-center rounded-xl bg-purple-600 text-base font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50"
-          >
-            CONFIRM AMOUNT
-          </button>
+          <div className="mt-6 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setModalType("");
+                setOtp("");
+                setOtpReferenceKey("");
+                if (selectedService === "balance-withdrawal") {
+                  setBalWithBalanceChecked(false);
+                  setFetchedBalance(null);
+                }
+              }}
+              className="min-h-[52px] rounded-xl border border-slate-200 bg-white px-5 text-base font-bold text-slate-700 hover:bg-slate-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={
+                handleConfirmAmount
+              }
+              disabled={
+                isConfirmDisabled
+              }
+              className="flex min-h-[52px] flex-1 items-center justify-center rounded-xl bg-purple-600 text-base font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50 transition"
+            >
+              {isDeposit ? "CONFIRM DEPOSIT" : "CONFIRM AMOUNT"}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -2427,7 +2645,7 @@ const Aeps = () => {
             {formatCurrency(
               withdrawalAmount
             )}{" "}
-            • Sent to +91
+            • Sent to +91 {customerMobile}
           </div>
 
           <div className="mt-7">
@@ -2445,6 +2663,7 @@ const Aeps = () => {
               onClick={() => {
                 setModalType("");
                 setOtp("");
+                setOtpReferenceKey("");
               }}
               className="px-4 py-3 text-lg font-bold text-[#172033]"
             >
@@ -2489,6 +2708,9 @@ const Aeps = () => {
       case "balance-withdrawal":
         return "Withdrawal & Balance Check Successful";
 
+      case "cash-deposit":
+        return "Cash Deposit Successful";
+
       default:
         return "";
     }
@@ -2530,6 +2752,8 @@ const Aeps = () => {
       "withdrawal" ||
       receiptData.receiptType ===
       "balance-withdrawal";
+
+    const isDeposit = receiptData.receiptType === "cash-deposit";
 
     return (
       <div className="">
@@ -2580,6 +2804,25 @@ const Aeps = () => {
 
                     <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
                       Amount Withdrawn
+                    </p>
+                  </div>
+
+                  <div className="my-6 border-t border-slate-100" />
+                </>
+              )}
+
+              {isDeposit && (
+                <>
+                  <div className="text-center rounded-[16px] bg-[#f8f9fc] border border-slate-100 p-4 shadow-sm sm:p-5">
+                    <p className="text-3xl font-bold text-slate-900 sm:text-4xl">
+                      ₹
+                      {receiptData.amount.toFixed(
+                        2
+                      )}
+                    </p>
+
+                    <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
+                      Amount Deposited
                     </p>
                   </div>
 

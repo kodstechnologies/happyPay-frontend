@@ -616,7 +616,14 @@ const Dmt = () => {
       // Existing verified remitter -> Skip registration
       setIsRemitterEkycDone(true);
       toast.success(res?.message || "Remitter verified successfully");
-      setCustomerName(resData?.name || resData?.remitterName || "VERIFIED SENDER");
+      const firstName = String(resData?.data?.firstName || "").trim();
+      const lastName = String(resData?.data?.lastName || "").trim();
+      const fullName = `${firstName} ${lastName}`.trim();
+      setCustomerName(fullName || "VERIFIED SENDER");
+      const nextRefKey = String(resData?.data?.referenceKey || "").trim();
+      if (nextRefKey) {
+        saveReferenceKey(nextRefKey);
+      }
       await fetchBeneficiariesList();
       setScreen("customer-details");
     } catch (err: unknown) {
@@ -2641,12 +2648,12 @@ const Dmt = () => {
           </button>
 
           {/* Save */}
-          <button
+          {/* <button
             type="button"
             className="mt-4 flex min-h-[50px] w-full items-center justify-center rounded-xl border-2 border-[#cbd0d8] bg-transparent text-base font-bold text-[#172033] transition hover:bg-white"
           >
             SAVE
-          </button>
+          </button> */}
 
           {/* Transaction OTP Verification Modal */}
           {showTxnOtpModal && selectedBeneficiary && (

@@ -526,6 +526,10 @@ export interface UpdateBankDetailsPayload {
   bankName: string;
   ifscCode: string;
   accountNumber: string;
+  fcmToken?: string | null;
+  deviceId?: string | null;
+  platform?: string | null;
+  deviceName?: string | null;
 }
 
 export function updateRetailerBankDetails(payload: UpdateBankDetailsPayload) {
