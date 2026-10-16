@@ -170,3 +170,13 @@ export const payBillApi = async (payload: PayBillPayload) => {
   const response = await api.post("/api/v1/bbps/pay-bill", payload);
   return response.data;
 };
+
+/**
+ * Sync BBPS Categories and Billers from external provider into database
+ * (POST /api/v1/bbps/sync)
+ */
+export const syncBbpsDataApi = async () => {
+  const response = await api.post("/api/v1/bbps/sync");
+  return response.data;
+};
+

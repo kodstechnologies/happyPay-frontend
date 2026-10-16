@@ -117,13 +117,15 @@ const RetailerLogin = () => {
           localStorage.setItem("fcmToken", fcmToken);
         }
       } catch (e) {
-        console.error("Failed to get FCM token", e);
+        console.warn("Failed to get FCM token", e);
       }
+
+      const effectiveFcmToken = fcmToken || localStorage.getItem("fcmToken") || null;
 
       const response = await verifyRetailerLoginOtp({
         mobile,
         otp,
-        fcmToken,
+        fcmToken: effectiveFcmToken,
         deviceId: getDeviceId(),
         platform: "web",
         deviceName: navigator.platform || "Web browser",

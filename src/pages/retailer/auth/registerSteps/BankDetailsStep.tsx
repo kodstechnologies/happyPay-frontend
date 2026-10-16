@@ -122,11 +122,19 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
 
     setSubmitting(true);
     try {
+      const deviceId = localStorage.getItem("retailerDeviceId") || crypto.randomUUID();
+      localStorage.setItem("retailerDeviceId", deviceId);
+      const fcmToken = localStorage.getItem("fcmToken") || null;
+
       await updateRetailerBankDetails({
         userId,
         bankName,
         ifscCode,
         accountNumber,
+        fcmToken,
+        deviceId,
+        platform: "web",
+        deviceName: navigator.platform || "Web browser",
       });
 
       // After successful bank details submission, directly complete registration

@@ -17,10 +17,11 @@ const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  const notificationTitle = payload.notification.title;
+  const notificationTitle = payload?.notification?.title || payload?.data?.title || "HappyPay Notification";
   const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/vite.svg'
+    body: payload?.notification?.body || payload?.data?.body || "",
+    icon: "/happy-favicon.jpeg",
+    data: payload?.data || {},
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

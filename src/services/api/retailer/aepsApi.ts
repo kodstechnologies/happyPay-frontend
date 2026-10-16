@@ -253,37 +253,34 @@ export function getRetailerKyc(retailerId: string) {
   });
 }
 
-export function balanceEnquiry(payload: {
+export interface AepsServicePayload extends Partial<BiometricPayload> {
   outlet_id: string;
   referenceKey: string;
   latitude: string;
   longitude: string;
   aadhaar: string;
   ts: string;
-  dc?: string;
-  ci?: string;
-  hmac?: string;
-  mc?: string;
-  dpId?: string;
-  PidDatatype?: string;
-  Piddata?: string;
-  rdsId?: string;
-  rdsVer?: string;
-  sessionKey?: string;
-  mi?: string;
-  errInfo?: string;
-  errCode?: string;
-  fCount?: string;
-  fType?: string;
-  iCount?: string;
-  iType?: string;
-  pCount?: string;
-  pType?: string;
-  qScore?: string;
-  nmPoints?: string;
-  srno?: string;
-  sysid?: string;
-}) {
+  mobile?: string;
+  bankiin?: string;
+}
+
+export interface CashWithdrawalPayload extends AepsServicePayload {
+  amount: number;
+  otp?: string;
+}
+
+export interface SendAepsOtpPayload {
+  outlet_id: string;
+  referenceKey: string;
+  latitude: string;
+  longitude: string;
+  aadhaar: string;
+  MobileNumber: string;
+  bankiin: string;
+  amount: number;
+}
+
+export function balanceEnquiry(payload: AepsServicePayload) {
   return apiClient<Envelope<unknown>>("/api/v1/aeps/balance-enquiry", {
     ...authOptions(),
     method: "POST",
@@ -291,40 +288,65 @@ export function balanceEnquiry(payload: {
   });
 }
 
-export function miniStatement(payload: {
-  outlet_id: string;
-  referenceKey: string;
-  latitude: string;
-  longitude: string;
-  aadhaar: string;
-  ts: string;
-  dc?: string;
-  ci?: string;
-  hmac?: string;
-  mc?: string;
-  dpId?: string;
-  PidDatatype?: string;
-  Piddata?: string;
-  rdsId?: string;
-  rdsVer?: string;
-  sessionKey?: string;
-  mi?: string;
-  errInfo?: string;
-  errCode?: string;
-  fCount?: string;
-  fType?: string;
-  iCount?: string;
-  iType?: string;
-  pCount?: string;
-  pType?: string;
-  qScore?: string;
-  nmPoints?: string;
-  srno?: string;
-  sysid?: string;
-}) {
+export function miniStatement(payload: AepsServicePayload) {
   return apiClient<Envelope<unknown>>("/api/v1/aeps/mini-statement", {
     ...authOptions(),
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
+
+export function cashWithdrawal(payload: CashWithdrawalPayload) {
+  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-withdraw", {
+    ...authOptions(),
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export interface CashDepositPayload extends AepsServicePayload {
+  txnid: string;
+  amount: number;
+  pidDatatype: string;
+  Piddata: string;
+  sysid: string;
+  nmPoints: string;
+  qScore: string;
+  pCount: string;
+  srno: string;
+  pType: string;
+  fType: string;
+  iType: string;
+  iCount: string;
+  fCount: string;
+  mi: string;
+  errCode: string;
+  errInfo: string;
+  sessionKey: string;
+  rdsVer: string;
+  rdsId: string;
+  dpId: string;
+  mc: string;
+  hmac: string;
+  ci: string;
+  dc: string;
+  mobile: string;
+  bankiin: string;
+}
+
+export function cashDeposit(payload: CashDepositPayload) {
+  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-deposit", {
+    ...authOptions(),
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function sendAepsOtp(payload: SendAepsOtpPayload) {
+  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/send-otp", {
+    ...authOptions(),
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+

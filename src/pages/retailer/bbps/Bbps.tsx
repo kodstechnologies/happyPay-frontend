@@ -36,6 +36,7 @@ import {
   getBillersByCategoryNameApi,
   viewBillApi,
   payBillApi,
+  syncBbpsDataApi,
   type BbpsCategoryItem,
   type BillerItem,
   type ViewBillPayload,
@@ -298,6 +299,7 @@ const BBPS: React.FC = () => {
   const [screen, setScreen] = useState<"form" | "bill" | "success">("form");
   const [isFetching, setIsFetching] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Wallet & Receipt State
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -833,6 +835,27 @@ const BBPS: React.FC = () => {
     setScreen("form");
   };
 
+  const handleSyncBbps = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await syncBbpsDataApi();
+      const message =
+        res?.message || "BBPS categories and billers synchronized successfully!";
+      toast.success(message);
+      await fetchCategories();
+    } catch (err: unknown) {
+      console.error("[BBPS] handleSyncBbps error:", err);
+      const errorMsg = getApiErrorMessage(
+        err,
+        "Failed to synchronize BBPS data. Please try again."
+      );
+      toast.error(errorMsg);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100/60 to-slate-50 text-slate-800 pb-16 font-sans">
       {/* =========================================================
@@ -860,6 +883,21 @@ const BBPS: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Sync BBPS Data Button */}
+            <button
+              type="button"
+              onClick={handleSyncBbps}
+              disabled={isSyncing}
+              title="Sync BBPS Categories & Billers with Database"
+              className="flex items-center gap-2 rounded-xl border border-blue-200/90 bg-gradient-to-r from-blue-50 to-indigo-50/80 px-3.5 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:from-blue-100 hover:to-indigo-100 hover:text-blue-900 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              <RefreshCw
+                size={14}
+                className={isSyncing ? "animate-spin text-blue-600" : "text-blue-600"}
+              />
+              <span>{isSyncing ? "Syncing..." : "Sync BBPS Data"}</span>
+            </button>
+
             <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-3.5 py-1.5 shadow-2xs">
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-600 text-white shadow-xs">
                 <Wallet size={15} />
@@ -1179,6 +1217,14 @@ const BBPS: React.FC = () => {
                   </div>
                 </div>
               )}
+
+          
+
+         
+
+
+
+
 
               {/* Screen 2: Bill Presentation & Payment Confirmation */}
               {screen === "bill" && billDetails && (
