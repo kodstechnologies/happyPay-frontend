@@ -250,7 +250,7 @@ const Dmt = () => {
             bankName: bankVal,
             accountNumber: b.account || b.account_number || b.accountNumber || "",
             ifsc: b.ifsc || "",
-            mobile: b.mobile || customerMobile || "",
+            mobile: b.beneficiaryMobile || b.mobile || customerMobile || "",
           };
         });
         setBeneficiaries(mapped);
@@ -265,6 +265,7 @@ const Dmt = () => {
   ========================= */
 
   const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [beneficiaryMobile, setBeneficiaryMobile] = useState("");
   const [beneficiaryBank, setBeneficiaryBank] = useState<Bank | null>(null);
   const [beneficiaryIfsc, setBeneficiaryIfsc] = useState("");
   const [beneficiaryAccount, setBeneficiaryAccount] = useState("");
@@ -278,6 +279,7 @@ const Dmt = () => {
     referenceKey: string;
     beneficiaryId: string;
     remitterMobile: string;
+    beneficiaryMobile?: string;
     name: string;
     accountNumber: string;
     bankName: string;
@@ -789,6 +791,7 @@ const Dmt = () => {
 
   const resetBeneficiaryForm = () => {
     setBeneficiaryName("");
+    setBeneficiaryMobile("");
     setBeneficiaryBank(null);
     setBeneficiaryIfsc("");
     setBeneficiaryAccount("");
@@ -879,6 +882,7 @@ const Dmt = () => {
 
   const canAddBeneficiary =
     beneficiaryName.trim().length > 0 &&
+    /^[6-9]\d{9}$/.test(beneficiaryMobile.trim()) &&
     beneficiaryBank !== null &&
     beneficiaryIfsc.trim().length === 11 &&
     beneficiaryAccount.length >= 8 &&
@@ -886,6 +890,11 @@ const Dmt = () => {
 
   const handleAddBeneficiary = async () => {
     if (!canAddBeneficiary || !beneficiaryBank) {
+      return;
+    }
+
+    if (!/^[6-9]\d{9}$/.test(beneficiaryMobile.trim())) {
+      toast.error("Please enter a valid 10-digit mobile number for beneficiary");
       return;
     }
 
@@ -902,7 +911,7 @@ const Dmt = () => {
         name: beneficiaryName.trim(),
         ifsc: effectiveIfsc,
         accountNumber: beneficiaryAccount.trim(),
-        beneficiaryMobile: customerMobile.trim(),
+        beneficiaryMobile: beneficiaryMobile.trim(),
         remitterMobile: customerMobile.trim(),
       };
       const res = await addBeneficiaryApi(payload);
@@ -915,6 +924,7 @@ const Dmt = () => {
           referenceKey: refKey,
           beneficiaryId: beneId,
           remitterMobile: customerMobile.trim(),
+          beneficiaryMobile: beneficiaryMobile.trim(),
           name: beneficiaryName.trim(),
           accountNumber: beneficiaryAccount.trim(),
           bankName: beneficiaryBank.name,
@@ -1745,6 +1755,37 @@ const Dmt = () => {
                 />
               </div>
 
+              {/* Beneficiary Mobile */}
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block font-semibold text-[#183153]">
+                    Beneficiary Mobile Number
+                  </label>
+                  <span className="text-[11px] text-slate-400">10 digits</span>
+                </div>
+
+                <div className="flex h-12 items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 focus-within:border-[#172033]">
+                  <Phone className="h-5 w-5 text-[#9aa5b5]" />
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={beneficiaryMobile}
+                    onChange={(event) => {
+                      setBeneficiaryMobile(formatMobile(event.target.value));
+                    }}
+                    placeholder="Enter 10-digit mobile number"
+                    className="w-full bg-transparent text-base outline-none"
+                  />
+                </div>
+
+                {beneficiaryMobile.length > 0 &&
+                  (!/^[6-9]/.test(beneficiaryMobile) || beneficiaryMobile.length !== 10) && (
+                    <p className="mt-1 text-xs text-purple-600">
+                      Enter a valid 10-digit Indian mobile number.
+                    </p>
+                  )}
+              </div>
 
               {/* Bank */}
               <div>
@@ -1818,7 +1859,7 @@ const Dmt = () => {
               </div>
 
               {/* IFSC */}
-              <div>
+              <div className="md:col-span-2">
                 <div className="mb-2 flex items-center justify-between">
                   <label className="block font-semibold text-[#183153]">
                     IFSC Code
@@ -1951,6 +1992,10 @@ const Dmt = () => {
                     <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.name}</p>
                   </div>
                   <div>
+                    <span className="text-xs text-[#64748b]">Beneficiary Mobile</span>
+                    <p className="font-semibold text-[#172033]">+91 {pendingVerifyBeneficiary.beneficiaryMobile || "N/A"}</p>
+                  </div>
+                  <div>
                     <span className="text-xs text-[#64748b]">Account Number</span>
                     <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.accountNumber}</p>
                   </div>
@@ -1958,7 +2003,7 @@ const Dmt = () => {
                     <span className="text-xs text-[#64748b]">Bank Name</span>
                     <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.bankName || "Bank"}</p>
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <span className="text-xs text-[#64748b]">IFSC Code</span>
                     <p className="font-semibold text-[#172033]">{pendingVerifyBeneficiary.ifsc}</p>
                   </div>
