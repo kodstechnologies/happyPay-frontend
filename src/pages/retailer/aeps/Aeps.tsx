@@ -412,20 +412,19 @@ const Aeps = () => {
   /*
    * Retailer authentication & 2FA State
    */
-  const [storedRetailer] = useState(() => {
+  const [retailerAadhaar, setRetailerAadhaar] = useState("");
+  const [retailerMobile, setRetailerMobile] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem("retailerUser") || "{}");
+      const token = getToken();
+      if (token) {
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        return tokenPayload.mobile || localStorage.getItem("retailerMobile") || "+91 1234567890";
+      }
+      return localStorage.getItem("retailerMobile") || "+91 1234567890";
     } catch {
-      return {};
+      return localStorage.getItem("retailerMobile") || "+91 1234567890";
     }
   });
-
-  const [retailerAadhaar, setRetailerAadhaar] = useState("");
-  const [retailerMobile, setRetailerMobile] = useState(() =>
-    storedRetailer?.mobile ||
-    localStorage.getItem("retailerMobile") ||
-    "+91 1234567890"
-  );
 
   const [isCapturingRetailer, setIsCapturingRetailer] =
     useState(false);
@@ -451,12 +450,20 @@ const Aeps = () => {
 
   const fetchLoginStatus = async (): Promise<void> => {
     try {
-      const stored = JSON.parse(
-        localStorage.getItem("retailerUser") || "{}"
-      );
+      const token = getToken();
+      if (!token) {
+        setRetailerAuthenticated(false);
+        setActcode("");
+        setTfaStatusMessage("");
+        setTfaError(
+          "Authentication token not found. Please login again."
+        );
+        return;
+      }
 
-      const outletId =
-        stored.outletId || stored.outletid || "";
+      // Decode JWT token to get outletId
+      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
 
       if (!outletId) {
         setRetailerAuthenticated(false);
@@ -537,8 +544,15 @@ const Aeps = () => {
   useEffect(() => {
     const fetchRetailerDetails = async () => {
       try {
-        const stored = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-        const userId = stored.id || stored._id || stored.userId;
+        const token = getToken();
+        if (!token) {
+          console.error("Authentication token not found.");
+          return;
+        }
+
+        // Decode JWT token to get userId
+        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+        const userId = tokenPayload.id || tokenPayload._id || tokenPayload.userId;
 
         if (userId) {
           const response = await getRetailerAadhaarAndMobile(userId);
@@ -848,14 +862,15 @@ const Aeps = () => {
     setTfaStatusMessage("");
 
     try {
-      const stored = JSON.parse(
-        localStorage.getItem("retailerUser") || "{}"
-      );
+      const token = getToken();
+      if (!token) {
+        throw new Error("Authentication token not found. Please login again.");
+      }
 
-      const outletId =
-        stored.outletId || stored.outletid || "";
-
-      const referenceKey = stored.referenceKey || "";
+      // Decode JWT token to get outletId and referenceKey
+      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+      const referenceKey = tokenPayload.referenceKey || "";
 
       if (!outletId) {
         throw new Error(

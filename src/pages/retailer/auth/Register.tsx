@@ -181,7 +181,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
     }
     if (currentStep === 4 && bankStepRef.current) {
       const success = await bankStepRef.current.submit();
-      if (!success) return;
+      if (!success) return
     }
 
     if (currentStep < steps.length - 1) {

@@ -359,6 +359,10 @@ const Dashboard = () => {
         longitude: coords.longitude,
         ...parsePidXml(capture.data),
       });
+
+      localStorage.setItem("referenceKey", ekycPrompt.referenceKey);
+      localStorage.setItem("outletId", ekycPrompt.outletId || storedUser.outletId || "");
+
       console.log("doBioEkyc result", { ...parsePidXml(capture.data) });
       setBioEkycResponse(result);
       setKycStep("Biometric eKYC response received.");

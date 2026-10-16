@@ -7,20 +7,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Loader2,
-  Fingerprint,
 } from "lucide-react";
 
 import { updateRetailerBankDetails, getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
-import {
-  checkDoEkyc,
-  doBioEkyc,
-  parsePidXml,
-  readEkycPrompt,
-  isActionRequired,
-  type EkycPrompt,
-} from "../../../../services/api/retailer/aepsApi";
-import { mfs110Service } from "../../../../services/bimetric/mfs110.service";
-import { getGeolocationCoordinates } from "../../../../utils/geolocation";
 
 export type BankDetailsStepHandle = {
   submit: () => Promise<boolean>;
@@ -42,14 +31,6 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
-
-    // eKYC related state
-    const [ekycPrompt, setEkycPrompt] = useState<EkycPrompt | null>(null);
-    const [capturingBiometric, setCapturingBiometric] = useState(false);
-    const [biometricError, setBiometricError] = useState("");
-    const [bioEkycResponse, setBioEkycResponse] = useState<unknown>(null);
-    const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
-    const [kycStep, setKycStep] = useState("");
 
     // Bank list state
     const [banks, setBanks] = useState<Bank[]>([]);
@@ -148,6 +129,9 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         accountNumber,
       });
 
+      // After successful bank details submission, directly complete registration
+      // eKYC flow commented out as per user request
+      /*
       // After successful bank details submission, check eKYC status
       setKycStep("Checking eKYC status...");
       const storedUser = JSON.parse(
@@ -168,58 +152,16 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         onRegistrationComplete?.();
         return true;
       }
+      */
+      
+      // Directly complete registration without eKYC check
+      onRegistrationComplete?.();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save bank details");
       return false;
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const captureBiometric = async () => {
-    if (!ekycPrompt) return;
-
-    setBiometricError("");
-    setCapturingBiometric(true);
-    setKycStep("Capturing fingerprint from the biometric device...");
-
-    try {
-      const capture = await mfs110Service.capture(ekycPrompt.pidOptionWadh);
-      if (!capture.success || !capture.data) {
-        setBiometricError(capture.message || "Fingerprint capture failed.");
-        return;
-      }
-
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
-
-      setKycStep("Fingerprint captured. Calling biometric eKYC...");
-
-      const storedUser = JSON.parse(
-        localStorage.getItem("retailerUser") || "{}",
-      ) as { id?: string; _id?: string; userId?: string; outletId?: string };
-      const retailerUserId = storedUser.id || storedUser._id || storedUser.userId || userId;
-
-      const result = await doBioEkyc({
-        userId: retailerUserId,
-        outlet_id: ekycPrompt.outletId || storedUser.outletId || "",
-        referenceKey: ekycPrompt.referenceKey,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        ...parsePidXml(capture.data),
-      });
-
-      setBioEkycResponse(result);
-      setKycStep("Biometric eKYC response received. Registration complete!");
-      onRegistrationComplete?.();
-    } catch (error: unknown) {
-      setBiometricError(error instanceof Error ? error.message : "Biometric eKYC failed.");
-      setKycStep(error instanceof Error ? error.message : "Biometric eKYC failed.");
-    } finally {
-      setCapturingBiometric(false);
     }
   };
 
@@ -413,54 +355,6 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
           </p>
         </div>
       </div>
-
-      {/* eKYC Status Section */}
-      {kycStep && (
-        <div className="rounded-xl border border-[#dce4f8] bg-[#f8f5ff] px-4 py-3">
-          <p className="text-sm font-bold text-[#172033]">eKYC Status</p>
-          <p className="mt-1 text-sm text-[#5c677a]">{kycStep}</p>
-          {ekycPrompt && (
-            <div className="mt-3 grid gap-2 text-xs text-[#172033]">
-              <p><span className="font-semibold">Message:</span> {ekycPrompt.message}</p>
-              <p><span className="font-semibold">Outlet:</span> {ekycPrompt.outletId || "—"}</p>
-              <p className="break-all">
-                <span className="font-semibold">Reference key:</span> {ekycPrompt.referenceKey || "—"}
-              </p>
-            </div>
-          )}
-          {doEkycResponse != null && (
-            <button
-              type="button"
-              onClick={captureBiometric}
-              disabled={capturingBiometric || !ekycPrompt}
-              className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white disabled:opacity-70"
-            >
-              {capturingBiometric ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Capturing...
-                </>
-              ) : (
-                <>
-                  <Fingerprint className="h-4 w-4" />
-                  do bio ekyc
-                </>
-              )}
-            </button>
-          )}
-          {biometricError && (
-            <p className="mt-3 text-sm text-red-600">{biometricError}</p>
-          )}
-          {bioEkycResponse != null && (
-            <>
-              <p className="mt-3 text-xs font-semibold text-[#172033]">Biometric eKYC response</p>
-              <pre className="mt-2 max-h-32 overflow-auto rounded-xl bg-[#f8fafc] p-2 text-[10px] leading-4 text-slate-700">
-                {JSON.stringify(bioEkycResponse, null, 2)}
-              </pre>
-            </>
-          )}
-        </div>
-      )}
     </div>
   );
 });
