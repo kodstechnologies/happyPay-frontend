@@ -43,7 +43,7 @@ import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2 | 3 | 4;
 
 type ServiceId =
   | "cash-withdrawal"
@@ -211,8 +211,7 @@ const generateRRN = () => {
 
 const ProgressHeader = ({ step }: { step: Step }) => {
   const progressSteps = [
-    { label: "Mobile" },
-    { label: "Aadhaar" },
+    { label: "Customer" },
     { label: "Bank" },
     { label: "Review" },
     { label: "Service" },
@@ -239,11 +238,10 @@ const Aeps = () => {
 
   /*
    * Step 0 = Retailer 2FA
-   * Step 1 = Mobile Number
-   * Step 2 = Aadhaar Number
-   * Step 3 = Bank Selection
-   * Step 4 = Review
-   * Step 5 = Services (Cash Withdrawal, Balance Enquiry)
+   * Step 1 = Customer Details (Mobile & Aadhaar)
+   * Step 2 = Bank Selection
+   * Step 3 = Review
+   * Step 4 = Services (Cash Withdrawal, Balance Enquiry)
    */
 
   const [step, setStep] = useState<Step>(0);
@@ -987,6 +985,9 @@ const Aeps = () => {
       setFetchedBalance(null);
       setModalType("biometric");
       startBiometric(serviceId);
+    } else if (serviceId === "mini-statement") {
+      // Directly open Mini Statement; biometric will be captured once when the API is executed
+      setShowMiniStatement(true);
     } else {
       setModalType("biometric");
       startBiometric(serviceId);
@@ -1444,7 +1445,7 @@ const Aeps = () => {
     setOtpReferenceKey("");
     setBalWithBalanceChecked(false);
     setFetchedBalance(null);
-    setStep(5);
+    setStep(4);
   };
 
   /*
@@ -1463,7 +1464,7 @@ const Aeps = () => {
     setModalType("");
     setBalWithBalanceChecked(false);
     setFetchedBalance(null);
-    setStep(5);
+    setStep(4);
   };
 
   /*
@@ -1526,6 +1527,7 @@ const Aeps = () => {
 
     if (step === 4) {
       setStep(3);
+      return;
     }
   };
 
@@ -1864,117 +1866,81 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 1: CUSTOMER MOBILE
+   * STEP 1: CUSTOMER DETAILS (MOBILE & AADHAAR)
    * ============================================================
    */
-  const renderCustomerMobile = () => {
+  const renderCustomerDetails = () => {
+    const isCustomerDetailsValid =
+      customerMobile.length === 10 && customerAadhaar.length === 12;
+
     return (
       <>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Step 1: Customer Mobile Number
+            Step 1: Customer Details
           </h2>
           <p className="mt-2 text-base text-slate-500">
-            Enter the customer's registered mobile number
+            Enter customer mobile number and Aadhaar number for verification
           </p>
         </div>
 
-        <section className="w-full max-w-2xl">
-          <label
-            htmlFor="customer-mobile"
-            className="mb-2 block text-sm font-bold text-slate-900"
-          >
-            Mobile Number
-          </label>
+        <div className="grid w-full max-w-2xl grid-cols-1 gap-5 sm:grid-cols-2">
+          {/* Customer Mobile */}
+          <section>
+            <label
+              htmlFor="customer-mobile"
+              className="mb-2 block text-sm font-bold text-slate-900"
+            >
+              Customer Mobile Number
+            </label>
 
-          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
-            <span className="text-sm font-bold text-slate-500">+91</span>
-            <input
-              id="customer-mobile"
-              type="text"
-              inputMode="numeric"
-              maxLength={10}
-              value={customerMobile}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "").slice(0, 10);
-                setCustomerMobile(value);
-              }}
-              placeholder="Enter 10-digit mobile number"
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-            />
-          </div>
-        </section>
+            <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4 focus-within:border-purple-600">
+              <span className="text-sm font-bold text-slate-500">+91</span>
+              <input
+                id="customer-mobile"
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={customerMobile}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setCustomerMobile(value);
+                }}
+                placeholder="Enter 10-digit mobile"
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+              />
+            </div>
+          </section>
+
+          {/* Customer Aadhaar */}
+          <section>
+            <label
+              htmlFor="customer-aadhaar"
+              className="mb-2 block text-sm font-bold text-slate-900"
+            >
+              Customer Aadhaar Number
+            </label>
+
+            <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4 focus-within:border-purple-600">
+              <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
+              <input
+                id="customer-aadhaar"
+                type="text"
+                inputMode="numeric"
+                maxLength={12}
+                value={customerAadhaar}
+                onChange={handleCustomerAadhaarChange}
+                placeholder="Enter 12-digit Aadhaar"
+                className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
+              />
+            </div>
+          </section>
+        </div>
 
         <button
           type="button"
           onClick={() => setStep(2)}
-          disabled={customerMobile.length !== 10}
-          className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
-        >
-          <ArrowRight className="h-5 w-5" />
-          CONTINUE TO AADHAAR
-        </button>
-      </>
-    );
-  };
-
-  /*
-   * ============================================================
-   * STEP 2: CUSTOMER AADHAAR
-   * ============================================================
-   */
-
-  /*
-   * ============================================================
-   * STEP 2
-   * CUSTOMER AADHAAR
-   * ============================================================
-   */
-
-
-
-
-  const renderCustomerAadhaar = () => {
-    return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 2: Customer Aadhaar Number
-          </h2>
-
-          <p className="mt-2 text-base text-slate-500">
-            Enter the customer's Aadhaar number for verification
-          </p>
-        </div>
-
-        <section className="w-full max-w-2xl">
-          <label
-            htmlFor="customer-aadhaar"
-            className="mb-2 block text-sm font-bold text-slate-900"
-          >
-            Aadhaar Number
-          </label>
-
-          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
-            <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
-
-            <input
-              id="customer-aadhaar"
-              type="text"
-              inputMode="numeric"
-              maxLength={12}
-              value={customerAadhaar}
-              onChange={handleCustomerAadhaarChange}
-              placeholder="Enter 12-digit Aadhaar number"
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-            />
-          </div>
-        </section>
-
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={customerAadhaar.length !== 12}
+          disabled={!isCustomerDetailsValid}
           className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
         >
           <ArrowRight className="h-5 w-5" />
@@ -1995,7 +1961,7 @@ const Aeps = () => {
       <>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Step 3: Bank Selection
+            Step 2: Bank Selection
           </h2>
 
           <p className="mt-2 text-base text-slate-500">
@@ -2074,7 +2040,7 @@ const Aeps = () => {
 
         <button
           type="button"
-          onClick={() => setStep(4)}
+          onClick={() => setStep(3)}
           disabled={!selectedBank || !consent}
           className="flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md disabled:bg-[#aab2c0] sm:text-xl"
         >
@@ -2096,7 +2062,7 @@ const Aeps = () => {
       <>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Step 4: Verify Your Details
+            Step 3: Verify Your Details
           </h2>
 
           <p className="mt-2 text-base text-slate-500">
@@ -2151,7 +2117,7 @@ const Aeps = () => {
 
               <button
                 type="button"
-                onClick={() => setStep(2)}
+                onClick={() => setStep(1)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
               >
                 <Edit3 className="h-5 w-5" />
@@ -2175,7 +2141,7 @@ const Aeps = () => {
 
               <button
                 type="button"
-                onClick={() => setStep(3)}
+                onClick={() => setStep(2)}
                 className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
               >
                 <Edit3 className="h-5 w-5" />
@@ -2186,7 +2152,7 @@ const Aeps = () => {
 
         <button
           type="button"
-          onClick={() => setStep(5)}
+          onClick={() => setStep(4)}
           className="mt-8 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md sm:text-xl"
         >
           <ArrowRight className="h-7 w-7" />
@@ -2258,7 +2224,7 @@ const Aeps = () => {
       <>
         <div>
           <h2 className="text-2xl font-bold text-slate-900">
-            Step 5: Select AEPS Service
+            Step 4: Select AEPS Service
           </h2>
 
           <p className="mt-2 text-base text-slate-500">
@@ -2977,7 +2943,7 @@ const Aeps = () => {
 
 
       <section className="hp-card overflow-hidden rounded-2xl p-5 sm:p-7">
-        {step > 0 && step <= 5 && (
+        {step > 0 && step <= 4 && (
           <div className="mx-auto mt-4 w-full max-w-3xl rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
             <ProgressHeader step={step as Step} />
           </div>
@@ -2988,11 +2954,10 @@ const Aeps = () => {
             {modalType === "" ? (
               <>
                 {step === 0 && renderRetailerAuth()}
-                {step === 1 && renderCustomerMobile()}
-                {step === 2 && renderCustomerAadhaar()}
-                {step === 3 && renderBankSelection()}
-                {step === 4 && renderReview()}
-                {step === 5 && renderServices()}
+                {step === 1 && renderCustomerDetails()}
+                {step === 2 && renderBankSelection()}
+                {step === 3 && renderReview()}
+                {step === 4 && renderServices()}
               </>
             ) : (
               <div className="flex w-full items-center justify-center bg-white rounded-2xl">

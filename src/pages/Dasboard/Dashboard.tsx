@@ -10,8 +10,6 @@ import {
   CheckCircle2,
   X,
   IdCard,
-  Smartphone,
-  Tv,
   CreditCard,
   QrCode,
   ReceiptIndianRupee,
@@ -20,7 +18,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
-import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../apis/wallet.apis";
+import { initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../apis/wallet.apis";
+import { getRetailerDashboardApi, type RetailerDashboardData } from "../../services/api/retailer/retailerDashboardApi";
 import { loadRazorpayScript } from "../../utils/razorpay";
 import { useNavigate } from "react-router-dom";
 
@@ -66,94 +65,72 @@ type QuickService = {
 
 
 
-type Transaction = {
-  id: string;
-  service: "AEPS" | "DMT" | "CMS";
-  title: string;
-  date: string;
-  time: string;
-  amount: number;
-  type: "CREDIT" | "DEBIT";
-  status: "Success" | "Pending" | "Failed";
-};
-
-const recentTransactions: Transaction[] = [
-  {
-    id: "TXN001",
-    service: "AEPS",
-    title: "AEPS Cash Withdrawal",
-    date: "04 Sep 2026",
-    time: "10:42 AM",
-    amount: 5000,
-    type: "CREDIT",
-    status: "Success",
-  },
-  {
-    id: "TXN002",
-    service: "DMT",
-    title: "DMT Money Transfer",
-    date: "04 Sep 2026",
-    time: "09:18 AM",
-    amount: 2500,
-    type: "DEBIT",
-    status: "Success",
-  },
-  {
-    id: "TXN003",
-    service: "CMS",
-    title: "CMS Collection",
-    date: "03 Sep 2026",
-    time: "05:32 PM",
-    amount: 8200,
-    type: "CREDIT",
-    status: "Success",
-  },
-  {
-    id: "TXN004",
-    service: "AEPS",
-    title: "AEPS Balance Enquiry",
-    date: "03 Sep 2026",
-    time: "02:15 PM",
-    amount: 0,
-    type: "DEBIT",
-    status: "Success",
-  },
-];
-
 const formatAmount = (amount: number) => {
   return new Intl.NumberFormat("en-IN", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount);
+  }).format(amount || 0);
 };
 
-const getServiceIcon = (service: Transaction["service"]) => {
-  if (service === "AEPS") return Fingerprint;
-  if (service === "DMT") return Send;
-  return WalletCards;
+const getServiceIcon = (service?: string) => {
+  const s = (service || "").toUpperCase();
+  if (s === "AEPS") return Fingerprint;
+  if (s === "DMT") return Send;
+  if (s === "CMS") return WalletCards;
+  if (s === "BBPS") return ReceiptIndianRupee;
+  if (s === "UPI") return QrCode;
+  return CreditCard;
 };
 
-const getServiceIconClasses = (service: Transaction["service"]) => {
-  if (service === "AEPS") return "bg-[#ffe6ea] text-[#e4002b]";
-  if (service === "DMT") return "bg-[#fff2df] text-[#c56b08]";
-  return "bg-[#e5f7ee] text-[#087f5b]";
+const getServiceIconClasses = (service?: string) => {
+  const s = (service || "").toUpperCase();
+  if (s === "AEPS") return "bg-[#ffe6ea] text-[#e4002b]";
+  if (s === "DMT") return "bg-[#fff2df] text-[#c56b08]";
+  if (s === "CMS") return "bg-[#e5f7ee] text-[#087f5b]";
+  if (s === "BBPS") return "bg-[#eef2ff] text-[#2563eb]";
+  if (s === "UPI") return "bg-[#e3f8fc] text-[#0891b2]";
+  return "bg-[#f3e8ff] text-[#9333ea]";
 };
 
-const getStatusIcon = (status: Transaction["status"]) => {
-  if (status === "Success") return CheckCircle2;
-  if (status === "Pending") return Clock3;
+const getStatusIcon = (status?: string) => {
+  const s = (status || "").toLowerCase();
+  if (s === "success") return CheckCircle2;
+  if (s === "pending") return Clock3;
   return XCircle;
 };
 
-const getStatusClasses = (status: Transaction["status"]) => {
-  if (status === "Success") return "bg-[#e5f7ee] text-[#087f5b]";
-  if (status === "Pending") return "bg-[#fff2df] text-[#c56b08]";
+const getStatusClasses = (status?: string) => {
+  const s = (status || "").toLowerCase();
+  if (s === "success") return "bg-[#e5f7ee] text-[#087f5b]";
+  if (s === "pending") return "bg-[#fff2df] text-[#c56b08]";
   return "bg-[#ffe6ea] text-[#c21d3d]";
 };
 
-const getAmountClasses = (type: Transaction["type"]) => {
-  if (type === "CREDIT") return "text-[#08a873]";
+const getAmountClasses = (type?: string) => {
+  if ((type || "").toUpperCase() === "CREDIT") return "text-[#08a873]";
   return "text-[#df4b43]";
+};
+
+const formatTransactionDate = (isoString?: string) => {
+  if (!isoString) return { date: "—", time: "" };
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return { date: isoString, time: "" };
+    return {
+      date: d.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }),
+      time: d.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+    };
+  } catch {
+    return { date: isoString, time: "" };
+  }
 };
 
 const Dashboard = () => {
@@ -201,43 +178,53 @@ const Dashboard = () => {
   const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
   const [kycStep, setKycStep] = useState("Calling eKYC...");
 
-  const fetchLiveBalance = useCallback(async (showLoader = false) => {
+  const [dashboardData, setDashboardData] = useState<RetailerDashboardData | null>(null);
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState<boolean>(true);
+
+  const fetchDashboardData = useCallback(async (showLoader = false) => {
     if (showLoader) setIsFetchingBalance(true);
     try {
-      const res = await getWalletBalanceApi();
+      const res = await getRetailerDashboardApi();
       if (res && res.success && res.data) {
-        const liveBal = Number(res.data.balance || 0);
+        setDashboardData(res.data);
+        const liveBal = Number(res.data.wallet?.availableBalance ?? res.data.wallet?.balance ?? 0);
         setWalletBalanceState(liveBal);
         setWalletBalance(liveBal);
       }
     } catch (err) {
-      console.error("Failed to fetch wallet balance on dashboard:", err);
+      console.error("Failed to fetch retailer dashboard data:", err);
     } finally {
       setIsFetchingBalance(false);
+      setIsLoadingDashboard(false);
     }
   }, []);
 
+  const fetchLiveBalance = useCallback(async (showLoader = false) => {
+    await fetchDashboardData(showLoader);
+  }, [fetchDashboardData]);
+
   useEffect(() => {
     let isMounted = true;
-    const loadLiveBalance = async () => {
-      setIsFetchingBalance(true);
+    const loadInit = async () => {
       try {
-        const res = await getWalletBalanceApi();
+        const res = await getRetailerDashboardApi();
         if (isMounted && res?.success && res.data) {
-          const liveBal = Number(res.data.balance || 0);
+          setDashboardData(res.data);
+          const liveBal = Number(res.data.wallet?.availableBalance ?? res.data.wallet?.balance ?? 0);
           setWalletBalanceState(liveBal);
           setWalletBalance(liveBal);
         }
       } catch (err) {
-        console.error("Failed to fetch wallet balance on dashboard:", err);
+        console.error("Failed to fetch retailer dashboard data:", err);
       } finally {
         if (isMounted) {
           setIsFetchingBalance(false);
+          setIsLoadingDashboard(false);
         }
       }
     };
 
-    loadLiveBalance();
+    loadInit();
 
     return () => {
       isMounted = false;
@@ -645,39 +632,39 @@ const Dashboard = () => {
         "bg-[#f8faff] border-[#dce6ff] hover:bg-[#f0f5ff]",
       path: "/retailer/bbps",
     },
-    {
-      title: "Mobile Recharge",
-      description: "Recharge Mobile",
-      icon: Smartphone,
-      iconClass: "text-[#ea580c]",
-      bgClass: "bg-[#fff0e5]",
-      hoverClass: "hover:bg-[#fff0e5]",
-      cardClass:
-        "bg-[#fff8f2] border-[#ffe8d8] hover:bg-[#fff3e9]",
-      comingSoon: true,
-    },
-    {
-      title: "DTH",
-      description: "DTH Recharge",
-      icon: Tv,
-      iconClass: "text-[#db2777]",
-      bgClass: "bg-[#fce7f3]",
-      hoverClass: "hover:bg-[#fce7f3]",
-      cardClass:
-        "bg-[#fff5fa] border-[#f9dce9] hover:bg-[#fff0f7]",
-      comingSoon: true,
-    },
-    {
-      title: "PAN Services",
-      description: "PAN Card Services",
-      icon: CreditCard,
-      iconClass: "text-[#ca8a04]",
-      bgClass: "bg-[#fef9c3]",
-      hoverClass: "hover:bg-[#fef9c3]",
-      cardClass:
-        "bg-[#fffef0] border-[#f7edaa] hover:bg-[#fffce0]",
-      comingSoon: true,
-    },
+    // {
+    //   title: "Mobile Recharge",
+    //   description: "Recharge Mobile",
+    //   icon: Smartphone,
+    //   iconClass: "text-[#ea580c]",
+    //   bgClass: "bg-[#fff0e5]",
+    //   hoverClass: "hover:bg-[#fff0e5]",
+    //   cardClass:
+    //     "bg-[#fff8f2] border-[#ffe8d8] hover:bg-[#fff3e9]",
+    //   comingSoon: true,
+    // },
+    // {
+    //   title: "DTH",
+    //   description: "DTH Recharge",
+    //   icon: Tv,
+    //   iconClass: "text-[#db2777]",
+    //   bgClass: "bg-[#fce7f3]",
+    //   hoverClass: "hover:bg-[#fce7f3]",
+    //   cardClass:
+    //     "bg-[#fff5fa] border-[#f9dce9] hover:bg-[#fff0f7]",
+    //   comingSoon: true,
+    // },
+    // {
+    //   title: "PAN Services",
+    //   description: "PAN Card Services",
+    //   icon: CreditCard,
+    //   iconClass: "text-[#ca8a04]",
+    //   bgClass: "bg-[#fef9c3]",
+    //   hoverClass: "hover:bg-[#fef9c3]",
+    //   cardClass:
+    //     "bg-[#fffef0] border-[#f7edaa] hover:bg-[#fffce0]",
+    //   comingSoon: true,
+    // },
   ];
 
   return (
@@ -917,6 +904,7 @@ const Dashboard = () => {
             <div className="space-y-6">
 
               {/* ACCOUNT SNAPSHOT (Optional, kept small if needed) */}
+              {/* ACCOUNT SNAPSHOT */}
               <section className="bg-white rounded-[24px] p-5 sm:p-6 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
                 <div className="flex items-center gap-4 mb-4 border-b border-slate-100">
                   <h2 className="text-[17px] font-bold text-slate-800 border-b-2 border-[#7c3aed] pb-3 -mb-[1px]">Account Snapshot</h2>
@@ -924,11 +912,15 @@ const Dashboard = () => {
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
                     <p className="text-xs font-medium text-[#64748b]">Today's Earnings</p>
-                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">₹1,250.00</p>
+                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">
+                      ₹{formatAmount(dashboardData?.todayEarnings ?? 0)}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
                     <p className="text-xs font-medium text-[#64748b]">Retailer ID</p>
-                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">HP100245</p>
+                    <p className="mt-1 text-[15px] font-bold text-[#0f172a] truncate" title={dashboardData?.retailer?.outletId || "HP100245"}>
+                      {dashboardData?.retailer?.outletId || "HP100245"}
+                    </p>
                   </div>
                 </div>
               </section>
@@ -946,43 +938,59 @@ const Dashboard = () => {
                 </div>
                 
                 <div className="flex flex-col gap-0.5">
-                  {recentTransactions.map((transaction, index) => {
-                    const Icon = getServiceIcon(transaction.service);
-                    const StatusIcon = getStatusIcon(transaction.status);
-                    const isLast = index === recentTransactions.length - 1;
-
-                    return (
-                      <div
-                        key={transaction.id}
-                        className={`group flex items-center gap-3 py-3 transition-colors hover:bg-slate-50/60 ${
-                          !isLast ? "border-b border-slate-100/60" : ""
-                        }`}
-                      >
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${getServiceIconClasses(transaction.service)}`}>
-                          <Icon className="h-[18px] w-[18px]" />
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-[13px] font-bold text-[#172033]">
-                            {transaction.title}
-                          </h3>
-                          <p className="mt-0.5 text-[11px] text-[#9aa0ab]">
-                            {transaction.date} • {transaction.time}
-                          </p>
-                        </div>
-
-                        <div className="shrink-0 text-right">
-                          <p className={`text-[13px] font-bold ${getAmountClasses(transaction.type)}`}>
-                            {transaction.type === "CREDIT" ? "+" : "-"} ₹{formatAmount(transaction.amount)}
-                          </p>
-                          <span className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${getStatusClasses(transaction.status)}`}>
-                            <StatusIcon className="h-2.5 w-2.5" />
-                            {transaction.status}
-                          </span>
-                        </div>
+                  {isLoadingDashboard ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-5 w-5 animate-spin text-[#7c3aed]" />
+                    </div>
+                  ) : !dashboardData?.recentTransactions || dashboardData.recentTransactions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-8 text-center text-slate-400">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 text-slate-400 mb-2">
+                        <Clock3 className="h-5 w-5 stroke-[1.5]" />
                       </div>
-                    );
-                  })}
+                      <p className="text-xs font-semibold text-slate-600">No transactions yet</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">Your recent activities will appear here</p>
+                    </div>
+                  ) : (
+                    dashboardData.recentTransactions.map((transaction, index) => {
+                      const Icon = getServiceIcon(transaction.service);
+                      const StatusIcon = getStatusIcon(transaction.status);
+                      const isLast = index === dashboardData.recentTransactions.length - 1;
+                      const { date, time } = formatTransactionDate(transaction.createdAt);
+                      const isCredit = (transaction.type || "").toUpperCase() === "CREDIT";
+
+                      return (
+                        <div
+                          key={transaction._id || transaction.transactionId || index}
+                          className={`group flex items-center gap-3 py-3 transition-colors hover:bg-slate-50/60 ${
+                            !isLast ? "border-b border-slate-100/60" : ""
+                          }`}
+                        >
+                          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${getServiceIconClasses(transaction.service)}`}>
+                            <Icon className="h-[18px] w-[18px]" />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <h3 className="truncate text-[13px] font-bold text-[#172033]">
+                              {transaction.description || `${transaction.service} Transaction`}
+                            </h3>
+                            <p className="mt-0.5 text-[11px] text-[#9aa0ab]">
+                              {date} {time ? `• ${time}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="shrink-0 text-right">
+                            <p className={`text-[13px] font-bold ${getAmountClasses(transaction.type)}`}>
+                              {isCredit ? "+" : "-"} ₹{formatAmount(transaction.amount)}
+                            </p>
+                            <span className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold ${getStatusClasses(transaction.status)}`}>
+                              <StatusIcon className="h-2.5 w-2.5" />
+                              <span className="capitalize">{transaction.status}</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </section>
 
