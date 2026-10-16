@@ -398,7 +398,7 @@ const Dashboard = () => {
         setIsScanningDevices(false);
       }
     }
-
+//test
     setBiometricError("");
     setCapturingBiometric(true);
     setKycStep("Capturing fingerprint from the biometric device...");
