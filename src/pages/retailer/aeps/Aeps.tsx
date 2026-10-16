@@ -1055,11 +1055,12 @@ const Aeps = () => {
 
     const referenceKey = overrideReferenceKey || retailerRefKey;
 
-    if (!outletId || !referenceKey) {
-      throw new Error(
-        "Outlet ID or Reference key is missing. Please complete eKYC first."
-      );
-    }
+    // Commented out: Allow proceeding without outletId and referenceKey
+    // if (!outletId || !referenceKey) {
+    //   throw new Error(
+    //     "Outlet ID or Reference key is missing. Please complete eKYC first."
+    //   );
+    // }
 
     const coords = await getGeolocationCoordinates({
       fallbackLatitude: "0",
