@@ -26,7 +26,7 @@ import { useNavigate } from "react-router-dom";
 
 import { apiClient } from "../../services/api/client";
 import { getToken } from "../../utils/auth";
-import { mfs110Service } from "../../services/bimetric/mfs110.service";
+import { rdService } from "../../utils/rdService";
 import { getGeolocationCoordinates } from "../../utils/geolocation";
 import {
   checkDoEkyc,
@@ -201,6 +201,12 @@ const Dashboard = () => {
   const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
   const [kycStep, setKycStep] = useState("Calling eKYC...");
 
+  // Biometric device states
+  const [availableDevices, setAvailableDevices] = useState<import("../../utils/rdService").ActiveDevice[]>([]);
+  const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
+  const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
+  const [isScanningDevices, setIsScanningDevices] = useState(true);
+
   const fetchLiveBalance = useCallback(async (showLoader = false) => {
     if (showLoader) setIsFetchingBalance(true);
     try {
@@ -324,15 +330,85 @@ const Dashboard = () => {
     };
   }, []);
 
+  // Scan for biometric devices on mount
+  useEffect(() => {
+    let isMounted = true;
+
+    const scanDevices = async () => {
+      try {
+        const devices = await rdService.scanAllDevices();
+        if (!isMounted) return;
+
+        setAvailableDevices(devices);
+
+        if (devices.length > 0) {
+          setSelectedDevicePort(devices[0].port);
+          setWithdrawalDeviceName(devices[0].name);
+        } else {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("No device found");
+        }
+      } catch (error) {
+        console.error("Device scan failed:", error);
+        if (isMounted) {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("Scan failed");
+        }
+      } finally {
+        if (isMounted) {
+          setIsScanningDevices(false);
+        }
+      }
+    };
+
+    scanDevices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const captureBiometric = async () => {
     if (!ekycPrompt) return;
+
+    // Auto-scan if no device is selected
+    if (selectedDevicePort === null || availableDevices.length === 0) {
+      setIsScanningDevices(true);
+      setWithdrawalDeviceName("Scanning devices...");
+      setKycStep("Scanning for biometric devices...");
+
+      try {
+        const devices = await rdService.scanAllDevices();
+        setAvailableDevices(devices);
+
+        if (devices.length > 0) {
+          setSelectedDevicePort(devices[0].port);
+          setWithdrawalDeviceName(devices[0].name);
+        } else {
+          setBiometricError("No biometric devices found. Please ensure RD Service is running and device is connected.");
+          setIsScanningDevices(false);
+          return;
+        }
+      } catch (error) {
+        console.log(error)
+        setBiometricError("Failed to scan for biometric devices.");
+        setIsScanningDevices(false);
+        return;
+      } finally {
+        setIsScanningDevices(false);
+      }
+    }
 
     setBiometricError("");
     setCapturingBiometric(true);
     setKycStep("Capturing fingerprint from the biometric device...");
 
     try {
-      const capture = await mfs110Service.capture(ekycPrompt.pidOptionWadh);
+      const capture = await rdService.captureFingerprint(selectedDevicePort, {
+        wadh: ekycPrompt.pidOptionWadh,
+        fType: "2", // ISO 19794-2 banking standard
+      });
+
       if (!capture.success || !capture.data) {
         setBiometricError(capture.message || "Fingerprint capture failed.");
         return;
@@ -734,12 +810,24 @@ const Dashboard = () => {
           <section className="mb-6 rounded-2xl border border-[#dce4f8] bg-white p-4 shadow-sm">
             <p className="text-sm font-bold text-[#172033]">After eKYC</p>
             <p className="mt-1 text-sm text-[#5c677a]">{kycStep}</p>
+
+            {/* Device Status */}
+            <div className="mt-3 flex items-center gap-2 text-xs">
+              <span className="font-semibold text-[#172033]">Biometric Device:</span>
+              <span className={availableDevices.length > 0 ? "text-[#08a873]" : "text-red-600"}>
+                {withdrawalDeviceName}
+              </span>
+              {isScanningDevices && (
+                <RefreshCw className="h-3 w-3 animate-spin text-[#7c3aed]" />
+              )}
+            </div>
+
             {ekycPrompt && (
               <div className="mt-3 grid gap-2 text-xs text-[#172033] sm:grid-cols-2">
                 <p><span className="font-semibold">Message:</span> {ekycPrompt.message}</p>
-                <p><span className="font-semibold">Outlet:</span> {ekycPrompt.outletId || "—"}</p>
+                <p><span className="font-semibold">Outlet:</span> {ekycPrompt.outletId || "--"}</p>
                 <p className="sm:col-span-2 break-all">
-                  <span className="font-semibold">Reference key:</span> {ekycPrompt.referenceKey || "—"}
+                  <span className="font-semibold">Reference key:</span> {ekycPrompt.referenceKey || "--"}
                 </p>
               </div>
             )}
@@ -752,7 +840,7 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={captureBiometric}
-                disabled={capturingBiometric || !ekycPrompt}
+                disabled={capturingBiometric || !ekycPrompt || availableDevices.length === 0}
                 className="mt-3 flex h-11 items-center justify-center rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white disabled:opacity-70"
               >
                 {capturingBiometric ? "Please wait..." : "do bio ekyc"}
