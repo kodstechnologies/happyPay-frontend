@@ -4,11 +4,13 @@ import SidebarContent from "./SidebarContent";
 interface SidebarMobileProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onLogout?: () => void;
 }
 
 const SidebarMobile = ({
   open,
   onOpenChange,
+  onLogout,
 }: SidebarMobileProps) => {
   if (!open) return null;
 
@@ -32,6 +34,7 @@ const SidebarMobile = ({
         <SidebarContent
           onLogout={() => {
             onOpenChange(false);
+            onLogout?.();
           }}
           onNavigate={() => {
             onOpenChange(false);

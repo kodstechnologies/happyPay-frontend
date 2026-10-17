@@ -1,11 +1,17 @@
 import { useNavigate } from "react-router-dom";
-import { CheckCircle2, ArrowRight, ShieldCheck } from "lucide-react";
+import { CheckCircle2, ArrowRight, ShieldCheck, LogOut } from "lucide-react";
+import { logout } from "../../../utils/auth";
 
 const RetailerKycApproved = () => {
   const navigate = useNavigate();
 
   const handleContinue = () => {
     navigate("/retailer", { replace: true });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/retailer/login", { replace: true });
   };
 
   return (
@@ -45,6 +51,15 @@ const RetailerKycApproved = () => {
         >
           Go to Dashboard
           <ArrowRight className="h-4 w-4" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-rose-600 active:scale-[0.99]"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout
         </button>
       </div>
     </div>

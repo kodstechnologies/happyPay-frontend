@@ -30,11 +30,15 @@ const AppLayout = () => {
         <SidebarMobile
           open={mobileSidebarOpen}
           onOpenChange={setMobileSidebarOpen}
+          onLogout={handleLogout}
         />
 
         {/* NAVBAR */}
         <div className="shrink-0 px-3 pt-3 pb-0 sm:px-4 lg:px-6 lg:pt-4">
-          <Navbar onOpenSidebar={() => setMobileSidebarOpen(true)} />
+          <Navbar
+            onOpenSidebar={() => setMobileSidebarOpen(true)}
+            // onLogout={handleLogout}
+          />
         </div>
 
         {/* PAGE CONTENT */}

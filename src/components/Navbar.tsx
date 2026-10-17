@@ -1,6 +1,11 @@
 import { Bell, Headphones, Menu, Search } from "lucide-react";
 
-const Navbar = ({ onOpenSidebar }: { onOpenSidebar?: () => void }) => {
+interface NavbarProps {
+  onOpenSidebar?: () => void;
+ 
+}
+
+const Navbar = ({ onOpenSidebar }: NavbarProps) => {
   return (
     <header className="hp-retailer-navbar flex h-16 items-center justify-between gap-3 rounded-[18px] border border-white/80 bg-white/95 px-3 shadow-[0_10px_28px_-20px_rgba(15,23,42,0.28)] backdrop-blur-md sm:px-4 lg:px-5">
       {/* LEFT */}
@@ -82,6 +87,9 @@ const Navbar = ({ onOpenSidebar }: { onOpenSidebar?: () => void }) => {
             </p>
           </div>
         </div>
+
+      
+       
       </div>
     </header>
   );

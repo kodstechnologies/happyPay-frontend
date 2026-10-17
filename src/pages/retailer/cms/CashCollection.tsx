@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
 import Input from "../../../components/common/Input";
@@ -21,6 +22,9 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { initiateCmsPaymentApi } from "../../../apis/cms.apis";
+import { CMS_COMPANIES, type CmsCompany as Client } from "./cmsCompanies";
 
 type Screen =
   | "home"
@@ -29,16 +33,6 @@ type Screen =
   | "employee-details"
   | "otp"
   | "receipt";
-
-interface Client {
-  id: string;
-  name: string;
-  code: string;
-  description: string;
-  commissionRate: number;
-  commissionDisplay: string;
-  icon: "bike" | "car" | "shield" | "bank" | "building" | "truck";
-}
 
 interface Employee {
   code: string;
@@ -51,74 +45,9 @@ interface Employee {
 }
 
 /* =========================
-   CLIENT DATA
+   CLIENT DATA (Reused from cmsCompanies)
 ========================= */
-
-const clients: Client[] = [
-  {
-    id: "chola",
-    name: "Cholamandalam Finance",
-    code: "CHOLA",
-    description: "Vehicle & Asset Finance • VF, HL, LAP",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "car",
-  },
-  {
-    id: "muthoot",
-    name: "Muthoot Finance",
-    code: "MUTHOOT",
-    description: "Gold Loan & Asset Finance • GL, PL, HL",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "shield",
-  },
-  {
-    id: "herofin",
-    name: "Hero FinCorp",
-    code: "HEROFIN",
-    description: "Two Wheeler & SME Finance • VF, PL, SME",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "bike",
-  },
-  {
-    id: "bajaj",
-    name: "Bajaj Finserv",
-    code: "BAJAJ",
-    description: "Consumer & Business Loans • PL, HL, LAP",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "bank",
-  },
-  {
-    id: "lnt",
-    name: "L&T Finance Holdings",
-    code: "LTF",
-    description: "Rural & Housing Finance • HL, VF, SME",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "building",
-  },
-  {
-    id: "mahindra",
-    name: "Mahindra & Mahindra Financial Services",
-    code: "MMFSL",
-    description: "Auto & Tractor Loans • VF, SME, HL",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "bike",
-  },
-  {
-    id: "tvs",
-    name: "TVS Credit Services",
-    code: "TVSCREDIT",
-    description: "Two Wheeler & Used Cars • VF, PL",
-    commissionRate: 0.04,
-    commissionDisplay: "0.04 Comm",
-    icon: "truck",
-  },
-];
+const clients: Client[] = CMS_COMPANIES;
 
 /* =========================
    EMPLOYEE DATA
@@ -375,7 +304,7 @@ const CashCollection = ({
      VERIFY OTP
   ========================= */
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async () => {
     if (otp.length !== 6) {
       setOtpError("Please enter the 6-digit OTP.");
       return;
@@ -384,22 +313,43 @@ const CashCollection = ({
     setOtpError("");
     setIsSubmitting(true);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      // 1. Fetch real geolocation coordinates safely
+      const coords = await getGeolocationCoordinates();
 
-      if (otp !== "123456") {
-        setOtpError("Invalid OTP.");
-        return;
-      }
+      // 2. Call backend CMS initiate-payment API
+      const response = await initiateCmsPaymentApi({
+        amount: Number(collectionAmount),
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        agency_id: selectedClient?.agencyId || selectedClient?.id,
+        biller_id: selectedClient?.billerId || selectedClient?.id,
+        consumer_id: verifiedEmployee?.code || employeeCode,
+        mobile: verifiedEmployee?.mobile || "",
+      });
 
-      setTransactionId(
-        `CMS-COL-${Math.floor(
-          1000000 + Math.random() * 9000000
-        )}`
-      );
+      const resData = response.data || (response as unknown as Record<string, unknown>);
+      const generatedTxn =
+        (resData as Record<string, unknown>)?.txnid ||
+        (resData as Record<string, unknown>)?.rrn ||
+        `CMS-COL-${Date.now().toString().slice(-8)}`;
 
+      setTransactionId(String(generatedTxn));
       setScreen("receipt");
-    }, 1200);
+      toast.success(response.message || "Cash Collection processed successfully!");
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string; msg?: string } }; message?: string };
+      const msg =
+        errorObj?.response?.data?.message ||
+        errorObj?.response?.data?.msg ||
+        errorObj?.message ||
+        "Failed to process CMS Cash Collection. Please retry.";
+
+      setOtpError(msg);
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   /* =========================

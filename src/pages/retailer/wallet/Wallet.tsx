@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import { getWalletBalanceApi, initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../../apis/wallet.apis";
 import { loadRazorpayScript } from "../../../utils/razorpay";
+import { useAuth } from "../../../context/AuthContext";
 
 const formatAmount = (amount: number) =>
   amount.toLocaleString("en-IN", {
@@ -11,14 +12,6 @@ const formatAmount = (amount: number) =>
     maximumFractionDigits: 2,
   });
 
-interface StoredRetailerUser {
-  _id?: string;
-  fullName?: string;
-  name?: string;
-  mobile?: string;
-  email?: string;
-  outletId?: string;
-}
 
 interface RazorpaySuccessResponse {
   razorpay_payment_id: string;
@@ -89,15 +82,8 @@ export default function Wallet() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
 
-  // Load retailer details from stored session
-  const [retailerUser] = useState<StoredRetailerUser>(() => {
-    try {
-      const stored = localStorage.getItem("retailerUser");
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
-  });
+  // Load retailer details from in-memory session
+  const { user: retailerUser } = useAuth();
 
   const fetchBalance = useCallback(async (showLoader = true) => {
     if (showLoader) {
@@ -273,9 +259,9 @@ export default function Wallet() {
           }
         },
         prefill: {
-          name: retailerUser.fullName || retailerUser.name || "Retailer",
-          email: retailerUser.email || "retailer@happypay.com",
-          contact: retailerUser.mobile || localStorage.getItem("retailerMobile") || "9999999999",
+          name: retailerUser?.fullName || "Retailer",
+          email: retailerUser?.email || "retailer@happypay.com",
+          contact: retailerUser?.mobile || "9999999999",
         },
         theme: {
           color: "#7c3aed",
@@ -332,12 +318,13 @@ export default function Wallet() {
   };
 
   const retailerId =
-    retailerUser.outletId ||
-    retailerUser._id?.slice(-8).toUpperCase() ||
-    localStorage.getItem("registeredRetailerMobile") ||
+    retailerUser?.outletId ||
+    retailerUser?.AepsEkyc?.outletId ||
+    retailerUser?._id?.slice(-8).toUpperCase() ||
+    retailerUser?.id?.slice(-8).toUpperCase() ||
     "HP100245";
 
-  const retailerName = retailerUser.fullName || retailerUser.name || "Retailer Partner";
+  const retailerName = retailerUser?.fullName || "Retailer Partner";
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5">

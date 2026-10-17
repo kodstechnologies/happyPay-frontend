@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
-import MiniStatement from "./MiniStatement";
+import MiniStatement, { type MiniStatementData } from "./MiniStatement";
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,6 +22,8 @@ import {
   RefreshCw,
   LockKeyhole,
   ReceiptText,
+  Copy,
+  CheckCircle2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
@@ -31,6 +33,7 @@ import {
   verifyTfa,
   parsePidXml,
   balanceEnquiry,
+  miniStatement,
   cashWithdrawal,
   cashDeposit,
   sendAepsOtp,
@@ -42,6 +45,7 @@ import {
 import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
+import { useAuth } from "../../../context/AuthContext";
 
 type Step = 0 | 1 | 2 | 3 | 4 | 5;
 
@@ -95,6 +99,7 @@ interface ReceiptData {
   biometricDevice: string;
   authMode: string;
   status: string;
+  message?: string;
   transactions: Transaction[];
 }
 
@@ -655,6 +660,8 @@ const Aeps = () => {
   const [consent, setConsent] =
     useState(false);
 
+  const { user: authUser } = useAuth();
+
   /*
    * AEPS service
    */
@@ -673,6 +680,8 @@ const Aeps = () => {
    */
   const [isProcessing, setIsProcessing] =
     useState(false);
+  const [isFetchingService, setIsFetchingService] = useState(false);
+  const [serviceFetchingMessage, setServiceFetchingMessage] = useState("");
 
   /*
    * Withdrawal amount
@@ -687,7 +696,7 @@ const Aeps = () => {
   const [otpReferenceKey, setOtpReferenceKey] = useState("");
 
   /*
-   * Receipt
+   * Receipt & Mini Statement
    */
   const [showReceipt, setShowReceipt] =
     useState(false);
@@ -696,6 +705,8 @@ const Aeps = () => {
     useState<ReceiptData | null>(null);
 
   const [showMiniStatement, setShowMiniStatement] = useState(false);
+  const [miniStatementResult, setMiniStatementResult] = useState<MiniStatementData | null>(null);
+  const [copiedReceiptTxnId, setCopiedReceiptTxnId] = useState(false);
 
   /*
    * ============================================================
@@ -1045,22 +1056,31 @@ const Aeps = () => {
     overrideReferenceKey?: string
   ): Promise<AepsServicePayload> => {
     const token = getToken();
-    if (!token) {
-      throw new Error("Authentication token not found. Please login again.");
+    let tokenOutletId = "";
+    let tokenRefKey = "";
+    if (token) {
+      try {
+        const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+        tokenOutletId = tokenPayload.outletId || tokenPayload.outletid || "";
+        tokenRefKey = tokenPayload.referenceKey || "";
+      } catch (e) {
+        console.warn("Failed to parse token payload", e);
+      }
     }
 
-    const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-    const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-    const retailerRefKey = tokenPayload.referenceKey || "";
+    const outletId =
+      authUser?.AepsEkyc?.outletId ||
+      authUser?.outletId ||
+      tokenOutletId ||
+      "";
+
+    const retailerRefKey =
+      authUser?.AepsEkyc?.referenceKey ||
+      authUser?.referenceKey ||
+      tokenRefKey ||
+      "";
 
     const referenceKey = overrideReferenceKey || retailerRefKey;
-
-    // Commented out: Allow proceeding without outletId and referenceKey
-    // if (!outletId || !referenceKey) {
-    //   throw new Error(
-    //     "Outlet ID or Reference key is missing. Please complete eKYC first."
-    //   );
-    // }
 
     const coords = await getGeolocationCoordinates({
       fallbackLatitude: "0",
@@ -1095,6 +1115,7 @@ const Aeps = () => {
     const numericBalance = Number(rawBalance);
 
     const transactionId =
+      (resultData.txnid as string) ||
       (resultData.transactionId as string) ||
       (resultData.clientRefId as string) ||
       (resultData.ackno as string) ||
@@ -1111,6 +1132,11 @@ const Aeps = () => {
       (resultData.txnStatus as string) ||
       fallbackStatus;
 
+    const message =
+      (resultData.msg as string) ||
+      (resultData.message as string) ||
+      "Transaction Successful";
+
     return {
       receiptType: type,
       bankName: selectedBank?.name || getSelectedBankName(),
@@ -1123,6 +1149,7 @@ const Aeps = () => {
       biometricDevice: withdrawalDeviceName || "Mantra MFS100",
       authMode: "Biometric / AEPS Verified",
       status,
+      message,
       transactions: [],
     };
   };
@@ -1139,21 +1166,28 @@ const Aeps = () => {
       if (!captureResult.success) {
         setIsProcessing(false);
         setModalType("");
-        alert(captureResult.message);
+        alert(captureResult.message || "Failed to capture fingerprint from device");
         return;
       }
+
+      // Close biometric modal immediately upon capture success
+      setModalType("");
+      setIsProcessing(false);
 
       // 2. Parse the captured RD Service PID XML
       const pidDataXML = captureResult.data;
       console.log("Captured PidData XML ready for backend:", pidDataXML);
       const pidData = parsePidXml(pidDataXML || "");
 
-      setIsProcessing(false);
+      // 3. Initiate dedicated fetching state
+      setIsFetchingService(true);
+      const bankName = selectedBank?.name || "Bank CBS";
 
       /*
        * B. BALANCE CHECK
        */
       if (serviceId === "balance-check") {
+        setServiceFetchingMessage(`Fetching account balance from ${bankName}...`);
         try {
           const payload = await prepareAepsPayload(pidData);
           console.log("Balance enquiry payload:", payload);
@@ -1166,6 +1200,8 @@ const Aeps = () => {
         } catch (error) {
           console.error("Balance enquiry failed:", error);
           alert(getErrorMessage(error, "Failed to check balance"));
+        } finally {
+          setIsFetchingService(false);
         }
         return;
       }
@@ -1174,7 +1210,22 @@ const Aeps = () => {
        * C. MINI STATEMENT
        */
       if (serviceId === "mini-statement") {
-        setShowMiniStatement(true);
+        setServiceFetchingMessage(`Fetching mini statement from ${bankName}...`);
+        try {
+          const payload = await prepareAepsPayload(pidData);
+          console.log("Mini statement payload:", payload);
+          const result = await miniStatement(payload);
+          console.log("Mini statement result:", result);
+
+          const resultData = (result.data || {}) as Record<string, unknown>;
+          setMiniStatementResult(resultData as MiniStatementData);
+          setShowMiniStatement(true);
+        } catch (error) {
+          console.error("Mini statement failed:", error);
+          alert(getErrorMessage(error, "Failed to fetch mini statement"));
+        } finally {
+          setIsFetchingService(false);
+        }
         return;
       }
 
@@ -1182,11 +1233,12 @@ const Aeps = () => {
        * A. CASH WITHDRAWAL
        */
       if (serviceId === "cash-withdrawal") {
+        setServiceFetchingMessage(`Processing cash withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
         try {
           const refKeyToUse =
             withdrawalAmount > 5000 && otpReferenceKey
               ? otpReferenceKey
-              : undefined;
+              : (authUser?.AepsEkyc?.referenceKey || undefined);
           const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
           const payload: CashWithdrawalPayload = {
             ...basePayload,
@@ -1207,6 +1259,8 @@ const Aeps = () => {
         } catch (error) {
           console.error("Cash withdrawal failed:", error);
           alert(getErrorMessage(error, "Failed to complete cash withdrawal"));
+        } finally {
+          setIsFetchingService(false);
         }
         return;
       }
@@ -1216,6 +1270,7 @@ const Aeps = () => {
        */
       if (serviceId === "balance-withdrawal") {
         if (!balWithBalanceChecked) {
+          setServiceFetchingMessage(`Step 1: Checking account balance with ${bankName}...`);
           try {
             const payload = await prepareAepsPayload(pidData);
             const result = await balanceEnquiry(payload);
@@ -1238,13 +1293,16 @@ const Aeps = () => {
           } catch (error) {
             console.error("Balance check failed in balance-withdrawal:", error);
             alert(getErrorMessage(error, "Failed to check balance"));
+          } finally {
+            setIsFetchingService(false);
           }
         } else {
+          setServiceFetchingMessage(`Step 2: Authorizing withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
           try {
             const refKeyToUse =
               withdrawalAmount > 5000 && otpReferenceKey
                 ? otpReferenceKey
-                : undefined;
+                : (authUser?.AepsEkyc?.referenceKey || undefined);
             const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
             const payload: CashWithdrawalPayload = {
               ...basePayload,
@@ -1264,6 +1322,8 @@ const Aeps = () => {
           } catch (error) {
             console.error("Withdrawal failed:", error);
             alert(getErrorMessage(error, "Failed to complete withdrawal"));
+          } finally {
+            setIsFetchingService(false);
           }
         }
         return;
@@ -1273,11 +1333,19 @@ const Aeps = () => {
        * E. CASH DEPOSIT
        */
       if (serviceId === "cash-deposit") {
+        setServiceFetchingMessage(`Processing cash deposit of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
         try {
-          const basePayload = await prepareAepsPayload(pidData);
+          // Pass the correct referenceKey from context from AepsEkyc object of retailer
+          const cashDepositRefKey =
+            authUser?.AepsEkyc?.referenceKey ||
+            authUser?.referenceKey ||
+            "";
+
+          const basePayload = await prepareAepsPayload(pidData, cashDepositRefKey);
           const rawPid = pidData as Record<string, unknown>;
           const payload: CashDepositPayload = {
             ...basePayload,
+            referenceKey: cashDepositRefKey || basePayload.referenceKey,
             amount: withdrawalAmount,
             txnid: generateTransactionId(),
             pidDatatype: (rawPid.PidDatatype as string) || "X",
@@ -1318,12 +1386,15 @@ const Aeps = () => {
         } catch (error) {
           console.error("Cash deposit failed:", error);
           alert(getErrorMessage(error, "Failed to complete cash deposit"));
+        } finally {
+          setIsFetchingService(false);
         }
         return;
       }
     } catch (error) {
       console.error(error);
       setIsProcessing(false);
+      setIsFetchingService(false);
       setModalType("");
       alert("Something went wrong with the Biometric Scanner.");
     }
@@ -1454,10 +1525,14 @@ const Aeps = () => {
   const handleReceiptHome = () => {
     setShowReceipt(false);
     setReceiptData(null);
+    setShowMiniStatement(false);
+    setMiniStatementResult(null);
+    setIsFetchingService(false);
     setSelectedService("");
     setWithdrawalAmount(1000);
     setOtp("");
     setOtpReferenceKey("");
+    setModalType("");
     setBalWithBalanceChecked(false);
     setFetchedBalance(null);
     setStep(5);
@@ -1472,6 +1547,9 @@ const Aeps = () => {
   const handleStartNewTransaction = () => {
     setShowReceipt(false);
     setReceiptData(null);
+    setShowMiniStatement(false);
+    setMiniStatementResult(null);
+    setIsFetchingService(false);
     setSelectedService("");
     setWithdrawalAmount(1000);
     setOtp("");
@@ -2770,15 +2848,190 @@ const Aeps = () => {
       "balance-withdrawal";
 
     const isDeposit = receiptData.receiptType === "cash-deposit";
+    const isBalance = receiptData.receiptType === "balance";
+
+    if (isBalance) {
+      const numericBal = receiptData.balance;
+      const formattedBal = isNaN(numericBal)
+        ? "0.00"
+        : numericBal.toLocaleString("en-IN", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          });
+
+      return (
+        <div className="mx-auto w-full max-w-3xl space-y-6">
+          {/* Top Bar */}
+          <div className="print:hidden flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleReceiptHome}
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 border border-slate-200"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">
+                  Aadhaar ATM
+                </p>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                  Balance Enquiry
+                </h1>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handlePrintReceipt}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+            >
+              <Printer className="h-4 w-4 text-slate-500" />
+              <span>Print Receipt</span>
+            </button>
+          </div>
+
+          {/* Receipt Main Card */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white shadow-xl overflow-hidden print:border-none print:shadow-none">
+            {/* Bank & Hero Balance Banner */}
+            <div className="bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 p-6 sm:p-8 text-white relative overflow-hidden">
+              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-44 h-44 rounded-full bg-white/5 pointer-events-none" />
+              <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-sm text-purple-100">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+                    <span>{receiptData.message || "Balance Enquiry Completed Successfully"}</span>
+                  </div>
+                  <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight">
+                    {receiptData.bankName}
+                  </h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-purple-200">
+                    <span>Aadhaar: <strong className="text-white">{receiptData.aadhaar}</strong></span>
+                    <span>•</span>
+                    <span>Mobile: <strong className="text-white">{receiptData.mobile}</strong></span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-white/10 backdrop-blur-md p-5 border border-white/15 text-left md:text-right min-w-[220px]">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-purple-200">
+                    Available Account Balance
+                  </p>
+                  <p className="mt-1 text-3xl sm:text-4xl font-black text-white">
+                    ₹ {formattedBal}
+                  </p>
+                  <p className="mt-1 text-[11px] text-purple-200 flex items-center md:justify-end gap-1">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300 inline" />
+                    Live CBS Balance Verified
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Meta Details Grid */}
+            <div className="p-6 sm:p-8 space-y-6">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
+                  Transaction Audit Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Transaction ID</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-sm font-bold text-slate-900">
+                        {receiptData.transactionId}
+                      </span>
+                      {receiptData.transactionId && receiptData.transactionId !== "NA" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(receiptData.transactionId);
+                            setCopiedReceiptTxnId(true);
+                            setTimeout(() => setCopiedReceiptTxnId(false), 2000);
+                          }}
+                          className="p-1 text-slate-400 hover:text-purple-600 rounded transition"
+                          title="Copy Transaction ID"
+                        >
+                          {copiedReceiptTxnId ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Bank RRN</span>
+                    <span className="font-mono text-sm font-bold text-slate-800">
+                      {receiptData.rrn}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Date & Time</span>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {new Date().toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Authentication Mode</span>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {receiptData.authMode}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Biometric Device</span>
+                    <span className="text-sm font-semibold text-slate-800">
+                      {receiptData.biometricDevice}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                    <span className="text-sm text-slate-500">Status</span>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                      <CheckCircle2 className="h-3 w-3" />
+                      {receiptData.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Actions */}
+              <div className="print:hidden flex flex-col sm:flex-row items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handlePrintReceipt}
+                  className="flex h-12 w-full sm:flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
+                >
+                  <Printer className="h-4 w-4 text-slate-500" />
+                  PRINT RECEIPT
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleStartNewTransaction}
+                  className="flex h-12 w-full sm:flex-1 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] text-sm font-bold text-white shadow-md hover:bg-[#6d28d9] transition"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  NEW TRANSACTION
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="">
         <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] sm:px-5">
           <button
             type="button"
-            onClick={
-              handleReceiptHome
-            }
+            onClick={handleReceiptHome}
             className="flex h-10 w-10 items-center justify-center rounded-full text-slate-800 hover:bg-slate-100"
           >
             <ArrowLeft className="h-6 w-6" />
@@ -2797,9 +3050,7 @@ const Aeps = () => {
               </div>
 
               <h2 className="mt-4 text-xl font-bold text-[#172033] sm:text-2xl">
-                {getReceiptTitle(
-                  receiptData.receiptType
-                )}
+                {getReceiptTitle(receiptData.receiptType)}
               </h2>
 
               <p className="mt-1 text-lg text-slate-700 sm:text-xl">
@@ -2812,10 +3063,7 @@ const Aeps = () => {
                 <>
                   <div className="text-center rounded-[16px] bg-[#f8f9fc] border border-slate-100 p-4 shadow-sm sm:p-5">
                     <p className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                      ₹
-                      {receiptData.amount.toFixed(
-                        2
-                      )}
+                      ₹{receiptData.amount.toFixed(2)}
                     </p>
 
                     <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
@@ -2831,10 +3079,7 @@ const Aeps = () => {
                 <>
                   <div className="text-center rounded-[16px] bg-[#f8f9fc] border border-slate-100 p-4 shadow-sm sm:p-5">
                     <p className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                      ₹
-                      {receiptData.amount.toFixed(
-                        2
-                      )}
+                      ₹{receiptData.amount.toFixed(2)}
                     </p>
 
                     <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
@@ -2849,9 +3094,7 @@ const Aeps = () => {
               <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2">
                 {renderReceiptRow(
                   "Account Balance",
-                  formatCurrency(
-                    receiptData.balance
-                  ),
+                  formatCurrency(receiptData.balance),
                   "text-[#172033]"
                 )}
 
@@ -2872,7 +3115,27 @@ const Aeps = () => {
 
                 {renderReceiptRow(
                   "Transaction ID",
-                  receiptData.transactionId
+                  <span className="inline-flex items-center gap-1">
+                    <span>{receiptData.transactionId}</span>
+                    {receiptData.transactionId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(receiptData.transactionId);
+                          setCopiedReceiptTxnId(true);
+                          setTimeout(() => setCopiedReceiptTxnId(false), 2000);
+                        }}
+                        className="p-0.5 text-slate-400 hover:text-purple-600 rounded"
+                        title="Copy"
+                      >
+                        {copiedReceiptTxnId ? (
+                          <Check className="h-3 w-3 text-emerald-600" />
+                        ) : (
+                          <Copy className="h-3 w-3" />
+                        )}
+                      </button>
+                    )}
+                  </span>
                 )}
 
                 {renderReceiptRow(
@@ -2893,50 +3156,64 @@ const Aeps = () => {
                 {renderReceiptRow(
                   "Transaction Status",
                   receiptData.status,
-                  "text-[#172033]"
+                  "text-emerald-600 font-bold"
                 )}
               </div>
             </div>
 
-            <div className="mt-8 space-y-5">
+            <div className="mt-8 space-y-4">
               <button
                 type="button"
-                onClick={
-                  handlePrintReceipt
-                }
-                className="flex min-h-[68px] w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#cbd3e3] bg-transparent text-xl font-bold text-[#172033]"
+                onClick={handlePrintReceipt}
+                className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#cbd3e3] bg-transparent text-lg font-bold text-[#172033]"
               >
-                <Printer className="h-7 w-7" />
+                <Printer className="h-5 w-5" />
                 PRINT RECEIPT
               </button>
 
-              {receiptData.receiptType ===
-                "withdrawal" ? (
-                <button
-                  type="button"
-                  onClick={
-                    handleStartNewTransaction
-                  }
-                  className="flex min-h-[68px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-xl font-bold text-white shadow-md"
-                >
-                  <RefreshCw className="h-7 w-7" />
-                  NEW WITHDRAWAL
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={
-                    handleReceiptHome
-                  }
-                  className="flex min-h-[68px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-xl font-bold text-white shadow-md"
-                >
-                  <RefreshCw className="h-7 w-7" />
-                  NEW WITHDRAWAL
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={handleStartNewTransaction}
+                className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-lg font-bold text-white shadow-md"
+              >
+                <RefreshCw className="h-5 w-5" />
+                NEW TRANSACTION
+              </button>
             </div>
           </div>
         </main>
+      </div>
+    );
+  };
+
+  const renderServiceFetchingOverlay = () => {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div className="w-full max-w-sm overflow-hidden rounded-3xl border border-white/20 bg-white p-6 sm:p-7 text-center shadow-2xl">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-purple-50 ring-8 ring-purple-50/50">
+            <Building2 className="h-9 w-9 text-purple-600 animate-pulse" />
+          </div>
+
+          <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Biometric Captured</span>
+          </div>
+
+          <h3 className="mt-3 text-lg sm:text-xl font-bold text-slate-900">
+            {selectedBank?.name || "Bank CBS Gateway"}
+          </h3>
+
+          <p className="mt-1 text-xs sm:text-sm font-medium text-slate-500">
+            {serviceFetchingMessage || "Fetching service details from bank..."}
+          </p>
+
+          <div className="mt-6 flex items-center justify-center gap-3 rounded-xl bg-slate-50 p-3 border border-slate-100">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#7c3aed] border-t-transparent" />
+            <span className="text-xs font-semibold text-slate-600">
+              Communicating with CBS gateway...
+            </span>
+          </div>
+        </div>
       </div>
     );
   };
@@ -2962,7 +3239,16 @@ const Aeps = () => {
         customerAadhaar={customerAadhaar}
         selectedBank={selectedBank}
         selectedDevicePort={selectedDevicePort}
-        onBack={() => setShowMiniStatement(false)}
+        initialData={miniStatementResult}
+        onBack={() => {
+          setShowMiniStatement(false);
+          setMiniStatementResult(null);
+        }}
+        onNewTransaction={() => {
+          setShowMiniStatement(false);
+          setMiniStatementResult(null);
+          handleStartNewTransaction();
+        }}
       />
     );
   }
@@ -3020,6 +3306,8 @@ const Aeps = () => {
           </div>
         </main>
       </section>
+
+      {isFetchingService && renderServiceFetchingOverlay()}
     </div>
   );
 };

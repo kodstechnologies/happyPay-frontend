@@ -1,11 +1,17 @@
 import { useNavigate } from "react-router-dom";
-import { Clock3 } from "lucide-react";
+import { Clock3, LogOut } from "lucide-react";
+import { logout } from "../../../utils/auth";
 
 const RetailerKycPending = () => {
   const navigate = useNavigate();
 
   const handleApproval = () => {
     navigate("/retailer/kyc-approved", { replace: true });
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate("/retailer/login", { replace: true });
   };
 
   return (
@@ -42,6 +48,15 @@ const RetailerKycPending = () => {
           className="hp-brand mt-7 w-full rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_22px_rgba(49,91,209,0.28)] transition hover:opacity-95 active:scale-[0.99]"
         >
           Simulate Admin Approval
+        </button>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-rose-600 active:scale-[0.99]"
+        >
+          <LogOut className="h-4 w-4" />
+          Logout & Exit
         </button>
       </div>
     </div>

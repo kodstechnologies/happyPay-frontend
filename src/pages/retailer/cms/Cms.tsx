@@ -16,81 +16,9 @@ import { useNavigate } from "react-router-dom";
 import CashCollection from "./CashCollection";
 import CashDrop from "./CashDrop";
 
-export type CmsCompany = {
-  id: string;
-  name: string;
-  shortName: string;
-  description: string;
-  commission: string;
-  commissionRate: number;
-  iconType: "bike" | "car" | "shield" | "bank" | "building" | "truck";
-};
+import { CMS_COMPANIES, type CmsCompany } from "./cmsCompanies";
 
-const cmsCompanies: CmsCompany[] = [
-  {
-    id: "chola",
-    name: "Cholamandalam Finance",
-    shortName: "CHOLA",
-    description: "Vehicle & Asset Finance • VF, HL, LAP",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "car",
-  },
-  {
-    id: "muthoot",
-    name: "Muthoot Finance",
-    shortName: "MUTHOOT",
-    description: "Gold Loan & Asset Finance • GL, PL, HL",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "shield",
-  },
-  {
-    id: "herofin",
-    name: "Hero FinCorp",
-    shortName: "HEROFIN",
-    description: "Two Wheeler & SME Finance • VF, PL, SME",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "bike",
-  },
-  {
-    id: "bajaj",
-    name: "Bajaj Finserv",
-    shortName: "BAJAJ",
-    description: "Consumer & Business Loans • PL, HL, LAP",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "bank",
-  },
-  {
-    id: "lt",
-    name: "L&T Finance Holdings",
-    shortName: "LTF",
-    description: "Rural & Housing Finance • HL, VF, SME",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "building",
-  },
-  {
-    id: "mahindra",
-    name: "Mahindra & Mahindra Financial Services",
-    shortName: "MMFSL",
-    description: "Auto & Tractor Loans • VF, SME, HL",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "bike",
-  },
-  {
-    id: "tvs",
-    name: "TVS Credit Services",
-    shortName: "TVSCREDIT",
-    description: "Two Wheeler & Used Cars • VF, PL",
-    commission: "₹5",
-    commissionRate: 0.04,
-    iconType: "truck",
-  },
-];
+const cmsCompanies = CMS_COMPANIES;
 
 const CompanyIcon = ({
   type,

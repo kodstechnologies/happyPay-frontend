@@ -4,6 +4,7 @@ import Router from "./routes/router";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerForegroundNotificationHandler } from "./config/firebase";
+import { AuthProvider } from "./context/AuthContext";
 
 function App() {
   const routing = useRoutes(Router);
@@ -31,10 +32,10 @@ function App() {
   }, []);
 
   return (
-    <>
+    <AuthProvider>
       <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
       {routing}
-    </>
+    </AuthProvider>
   );
 }
 

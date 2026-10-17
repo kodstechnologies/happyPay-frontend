@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from "react";
 import { getFCMToken } from "../../../config/firebase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   sendRetailerLoginOtp,
   verifyRetailerLoginOtp,
 } from "../../../services/api/retailer/retailerAuthApi";
 import { setTokens } from "../../../services/auth/token";
+import { logout, getPendingStepIndex } from "../../../utils/auth";
+import { useAuth } from "../../../context/AuthContext";
 import {
   ArrowRight,
   ShieldCheck,
@@ -18,8 +20,11 @@ import {
 
 const RetailerLogin = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
+  const [searchParams] = useSearchParams();
+  const queryMobile = searchParams.get("mobile");
 
-  const [mobile, setMobile] = useState("");
+  const [mobile, setMobile] = useState(() => (queryMobile ? queryMobile.replace(/\D/g, "").slice(0, 10) : ""));
   const [otp, setOtp] = useState("");
 
   const [otpSent, setOtpSent] = useState(false);
@@ -37,6 +42,19 @@ const RetailerLogin = () => {
     return deviceId;
   };
 
+  const handleIncompleteRegistration = (data: any) => {
+    const currentRegistrationStep = data?.currentRegistrationStep;
+    const userData = data?.user;
+    const resolvedUserId = data?.userId || userData?.id || userData?._id || userData?.userId;
+
+    if (resolvedUserId) {
+      localStorage.setItem("retailerUserId", resolvedUserId);
+    }
+    localStorage.setItem("pendingRetailerMobile", mobile);
+
+    const stepIndex = getPendingStepIndex(currentRegistrationStep);
+    navigate(`/retailer/register?step=${stepIndex}`, { replace: true });
+  };
 
   const handleMobileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -134,37 +152,37 @@ const RetailerLogin = () => {
       const { accessToken, refreshToken, user } = response.data;
       setTokens(accessToken, refreshToken);
       localStorage.setItem("token", accessToken);
-      localStorage.setItem("retailerMobile", mobile);
-      localStorage.setItem("retailerUser", JSON.stringify(user));
       localStorage.setItem("role", "retailer");
+      login(user as any);
       setOtpVerified(true);
-      navigate("/retailer", { replace: true });
+
+      // Check if registration is in progress
+      const isRegistrationComplete =
+        String(user?.registrationStatus || "").toUpperCase() === "COMPLETED" ||
+        String(user?.currentRegistrationStep || "").toUpperCase() === "SUBMITTED";
+
+      if (!isRegistrationComplete) {
+        handleIncompleteRegistration({
+          currentRegistrationStep: user?.currentRegistrationStep,
+          userId: user?.id,
+          user,
+        });
+        return;
+      }
+
+      // If registration is complete, route based on admin approval
+      const isApproved = String(user?.adminApproved || "").toLowerCase() === "approved";
+      if (isApproved) {
+        navigate("/retailer", { replace: true });
+      } else {
+        navigate("/retailer/kyc-pending", { replace: true });
+      }
     } catch (err: any) {
       setOtpVerified(false);
       
-      // Check if error is due to incomplete registration
+      // Fallback check if error response contains incomplete registration
       if (err?.statusCode === 403 && err?.data?.currentRegistrationStep) {
-        const { currentRegistrationStep, user: userData } = err.data;
-        
-        // Store user ID for resuming registration
-        if (userData?.id || userData?._id || userData?.userId) {
-          localStorage.setItem("retailerUserId", userData.id || userData._id || userData.userId);
-        }
-        localStorage.setItem("pendingRetailerMobile", mobile);
-        
-        // Map backend step to frontend step index
-        const stepMap: Record<string, number> = {
-          ACCOUNT: 0,
-          SHOP_DETAILS: 1,
-          ABOUT: 2,
-          AADHAAR_DETAILS: 3,
-          BANK_DETAILS: 4,
-        };
-        
-        const stepIndex = stepMap[currentRegistrationStep] ?? 0;
-        
-        // Navigate to registration page with the appropriate step
-        navigate(`/retailer/register?step=${stepIndex}`, { replace: true });
+        handleIncompleteRegistration(err.data);
         return;
       }
       
@@ -373,7 +391,10 @@ const RetailerLogin = () => {
 
                   <button
                     type="button"
-                    onClick={() => navigate("/retailer/register")}
+                    onClick={() => {
+                      logout();
+                      navigate("/retailer/register");
+                    }}
                     className="mt-1.5 text-[13px] font-bold text-[#7c3aed] hover:underline"
                   >
                     Register as a Retailer

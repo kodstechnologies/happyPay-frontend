@@ -10,6 +10,7 @@ import {
   Fingerprint,
   Building2,
   ShieldCheck,
+  
 } from "lucide-react";
 
 import StepIndicator from "../../../components/common/StepIndicator";
@@ -131,12 +132,42 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
           userId: userId || undefined,
           mobile: mobile || undefined,
         });
-        const { currentRegistrationStep, userId: returnedUserId } = response.data;
+        const { currentRegistrationStep, userId: returnedUserId, registrationStatus, adminApproved } = response.data;
 
-        // Map backend step numbers to frontend step indices
-        // Backend steps: 1=Account, 2=ShopDetails, 3=AboutRetailer, 4=Aadhaar, 5=BankDetails
-        // Frontend steps: 0=Account, 1=ShopDetails, 2=AboutRetailer, 3=Aadhaar, 4=BankDetails
-        const stepIndex = Math.max(0, (currentRegistrationStep || 1) - 1);
+        // If registration is already completed, redirect to appropriate status page
+        const isCompleted =
+          String(registrationStatus || "").toUpperCase() === "COMPLETED" ||
+          String(currentRegistrationStep || "").toUpperCase() === "SUBMITTED";
+
+        if (isCompleted) {
+          const isApproved = String(adminApproved || "").toLowerCase() === "approved";
+          if (isApproved) {
+            navigate("/retailer", { replace: true });
+          } else {
+            navigate("/retailer/kyc-pending", { replace: true });
+          }
+          return;
+        }
+
+        // Map backend completed step to next pending step index
+        const stepParam = searchParams.get("step");
+        const queryStepIndex = stepParam ? parseInt(stepParam, 10) : NaN;
+
+        const nextPendingStepMap: Record<string, number> = {
+          ACCOUNT: 1,
+          SHOP_DETAILS: 2,
+          ABOUT: 3,
+          AADHAAR_DETAILS: 4,
+          BANK_DETAILS: 4,
+          SUBMITTED: 4,
+        };
+
+        const stepIndex =
+          !isNaN(queryStepIndex) && queryStepIndex >= 0 && queryStepIndex < steps.length
+            ? queryStepIndex
+            : typeof currentRegistrationStep === "number"
+              ? Math.min(4, Math.max(0, currentRegistrationStep))
+              : (nextPendingStepMap[String(currentRegistrationStep || "").toUpperCase()] ?? 0);
 
         setCurrentStep(stepIndex);
         if (returnedUserId) {
@@ -153,7 +184,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
     };
 
     fetchCurrentStep();
-  }, []);
+  }, [navigate, searchParams]);
 
   /*
    * ==========================================================
@@ -209,6 +240,8 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
     navigate("/retailer/login");
   };
+
+
 
   const CurrentStepIcon =
     steps[currentStep]?.icon || UserRound;
@@ -268,14 +301,14 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                 </div>
 
-                <div className="flex items-center gap-1.5 rounded-full bg-[#f2f5ff] px-2.5 py-1.5">
-
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#7c3aed]" />
-
-                  <span className="text-[9px] font-bold text-[#7c3aed]">
-                    Secure
-                  </span>
-
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 rounded-full bg-[#f2f5ff] px-2.5 py-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-[#7c3aed]" />
+                    <span className="text-[9px] font-bold text-[#7c3aed]">
+                      Secure
+                    </span>
+                  </div>
+                
                 </div>
 
               </div>

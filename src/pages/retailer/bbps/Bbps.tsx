@@ -43,6 +43,7 @@ import {
   type PayBillPayload,
 } from "../../../apis/bbps.apis";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
+import { getAuthUser } from "../../../context/AuthContext";
 
 const getApiErrorMessage = (error: unknown, fallback: string): string => {
   if (typeof error !== "object" || error === null) {
@@ -436,18 +437,9 @@ const BBPS: React.FC = () => {
     );
   }, [selectedCategory, selectedBiller]);
 
-  // Lookup logged-in retailer email as a fallback
+  // Lookup logged-in retailer email from in-memory session as a fallback
   const storedRetailerEmail = useMemo(() => {
-    try {
-      const stored = localStorage.getItem("retailerUser");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed?.email || "";
-      }
-    } catch {
-      // ignore
-    }
-    return "";
+    return getAuthUser()?.email || "";
   }, []);
 
   // Dynamic Field Labels based on currently selected Biller

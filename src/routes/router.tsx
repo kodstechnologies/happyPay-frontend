@@ -3,6 +3,7 @@ import ProtectedRoutes from "../components/auth/ProtectedRoutes";
 import AppLayout from "../layout/full/AppLayout";
 import BlankLayout from "../layout/blank/BlankLayout";
 import RetailerLogin from "../pages/retailer/auth/RetailerLogin";
+import RootRedirect from "../pages/retailer/auth/RootRedirect";
 import RetailerRegister from "../pages/retailer/auth/Register";
 import Dashboard from "../pages/Dasboard/Dashboard";
 import RetailerKycPending from "../pages/retailer/auth/RetailerKYCPending";
@@ -223,14 +224,14 @@ const Router: RouteObject[] = [
     ],
   },
 
-  // ROOT — redirect to retailer login
+  // ROOT — smart session verify & redirect
   {
     path: "/",
     element: <BlankLayout />,
     children: [
       {
         index: true,
-        element: <RetailerLogin />,
+        element: <RootRedirect />,
       },
     ],
   },

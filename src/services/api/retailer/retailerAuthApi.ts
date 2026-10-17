@@ -11,14 +11,19 @@ interface ApiEnvelope<T> {
 export interface RetailerLoginResult {
   user: {
     id: string;
+    _id?: string;
+    fullName?: string;
     email?: string;
     mobile: string;
     status: string;
+    registrationStatus?: string;
+    currentRegistrationStep?: string;
     kycStatus?: string;
-    adminApproved?: boolean;
+    adminApproved?: boolean | string;
     outletId?: string;
     roles: string[];
     permissions: string[];
+    AepsEkyc?: AepsEkycData | null;
   };
   accessToken: string;
   refreshToken: string;
@@ -608,3 +613,65 @@ export function verifyRetailerLoginOtp(payload: {
     },
   );
 }
+
+export interface AepsEkycData {
+  outletId: string | null;
+  referenceKey: string | null;
+  pidOptionWadh?: string | null;
+  eKYCStatus: string | null;
+  eKYCRejectionReason?: string | null;
+}
+
+export interface RetailerUser {
+  id: string;
+  _id: string;
+  mobile: string;
+  email: string | null;
+  fullName: string | null;
+  registrationStatus: string;
+  currentRegistrationStep: string;
+  adminApproved: string;
+  kycStatus: string;
+  outletId: string | null;
+  referenceKey: string | null;
+  eKYCStatus: string | null;
+  AepsEkyc: AepsEkycData | null;
+  roles: string[];
+  permissions: string[];
+  isMobileVerified: boolean;
+  isEmailVerified: boolean;
+  status: string;
+  isActive: boolean;
+}
+
+export function getAuthenticatedRetailer(token?: string) {
+  const effectiveToken =
+    token ||
+    (typeof window !== "undefined"
+      ? localStorage.getItem("accessToken") || localStorage.getItem("token")
+      : null) ||
+    undefined;
+
+  return apiClient<ApiEnvelope<RetailerUser>>(
+    "/api/v1/auth/retailer/auth/me",
+    {
+      method: "GET",
+      token: effectiveToken,
+    }
+  );
+}
+
+export function logoutRetailerApi(payload: {
+  refreshToken?: string | null;
+  deviceId?: string | null;
+}) {
+  return apiClient<ApiEnvelope<null>>(
+    "/api/v1/auth/retailer/logout",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Phone,
   ShieldCheck,
@@ -17,12 +18,14 @@ type AccountStepProps = {
 };
 
 const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
+  const navigate = useNavigate();
   const [mobile, setMobile] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
   const [userId, setUserId] = useState<string>("");
   const [error, setError] = useState("");
+  const [isExistingAccount, setIsExistingAccount] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
@@ -37,6 +40,7 @@ const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
     setOtp("");
     setOtpVerified(false);
     setError("");
+    setIsExistingAccount(false);
   };
 
   // ==========================================================
@@ -45,6 +49,7 @@ const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
 
   const handleSendOtp = async () => {
     setError("");
+    setIsExistingAccount(false);
 
     if (mobile.length !== 10) {
       setError("Please enter a valid 10-digit mobile number.");
@@ -54,12 +59,22 @@ const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
     setSending(true);
     try {
       const res = await sendRetailerRegisterOtp(mobile);
-     console.log(res)
+      console.log(res);
       setOtpSent(true);
       localStorage.setItem("pendingRetailerMobile", mobile);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to send OTP";
-      setError(msg);
+      const errorObj = err as { message?: string; statusCode?: number } | undefined;
+      const msg = errorObj?.message || "Failed to send OTP";
+      if (
+        errorObj?.statusCode === 409 ||
+        msg.toLowerCase().includes("already registered") ||
+        msg.toLowerCase().includes("already exists")
+      ) {
+        setIsExistingAccount(true);
+        setError("Account already exists. Please login.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setSending(false);
     }
@@ -170,11 +185,29 @@ const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
         </div>
       </div>
 
-      {/* Error */}
-      {error && (
-        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
+      {/* Existing Account Notice or Error */}
+      {isExistingAccount ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-[14px] font-bold text-amber-900">
+            Account already exists
+          </p>
+          <p className="mt-1 text-[12px] leading-5 text-amber-700">
+            This mobile number is already registered or registration is in progress. Please log in to continue your pending registration or access your portal.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(`/retailer/login?mobile=${mobile}`)}
+            className="mt-3.5 inline-flex items-center justify-center rounded-xl bg-[#7c3aed] px-5 py-2.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-[#6d28d9] active:scale-[0.99]"
+          >
+            Go to Login
+          </button>
         </div>
+      ) : (
+        error && (
+          <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
+            <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
+          </div>
+        )
       )}
 
       {/* Send OTP */}

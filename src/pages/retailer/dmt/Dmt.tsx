@@ -20,6 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getAuthUser } from "../../../context/AuthContext";
 import OtpInput from "../../../components/common/OtpInput";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
@@ -901,8 +902,8 @@ const Dmt = () => {
     setIsAddingBeneficiary(true);
     try {
       const effectiveIfsc = (beneficiaryIfsc || beneficiaryBank.ifsc).toUpperCase();
-      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const storedUser = getAuthUser();
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
       const effectiveBankId = String(beneficiaryBank.bank_id || beneficiaryBank.code || "");
 
       const payload = {
@@ -996,8 +997,8 @@ const Dmt = () => {
     setIsInitiatingDelete(true);
 
     try {
-      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const storedUser = getAuthUser();
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
 
       const res = await deleteBeneficiaryApi({
         beneficiaryId: targetBeneficiaryId,
@@ -1038,8 +1039,8 @@ const Dmt = () => {
     setIsVerifyingDeleteOtp(true);
 
     try {
-      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const storedUser = getAuthUser();
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
       const currentRefKey =
         deleteReferenceKey ||
         activeReferenceKey ||
@@ -1162,8 +1163,8 @@ const Dmt = () => {
 
       setKycStep("Submitting remitter eKYC to bank provider...");
 
-      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "620409");
+      const storedUser = getAuthUser();
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "620409");
 
       // 5. Call remitterEkycApi
       const res = await remitterEkycApi({
@@ -1266,8 +1267,8 @@ const Dmt = () => {
       return;
     }
 
-    const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-    const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+    const storedUser = getAuthUser();
+    const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
     const effectiveRefKey =
       activeReferenceKey ||
       referenceKeyRef.current ||
@@ -1345,8 +1346,8 @@ const Dmt = () => {
     setIsProcessingTransfer(true);
 
     try {
-      const storedUser = JSON.parse(localStorage.getItem("retailerUser") || "{}");
-      const effectiveOutletId = String(storedUser?.outletId || storedUser?.outletid || "748399");
+      const storedUser = getAuthUser();
+      const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
       const effectiveRefKey =
         activeReferenceKey ||
         referenceKeyRef.current ||

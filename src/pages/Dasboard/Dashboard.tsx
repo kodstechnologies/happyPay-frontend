@@ -26,6 +26,7 @@ import { useNavigate } from "react-router-dom";
 
 import { apiClient } from "../../services/api/client";
 import { getToken } from "../../utils/auth";
+import { getAuthUser } from "../../context/AuthContext";
 import { rdService } from "../../utils/rdService";
 import { getGeolocationCoordinates } from "../../utils/geolocation";
 import {
@@ -301,12 +302,10 @@ const Dashboard = () => {
       if (!getToken()) return;
 
       try {
-        const storedUser = JSON.parse(
-          localStorage.getItem("retailerUser") || "{}",
-        ) as { id?: string; _id?: string; userId?: string; outletId?: string };
-
-        const userId = storedUser.id || storedUser._id || storedUser.userId;
-        const status = await checkDoEkyc(storedUser.outletId, userId);
+        const authUser = getAuthUser();
+        const userId = authUser?.id || authUser?._id;
+        const outletId = authUser?.outletId || authUser?.AepsEkyc?.outletId || "";
+        const status = await checkDoEkyc(outletId, userId);
         if (cancelled) return;
 
         setDoEkycResponse(status);
@@ -422,14 +421,13 @@ const Dashboard = () => {
 
       setKycStep("Fingerprint captured. Calling biometric eKYC...");
 
-      const storedUser = JSON.parse(
-        localStorage.getItem("retailerUser") || "{}",
-      ) as { id?: string; _id?: string; userId?: string; outletId?: string };
-      const userId = storedUser.id || storedUser._id || storedUser.userId;
+      const authUser = getAuthUser();
+      const userId = authUser?.id || authUser?._id;
+      const effectiveOutletId = ekycPrompt.outletId || authUser?.outletId || authUser?.AepsEkyc?.outletId || "";
 
       const result = await doBioEkyc({
         userId,
-        outlet_id: ekycPrompt.outletId || storedUser.outletId || "",
+        outlet_id: effectiveOutletId,
         referenceKey: ekycPrompt.referenceKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
@@ -437,7 +435,7 @@ const Dashboard = () => {
       });
 
       localStorage.setItem("referenceKey", ekycPrompt.referenceKey);
-      localStorage.setItem("outletId", ekycPrompt.outletId || storedUser.outletId || "");
+      localStorage.setItem("outletId", ekycPrompt.outletId || authUser?.outletId || authUser?.AepsEkyc?.outletId || "");
 
       console.log("doBioEkyc result", { ...parsePidXml(capture.data) });
       setBioEkycResponse(result);
@@ -550,13 +548,7 @@ const Dashboard = () => {
       }
 
       const orderData = initiateRes.data;
-      const storedUser = (() => {
-        try {
-          return JSON.parse(localStorage.getItem("retailerUser") || "{}");
-        } catch {
-          return {};
-        }
-      })();
+      const authUser = getAuthUser();
 
       interface RazorpayPaymentSuccess {
         razorpay_payment_id: string;
@@ -606,9 +598,9 @@ const Dashboard = () => {
           }
         },
         prefill: {
-          name: storedUser.fullName || storedUser.name || "Retailer",
-          email: storedUser.email || "retailer@happypay.com",
-          contact: storedUser.mobile || localStorage.getItem("retailerMobile") || "9999999999",
+          name: authUser?.fullName || "Retailer",
+          email: authUser?.email || "retailer@happypay.com",
+          contact: authUser?.mobile || "9999999999",
         },
         theme: {
           color: "#8b5cf6",

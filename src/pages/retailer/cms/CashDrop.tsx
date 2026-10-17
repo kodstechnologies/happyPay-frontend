@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "react-toastify";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
 import Input from "../../../components/common/Input";
@@ -24,7 +25,11 @@ import {
   Smartphone,
   User,
   WalletCards,
+  Loader2,
 } from "lucide-react";
+import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { initiateCmsPaymentApi } from "../../../apis/cms.apis";
+import { CMS_COMPANIES, type CmsCompany as Company } from "./cmsCompanies";
 
 type Screen =
   | "home"
@@ -33,73 +38,7 @@ type Screen =
   | "otp"
   | "receipt";
 
-type Company = {
-  id: string;
-  name: string;
-  shortName: string;
-  commission: string;
-  commissionRate: string;
-  icon: string;
-};
-
-const companies: Company[] = [
-  {
-    id: "hero",
-    name: "Hero FinCorp",
-    shortName: "HEROFIN",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "H",
-  },
-  {
-    id: "chola",
-    name: "Cholamandalam",
-    shortName: "CHOLA",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "C",
-  },
-  {
-    id: "muthoot",
-    name: "Muthoot Finance",
-    shortName: "MUTHOOT",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "M",
-  },
-  {
-    id: "bajaj",
-    name: "Bajaj Finance",
-    shortName: "BAJAJ",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "B",
-  },
-  {
-    id: "lt",
-    name: "L&T Finance",
-    shortName: "LTF",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "L",
-  },
-  {
-    id: "mahindra",
-    name: "Mahindra Finance",
-    shortName: "MAHINDRA",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "M",
-  },
-  {
-    id: "tvs",
-    name: "TVS Credit",
-    shortName: "TVS",
-    commission: "₹5",
-    commissionRate: "₹5 per transaction",
-    icon: "T",
-  },
-];
+const companies: Company[] = CMS_COMPANIES;
 
 const generateTransactionId = () =>
   `CMS${Date.now().toString().slice(-10)}`;
@@ -160,6 +99,7 @@ export default function CashDrop({
   const [otp, setOtp] = useState("");
   const [copied, setCopied] = useState(false);
   const [transactionId, setTransactionId] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const filteredCompanies = companies.filter((company) =>
     company.name.toLowerCase().includes(search.toLowerCase())
@@ -207,11 +147,50 @@ export default function CashDrop({
     setScreen("otp");
   };
 
-  const confirmDrop = () => {
-    if (otp !== "123456") return;
+  const confirmDrop = async () => {
+    if (otp.length !== 6) {
+      toast.error("Please enter the 6-digit OTP.");
+      return;
+    }
 
-    setTransactionId(generateTransactionId());
-    setScreen("receipt");
+    setIsSubmitting(true);
+
+    try {
+      // 1. Fetch real coordinates safely
+      const coords = await getGeolocationCoordinates();
+
+      // 2. Call backend CMS initiate-payment API
+      const response = await initiateCmsPaymentApi({
+        amount: totalAmount,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        agency_id: selectedCompany?.agencyId || selectedCompany?.id,
+        biller_id: selectedCompany?.billerId || selectedCompany?.id,
+        consumer_id: userId,
+        mobile,
+      });
+
+      const resData = response.data || (response as unknown as Record<string, unknown>);
+      const generatedTxn =
+        (resData as Record<string, unknown>)?.txnid ||
+        (resData as Record<string, unknown>)?.rrn ||
+        generateTransactionId();
+
+      setTransactionId(String(generatedTxn));
+      setScreen("receipt");
+      toast.success(response.message || "Cash Drop submitted successfully!");
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string; msg?: string } }; message?: string };
+      const msg =
+        errorObj?.response?.data?.message ||
+        errorObj?.response?.data?.msg ||
+        errorObj?.message ||
+        "Failed to submit CMS Cash Drop. Please retry.";
+
+      toast.error(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetFlow = () => {
@@ -1038,10 +1017,17 @@ export default function CashDrop({
                   <button
                     type="button"
                     onClick={confirmDrop}
-                    disabled={otp.length !== 6}
-                    className="rounded-xl bg-[#172033] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0f172a] disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={otp.length !== 6 || isSubmitting}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-[#172033] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#0f172a] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Confirm & Submit Cash Drop
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      "Confirm & Submit Cash Drop"
+                    )}
                   </button>
                 </div>
               </div>
