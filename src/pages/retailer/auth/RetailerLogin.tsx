@@ -53,7 +53,10 @@ const RetailerLogin = () => {
     localStorage.setItem("pendingRetailerMobile", mobile);
 
     const stepIndex = getPendingStepIndex(currentRegistrationStep);
-    navigate(`/retailer/register?step=${stepIndex}`, { replace: true });
+    navigate(
+      `/retailer/register?step=${stepIndex}${resolvedUserId ? `&userId=${resolvedUserId}` : ""}`,
+      { replace: true }
+    );
   };
 
   const handleMobileChange = (

@@ -21,7 +21,6 @@ import AboutRetailerStep, { type AboutRetailerStepHandle } from "./registerSteps
 import AadhaarStep, { type AadhaarStepHandle } from "./registerSteps/AadhaarStep";
 // import DobStep from "./registerSteps/DobStep"; // Removed - DOB field moved to AboutRetailerStep
 import BankDetailsStep, { type BankDetailsStepHandle } from "./registerSteps/BankDetailsStep";
-import { getCurrentRegistrationStep } from "../../../services/api/retailer/retailerAuthApi";
 
 const steps = [
   {
@@ -96,95 +95,56 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const [currentStep, setCurrentStep] = useState(() => {
-    const stepParam = searchParams.get("step");
+  const stepParam = searchParams.get("step");
+  const queryUserId = searchParams.get("userId");
+
+  const [currentStep, setCurrentStep] = useState<number>(() => {
     if (stepParam) {
       const stepIndex = parseInt(stepParam, 10);
       if (!isNaN(stepIndex) && stepIndex >= 0 && stepIndex < steps.length) {
         return stepIndex;
       }
     }
-    return 0;
+    return 0; // Direct visits to /retailer/register always start at Step 1 (index 0)
   });
-  const [retailerUserId, setRetailerUserId] = useState<string>(
-    () => localStorage.getItem("retailerUserId") ?? ""
-  );
-  const [isLoading, setIsLoading] = useState(true);
+
+  const [retailerUserId, setRetailerUserId] = useState<string>(() => {
+    if (queryUserId) return queryUserId;
+    return localStorage.getItem("retailerUserId") ?? "";
+  });
+
+  // Track previous search params to adjust state during render without cascading renders
+  const [prevStepParam, setPrevStepParam] = useState(stepParam);
+  const [prevQueryUserId, setPrevQueryUserId] = useState(queryUserId);
+
+  if (stepParam !== prevStepParam) {
+    setPrevStepParam(stepParam);
+    if (stepParam) {
+      const stepIndex = parseInt(stepParam, 10);
+      if (!isNaN(stepIndex) && stepIndex >= 0 && stepIndex < steps.length) {
+        setCurrentStep(stepIndex);
+      }
+    }
+  }
+
+  if (queryUserId !== prevQueryUserId) {
+    setPrevQueryUserId(queryUserId);
+    if (queryUserId) {
+      setRetailerUserId(queryUserId);
+    }
+  }
 
   // Refs for step components that use imperative handles
   const aboutStepRef = useRef<AboutRetailerStepHandle>(null);
   const aadhaarStepRef = useRef<AadhaarStepHandle>(null);
   const bankStepRef = useRef<BankDetailsStepHandle>(null);
 
-  // Fetch current registration step on component mount
+  // Sync userId to localStorage if provided in query
   useEffect(() => {
-    const fetchCurrentStep = async () => {
-      const userId = localStorage.getItem("retailerUserId");
-      const mobile = localStorage.getItem("pendingRetailerMobile") || localStorage.getItem("registeredRetailerMobile");
-
-      if (!userId && !mobile) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await getCurrentRegistrationStep({
-          userId: userId || undefined,
-          mobile: mobile || undefined,
-        });
-        const { currentRegistrationStep, userId: returnedUserId, registrationStatus, adminApproved } = response.data;
-
-        // If registration is already completed, redirect to appropriate status page
-        const isCompleted =
-          String(registrationStatus || "").toUpperCase() === "COMPLETED" ||
-          String(currentRegistrationStep || "").toUpperCase() === "SUBMITTED";
-
-        if (isCompleted) {
-          const isApproved = String(adminApproved || "").toLowerCase() === "approved";
-          if (isApproved) {
-            navigate("/retailer", { replace: true });
-          } else {
-            navigate("/retailer/kyc-pending", { replace: true });
-          }
-          return;
-        }
-
-        // Map backend completed step to next pending step index
-        const stepParam = searchParams.get("step");
-        const queryStepIndex = stepParam ? parseInt(stepParam, 10) : NaN;
-
-        const nextPendingStepMap: Record<string, number> = {
-          ACCOUNT: 1,
-          SHOP_DETAILS: 2,
-          ABOUT: 3,
-          AADHAAR_DETAILS: 4,
-          BANK_DETAILS: 4,
-          SUBMITTED: 4,
-        };
-
-        const stepIndex =
-          !isNaN(queryStepIndex) && queryStepIndex >= 0 && queryStepIndex < steps.length
-            ? queryStepIndex
-            : typeof currentRegistrationStep === "number"
-              ? Math.min(4, Math.max(0, currentRegistrationStep))
-              : (nextPendingStepMap[String(currentRegistrationStep || "").toUpperCase()] ?? 0);
-
-        setCurrentStep(stepIndex);
-        if (returnedUserId) {
-          setRetailerUserId(returnedUserId);
-          localStorage.setItem("retailerUserId", returnedUserId);
-        }
-      } catch (error) {
-        console.error("Error fetching current registration step:", error);
-        // If there's an error, start from the beginning
-        setCurrentStep(0);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchCurrentStep();
-  }, [navigate, searchParams]);
+    if (queryUserId) {
+      localStorage.setItem("retailerUserId", queryUserId);
+    }
+  }, [queryUserId]);
 
   /*
    * ==========================================================
@@ -243,25 +203,16 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
 
 
+  const safeStep =
+    !isNaN(currentStep) && currentStep >= 0 && currentStep < steps.length
+      ? currentStep
+      : 0;
+
   const CurrentStepIcon =
-    steps[currentStep]?.icon || UserRound;
+    steps[safeStep]?.icon || UserRound;
 
   const progress =
-    ((currentStep + 1) / steps.length) * 100;
-
-  // Show loading spinner while fetching initial step
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 px-3 py-3 text-slate-900 sm:px-5 sm:py-5">
-        <div className="mx-auto flex min-h-[calc(100vh-24px)] w-full max-w-3xl items-center justify-center sm:min-h-[calc(100vh-40px)]">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#7c3aed] border-t-transparent"></div>
-            <p className="text-sm text-[#737c8c]">Loading registration...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    ((safeStep + 1) / steps.length) * 100;
 
   return (
     <div className="min-h-screen bg-slate-50 px-3 py-3 text-slate-900 sm:px-5 sm:py-5">
@@ -317,7 +268,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
               <div className="hidden border-b border-[#edf0f4] px-5 pb-0 pt-6 md:block lg:px-9 xl:px-10">
                 <StepIndicator
                   steps={steps.map(s => ({ label: s.title }))}
-                  currentStep={currentStep + 1}
+                  currentStep={safeStep + 1}
                 />
               </div>
 
@@ -328,11 +279,11 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div>
                     <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#7c3aed]">
-                      Step {currentStep + 1} of {steps.length}
+                      Step {safeStep + 1} of {steps.length}
                     </p>
 
                     <p className="mt-1 text-sm font-bold text-[#172033]">
-                      {steps[currentStep]?.title}
+                      {steps[safeStep]?.title}
                     </p>
                   </div>
 
@@ -372,15 +323,15 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     <div className="min-w-0">
 
                       <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#7c3aed]">
-                        {steps[currentStep]?.title}
+                        {steps[safeStep]?.title}
                       </p>
 
                       <h2 className="mt-1.5 text-[25px] font-bold leading-tight tracking-[-0.03em] text-[#172033] sm:text-[28px]">
-                        {stepHeadings[currentStep]}
+                        {stepHeadings[safeStep]}
                       </h2>
 
                       <p className="mt-2 max-w-[600px] text-[12px] leading-5 text-[#737c8c]">
-                        {stepDescriptions[currentStep]}
+                        {stepDescriptions[safeStep]}
                       </p>
 
                     </div>
@@ -394,7 +345,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     </p>
 
                     <p className="mt-0.5 text-center text-sm font-bold text-[#7c3aed]">
-                      {currentStep + 1}
+                      {safeStep + 1}
                       <span className="mx-0.5 text-[#b4bac5]">
                         /
                       </span>
@@ -413,7 +364,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div
                     className={
-                      currentStep === 0
+                      safeStep === 0
                         ? "block"
                         : "hidden"
                     }
@@ -429,7 +380,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div
                     className={
-                      currentStep === 1
+                      safeStep === 1
                         ? "block"
                         : "hidden"
                     }
@@ -442,7 +393,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div
                     className={
-                      currentStep === 2
+                      safeStep === 2
                         ? "block"
                         : "hidden"
                     }
@@ -455,7 +406,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div
                     className={
-                      currentStep === 3
+                      safeStep === 3
                         ? "block"
                         : "hidden"
                     }
@@ -468,7 +419,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
                   <div
                     className={
-                      currentStep === 4
+                      safeStep === 4
                         ? "block"
                         : "hidden"
                     }

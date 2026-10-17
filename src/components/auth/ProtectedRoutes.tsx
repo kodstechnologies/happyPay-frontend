@@ -32,7 +32,8 @@ const ProtectedRoutes = () => {
         return <Navigate to='/retailer/login' replace />;
     }
 
-    if (effectiveUser?.adminApproved && String(effectiveUser.adminApproved).toLowerCase() !== "approved") {
+    const isApproved = String(effectiveUser?.adminApproved || "").toLowerCase() === "approved";
+    if (!isApproved) {
         return <Navigate to='/retailer/kyc-pending' replace />;
     }
 
