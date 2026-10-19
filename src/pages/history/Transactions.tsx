@@ -309,7 +309,7 @@ export default function Transactions() {
     search !== "";
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-5">
+    <div className="w-full">
       {/* Header */}
       <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -520,6 +520,7 @@ export default function Transactions() {
                   <th className="px-5 py-3 font-semibold">Description / Payee</th>
                   <th className="px-5 py-3 font-semibold">Flow</th>
                   <th className="px-5 py-3 font-semibold">Amount</th>
+                  <th className="px-5 py-3 font-semibold">Commission</th>
                   <th className="px-5 py-3 font-semibold">Status</th>
                   <th className="px-5 py-3 font-semibold">Date & Time</th>
                   <th className="px-5 py-3 font-semibold text-right">Action</th>
@@ -591,6 +592,17 @@ export default function Transactions() {
                         >
                           {isCredit ? "+" : "-"}₹{formatAmount(tx.amount || 0)}
                         </span>
+                      </td>
+
+                      {/* Commission */}
+                      <td className="px-5 py-4">
+                        {Number(tx.commissionEarned || 0) > 0 ? (
+                          <span className="inline-flex items-center rounded-lg bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700 border border-emerald-200">
+                            +₹{formatAmount(tx.commissionEarned!)}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 font-medium text-xs">—</span>
+                        )}
                       </td>
 
                       {/* Status */}
@@ -855,11 +867,11 @@ export default function Transactions() {
                 </div>
               )}
 
-              {selectedTxn.commissionEarned ? (
+              {Number(selectedTxn.commissionEarned || 0) > 0 ? (
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Commission Earned</span>
                   <span className="font-bold text-emerald-600">
-                    +₹{formatAmount(selectedTxn.commissionEarned)}
+                    +₹{formatAmount(selectedTxn.commissionEarned || 0)}
                   </span>
                 </div>
               ) : null}

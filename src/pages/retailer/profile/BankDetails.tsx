@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -13,9 +13,18 @@ import {
   Upload,
   User,
   WalletCards,
+  AlertCircle,
+  Search,
 } from "lucide-react";
 
-const banks = [
+import {
+  getRetailerProfile,
+  updateRetailerProfile,
+} from "../../../services/api/retailer/retailerProfileApi";
+import { getBankList } from "../../../services/api/retailer/retailerAuthApi";
+import type { RetailerFullProfile, RetailerBank } from "../../../types/retailer/profile";
+
+const FALLBACK_BANKS = [
   "State Bank of India",
   "HDFC Bank",
   "ICICI Bank",
@@ -25,399 +34,261 @@ const banks = [
   "Punjab National Bank",
   "Canara Bank",
   "Union Bank of India",
-  "Other Bank",
+  "Bank of India",
+  "IndusInd Bank",
+  "Yes Bank",
+  "IDFC FIRST Bank",
+  "Federal Bank",
+  "Central Bank of India",
 ];
 
-const accountTypes = [
+const ACCOUNT_TYPES = [
   "Current Account",
   "Savings Account",
   "Overdraft Account",
 ];
 
-type BankInfo = {
-  ifsc: string;
-  branch: string;
-  location: string;
-};
-
-const bankInfoMap: Record<string, BankInfo> = {
-  "State Bank of India": {
-    ifsc: "SBIN0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "HDFC Bank": {
-    ifsc: "HDFC0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "ICICI Bank": {
-    ifsc: "ICIC0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Axis Bank": {
-    ifsc: "UTIB0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Kotak Mahindra Bank": {
-    ifsc: "KKBK0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Bank of Baroda": {
-    ifsc: "BARB0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Punjab National Bank": {
-    ifsc: "PUNB0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Canara Bank": {
-    ifsc: "CNRB0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Union Bank of India": {
-    ifsc: "UBIN0001234",
-    branch: "South Extension Branch",
-    location: "New Delhi - 110049",
-  },
-
-  "Other Bank": {
-    ifsc: "",
-    branch: "Branch details",
-    location: "Location details",
-  },
-};
-
 export default function BankDetails() {
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fileInputRef =
-    useRef<HTMLInputElement | null>(null);
+  // Profile and Loading state
+  const [profile, setProfile] = useState<RetailerFullProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // ============================================================
-  // FORM STATE
-  // ============================================================
+  // Bank list options
+  const [availableBanks, setAvailableBanks] = useState<string[]>(FALLBACK_BANKS);
+  const [bankSearch, setBankSearch] = useState("");
 
-  const [bankName, setBankName] = useState(
-    "State Bank of India"
-  );
+  // Form State
+  const [bankName, setBankName] = useState("");
+  const [accountHolder, setAccountHolder] = useState("");
+  const [accountType, setAccountType] = useState("Current Account");
+  const [ifsc, setIfsc] = useState("");
+  const [branchName, setBranchName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofFileName, setProofFileName] = useState<string>("");
 
-  const [accountHolder, setAccountHolder] =
-    useState("Rajesh Kumar");
+  // Dropdown UI
+  const [openDropdown, setOpenDropdown] = useState<"bank" | "accountType" | null>(null);
 
-  const [accountType, setAccountType] =
-    useState("Current Account");
+  useEffect(() => {
+    let ignore = false;
 
-  const [ifsc, setIfsc] =
-    useState("SBIN0001234");
+    Promise.allSettled([getRetailerProfile(), getBankList()])
+      .then(([profileRes, bankListRes]) => {
+        if (ignore) return;
 
-  const [accountNumber, setAccountNumber] =
-    useState("384920194821");
+        if (profileRes.status === "fulfilled" && profileRes.value?.data) {
+          const prof = profileRes.value.data;
+          setProfile(prof);
 
-  const [confirmAccountNumber, setConfirmAccountNumber] =
-    useState("384920194821");
+          const primaryBank: RetailerBank | null =
+            prof.primaryBank || prof.banks?.[0] || null;
 
-  // ============================================================
-  // DROPDOWN
-  // ============================================================
+          if (primaryBank) {
+            setBankName(primaryBank.name || "");
+            setIfsc(primaryBank.ifscCode || "");
+            setAccountNumber(primaryBank.accountNumber || "");
+            setConfirmAccountNumber(primaryBank.accountNumber || "");
+            setBranchName(primaryBank.branchName || "");
+          }
 
-  const [openDropdown, setOpenDropdown] =
-    useState<"bank" | "accountType" | null>(null);
+          setAccountHolder(prof.fullName || "");
+        } else {
+          setError("Unable to load profile data.");
+        }
 
-  // ============================================================
-  // FILE
-  // ============================================================
+        if (bankListRes.status === "fulfilled" && bankListRes.value?.data) {
+          const fetched = bankListRes.value.data.map((b) => b.name).filter(Boolean);
+          if (fetched.length > 0) {
+            // Combine fetched with fallback, deduplicated
+            const merged = Array.from(new Set([...fetched, ...FALLBACK_BANKS]));
+            setAvailableBanks(merged);
+          }
+        }
+      })
+      .catch((err: unknown) => {
+        if (!ignore) {
+          console.error("Failed to load retailer bank details:", err);
+          const errorMsg =
+            err instanceof Error ? err.message : "Failed to load bank details.";
+          setError(errorMsg);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false);
+        }
+      });
 
-  const [proofFile, setProofFile] = useState(
-    "cancelled_cheque_sbi_4821.jpg"
-  );
-
-  // ============================================================
-  // SAVE
-  // ============================================================
-
-  const [isSaving, setIsSaving] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
-
-  // ============================================================
-  // CURRENT BANK INFORMATION
-  // ============================================================
-
-  const currentBankInfo =
-    bankInfoMap[bankName] || {
-      ifsc: "",
-      branch: "",
-      location: "",
+    return () => {
+      ignore = true;
     };
+  }, []);
 
-  // ============================================================
-  // BANK SELECT
-  // ============================================================
+  // Active primary bank reference
+  const currentBank: RetailerBank | null =
+    profile?.primaryBank || profile?.banks?.[0] || null;
 
+  // Mask account number
+  const maskedAccountNumber = currentBank?.accountNumber
+    ? currentBank.accountNumber.length >= 4
+      ? `•••• •••• •••• ${currentBank.accountNumber.slice(-4)}`
+      : currentBank.accountNumber
+    : "Not Registered";
+
+  // Filtered banks for search
+  const filteredBanks = availableBanks.filter((b) =>
+    b.toLowerCase().includes(bankSearch.toLowerCase())
+  );
+
+  // Form handlers
   const handleBankSelect = (bank: string) => {
     setBankName(bank);
-
-    const bankInfo = bankInfoMap[bank];
-
-    if (bankInfo) {
-      setIfsc(bankInfo.ifsc);
-    } else {
-      setIfsc("");
-    }
-
     setOpenDropdown(null);
-    setError("");
+    setBankSearch("");
+    setError(null);
   };
 
-  // ============================================================
-  // ACCOUNT TYPE SELECT
-  // ============================================================
-
-  const handleAccountTypeSelect = (
-    type: string
-  ) => {
+  const handleAccountTypeSelect = (type: string) => {
     setAccountType(type);
-
     setOpenDropdown(null);
-    setError("");
+    setError(null);
   };
 
-  // ============================================================
-  // ACCOUNT HOLDER
-  // ============================================================
-
-  const handleAccountHolderChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setAccountHolder(event.target.value);
-    setError("");
-  };
-
-  // ============================================================
-  // IFSC
-  // ============================================================
-
-  const handleIfscChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = event.target.value
-      .replace(/\s/g, "")
-      .toUpperCase();
-
+  const handleIfscChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\s/g, "").toUpperCase().slice(0, 11);
     setIfsc(value);
-    setError("");
+    setError(null);
   };
 
-  // ============================================================
-  // ACCOUNT NUMBER
-  // ============================================================
-
-  const handleAccountNumberChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value =
-      event.target.value.replace(/\D/g, "");
-
+  const handleAccountNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "");
     setAccountNumber(value);
-    setError("");
+    setError(null);
   };
 
-  // ============================================================
-  // CONFIRM ACCOUNT NUMBER
-  // ============================================================
-
-  const handleConfirmAccountNumberChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value =
-      event.target.value.replace(/\D/g, "");
-
+  const handleConfirmAccountNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "");
     setConfirmAccountNumber(value);
-    setError("");
+    setError(null);
   };
 
-  // ============================================================
-  // UPLOAD
-  // ============================================================
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  const handleUpload = () => {
-    if (isSaving) {
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size cannot exceed 10 MB.");
       return;
     }
 
-    fileInputRef.current?.click();
+    setProofFile(file);
+    setProofFileName(file.name);
+    setError(null);
   };
 
-  const handleFileChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    setProofFile(file.name);
-    setError("");
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  // ============================================================
-  // VALIDATION
-  // ============================================================
-
+  // Validation
   const validateForm = () => {
+    if (!bankName.trim()) {
+      setError("Please select or enter a bank name.");
+      return false;
+    }
+
     if (!accountHolder.trim()) {
-      setError(
-        "Please enter account holder name."
-      );
-
+      setError("Please enter the account holder name.");
       return false;
     }
 
-    if (!bankName) {
-      setError(
-        "Please select a bank."
-      );
-
+    if (ifsc.trim().length !== 11) {
+      setError("IFSC code must be exactly 11 characters.");
       return false;
     }
 
-    if (!accountType) {
-      setError(
-        "Please select account type."
-      );
-
+    if (accountNumber.trim().length < 8) {
+      setError("Please enter a valid account number.");
       return false;
     }
 
-    if (ifsc.length !== 11) {
-      setError(
-        "IFSC Code must contain 11 characters."
-      );
-
-      return false;
-    }
-
-    if (accountNumber.length < 8) {
-      setError(
-        "Please enter a valid account number."
-      );
-
-      return false;
-    }
-
-    if (
-      accountNumber !==
-      confirmAccountNumber
-    ) {
-      setError(
-        "Account numbers do not match."
-      );
-
-      return false;
-    }
-
-    if (!proofFile) {
-      setError(
-        "Please upload bank account proof."
-      );
-
+    if (accountNumber !== confirmAccountNumber) {
+      setError("Account numbers do not match.");
       return false;
     }
 
     return true;
   };
 
-  // ============================================================
-  // SAVE
-  // ============================================================
-
-  const handleSave = () => {
-    if (isSaving) {
-      return;
-    }
-
-    setError("");
+  // Real Save Handler
+  const handleSave = async () => {
+    if (isSaving) return;
+    setError(null);
+    setSuccessMessage(null);
     setOpenDropdown(null);
 
-    const valid = validateForm();
+    if (!validateForm()) return;
 
-    if (!valid) {
-      return;
-    }
+    try {
+      setIsSaving(true);
 
-    setIsSaving(true);
+      let payload: FormData | Record<string, unknown>;
 
-    // Frontend-only save simulation.
-    // Backend can be connected later.
+      if (proofFile) {
+        const formData = new FormData();
+        formData.append("bankName", bankName.trim());
+        formData.append("accountNumber", accountNumber.trim());
+        formData.append("ifscCode", ifsc.trim().toUpperCase());
+        formData.append("branchName", branchName.trim());
+        formData.append("businessProofDocument", proofFile);
+        payload = formData;
+      } else {
+        payload = {
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          ifscCode: ifsc.trim().toUpperCase(),
+          branchName: branchName.trim(),
+        };
+      }
 
-    window.setTimeout(() => {
-      sessionStorage.setItem(
-        "happypay_bank_details_updated",
-        "true"
-      );
+      const res = await updateRetailerProfile(payload);
 
+      if (res && res.data) {
+        setProfile(res.data);
+        setSuccessMessage("Bank account details successfully updated and synchronized!");
+
+        // Update local fields to match returned data
+        const updatedPrimary = res.data.primaryBank || res.data.banks?.[0];
+        if (updatedPrimary) {
+          setBankName(updatedPrimary.name || "");
+          setIfsc(updatedPrimary.ifscCode || "");
+          setAccountNumber(updatedPrimary.accountNumber || "");
+          setConfirmAccountNumber(updatedPrimary.accountNumber || "");
+          setBranchName(updatedPrimary.branchName || "");
+        }
+      } else {
+        throw new Error("Failed to update bank details.");
+      }
+    } catch (err: unknown) {
+      console.error("Save bank details failed:", err);
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+            "Failed to update bank details. Please check the information and try again.";
+      setError(errorMsg);
+    } finally {
       setIsSaving(false);
-
-      navigate("/retailer/profile", {
-        replace: true,
-      });
-    }, 1500);
-  };
-
-  // ============================================================
-  // BACK
-  // ============================================================
-
-  const handleBack = () => {
-    if (isSaving) {
-      return;
     }
-
-    navigate("/retailer/profile");
   };
-
-  // ============================================================
-  // MASK ACCOUNT NUMBER
-  // ============================================================
-
-  const maskedAccountNumber =
-    accountNumber.length >= 4
-      ? `•••• •••• •••• ${accountNumber.slice(-4)}`
-      : "•••• •••• ••••";
-
-  // ============================================================
-  // UI
-  // ============================================================
 
   return (
-    <div className="px-4 pb-6 sm:px-6">
-
-      {/* ======================================================
-          HIDDEN FILE INPUT
-      ====================================================== */}
-
+    <div className="px-4 pb-8 sm:px-6">
+      {/* Hidden File Input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -427,623 +298,499 @@ export default function BankDetails() {
       />
 
       <div className="mx-auto w-full max-w-5xl">
-
-        {/* ====================================================
-            HEADER
-        ==================================================== */}
-
-        <header className="mb-4 flex min-h-14 items-center justify-between rounded-2xl border border-white/80 bg-white/90 px-3 py-2 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.4)] backdrop-blur-md">
-
+        {/* Header */}
+        <header className="mb-5 flex min-h-14 items-center justify-between rounded-2xl border border-white/80 bg-white/90 px-4 py-3 shadow-[0_8px_24px_-18px_rgba(15,23,42,0.4)] backdrop-blur-md">
           <button
             type="button"
-            onClick={handleBack}
+            onClick={() => navigate("/retailer/profile")}
             disabled={isSaving}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-[#172033] transition hover:bg-slate-100 disabled:opacity-50"
-            aria-label="Go back"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-[#172033] transition hover:bg-slate-100 disabled:opacity-50"
+            aria-label="Go back to Profile"
           >
-            <ArrowLeft size={28} />
+            <ArrowLeft size={22} />
           </button>
 
-          <h1 className="text-base font-bold text-[#172033]">Bank Details
-          </h1>
+          <div>
+            <h1 className="text-base font-bold text-[#172033] text-center">
+              Bank Details & Settlement Payout
+            </h1>
+            <p className="text-[11px] text-slate-500 text-center">
+              Manage your registered primary bank account for wallet payouts
+            </p>
+          </div>
 
-          <div className="w-10" />
-
+          <div className="w-9" />
         </header>
 
-        <main className="space-y-6">
+        {/* Success Toast / Notification */}
+        {successMessage && (
+          <div className="mb-5 flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 border border-emerald-200 shadow-sm animate-fade-in">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+            <span>{successMessage}</span>
+          </div>
+        )}
 
-          {/* ==================================================
-              RED ACCOUNT CARD
-          ================================================== */}
+        {/* Error Notification */}
+        {error && (
+          <div className="mb-5 flex items-center gap-3 rounded-2xl bg-rose-50 p-4 text-xs font-semibold text-rose-800 border border-rose-200 shadow-sm">
+            <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
-          <section className="rounded-2xl bg-[#7c3aed] p-4 text-white shadow-md sm:p-5">
-
-            <div className="flex items-center gap-4">
-
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white/15">
-                <Building2 size={30} />
-              </div>
-
-              <div className="min-w-0 flex-1">
-
-                <p className="text-xs font-medium uppercase tracking-wider text-white/60">
-                  Primary Bank
-                </p>
-
-                <h2 className="mt-1 truncate text-base font-bold">
-                  {bankName}
-                </h2>
-
-              </div>
-
-              <div className="hidden items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-bold sm:flex">
-                <Check size={18} />
-                Primary Payout
-              </div>
-
-            </div>
-
-            <div className="mt-4">
-
-              <p className="text-sm text-white/65">
-                Account Number
-              </p>
-
-              <p className="mt-1.5 text-lg font-bold tracking-widest">
-                {maskedAccountNumber}
-              </p>
-
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-5">
-
-              <div className="min-w-0">
-
-                <p className="text-sm text-white/65">
-                  Account Holder
-                </p>
-
-                <p className="mt-1 truncate font-bold sm:text-lg">
-                  {accountHolder || "—"}
-                </p>
-
-              </div>
-
-              <div className="min-w-0 text-right">
-
-                <p className="text-sm text-white/65">
-                  IFSC Code
-                </p>
-
-                <p className="mt-1 truncate font-bold sm:text-lg">
-                  {ifsc || "—"}
-                </p>
-
-              </div>
-
-            </div>
-
-          </section>
-
-          {/* ==================================================
-              PENNY DROP
-          ================================================== */}
-
-          <section className="flex items-start gap-4 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
-
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-500">
-              <ShieldCheck size={28} />
-            </div>
-
-            <div>
-
-              <h3 className="font-bold text-emerald-600 sm:text-lg">
-                Penny Drop Verification Verified
-              </h3>
-
-              <p className="mt-1 text-sm leading-6 text-slate-600 sm:text-base">
-                ₹1 test credit confirmed. Account is active
-                for automatic daily wallet settlement.
-              </p>
-
-            </div>
-
-          </section>
-
-          {/* ==================================================
-              SETTLEMENT ACCOUNT DETAILS
-          ================================================== */}
-
-          <section className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-
-            {/* HEADER */}
-
-            <div className="flex flex-col gap-3 border-b border-slate-200 pb-5 sm:flex-row sm:items-center sm:justify-between">
-
-              <div>
-
-                <h2 className="text-sm font-semibold text-[#172033]">
-                  Settlement Account Details
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  Manage your primary payout account
-                </p>
-
-              </div>
-
-              <span className="w-fit rounded-lg bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-500">
-                Active Account
-              </span>
-
-            </div>
-
+        {isLoading ? (
+          <div className="space-y-4">
+            <div className="h-44 w-full animate-pulse rounded-2xl bg-slate-200" />
+            <div className="h-80 w-full animate-pulse rounded-2xl bg-slate-200" />
+          </div>
+        ) : (
+          <main className="space-y-6">
             {/* ==================================================
-                BANK NAME
+                MANAGE BANK SECTION: PRIMARY BANK CARD
             ================================================== */}
+            <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#7c3aed] to-[#5b21b6] p-5 text-white shadow-lg sm:p-6">
+              <div className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10 blur-2xl pointer-events-none" />
 
-            <div className="mt-4">
+              <div className="relative z-10">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3.5">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/15 backdrop-blur-sm border border-white/20">
+                      <Building2 size={26} className="text-white" />
+                    </div>
 
-              <label className="text-base font-bold text-[#172033]">
-                Bank Name
-              </label>
-
-              <div className="relative mt-3">
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenDropdown(
-                      openDropdown === "bank"
-                        ? null
-                        : "bank"
-                    )
-                  }
-                  disabled={isSaving}
-                  className={`flex min-h-11 w-full items-center gap-4 rounded-2xl border bg-slate-50/80 px-5 text-left transition ${
-                    openDropdown === "bank"
-                      ? "border-[#7c3aed] ring-1 ring-[#7c3aed]"
-                      : "border-slate-200 hover:border-slate-400"
-                  }`}
-                >
-
-                  <Building2
-                    size={27}
-                    className="shrink-0 text-slate-400"
-                  />
-
-                  <span className="flex-1 font-semibold text-[#172033]">
-                    {bankName}
-                  </span>
-
-                  <ChevronDown
-                    size={24}
-                    className={`shrink-0 text-slate-500 transition-transform ${
-                      openDropdown === "bank"
-                        ? "rotate-180"
-                        : ""
-                    }`}
-                  />
-
-                </button>
-
-                {openDropdown === "bank" && (
-                  <div className="absolute left-0 right-0 top-[72px] z-40 max-h-[380px] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
-
-                    {banks.map((bank) => (
-                      <button
-                        key={bank}
-                        type="button"
-                        onClick={() =>
-                          handleBankSelect(bank)
-                        }
-                        className={`flex w-full items-center px-5 py-4 text-left text-base font-semibold transition ${
-                          bankName === bank
-                            ? "bg-slate-200 text-[#7c3aed]"
-                            : "text-[#172033] hover:bg-slate-50"
-                        }`}
-                      >
-
-                        {bankName === bank ? (
-                          <Check
-                            size={18}
-                            className="mr-3 shrink-0 text-[#7c3aed]"
-                          />
-                        ) : (
-                          <span className="mr-3 w-[18px]" />
-                        )}
-
-                        {bank}
-
-                      </button>
-                    ))}
-
+                    <div className="min-w-0">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-white/70">
+                        Primary Settlement Bank
+                      </span>
+                      <h2 className="text-base font-bold text-white truncate">
+                        {currentBank?.name || "No Bank Registered"}
+                      </h2>
+                    </div>
                   </div>
-                )}
 
-              </div>
-
-            </div>
-
-            {/* ==================================================
-                ACCOUNT HOLDER
-            ================================================== */}
-
-            <div className="mt-4">
-
-              <label
-                htmlFor="account-holder"
-                className="text-base font-bold text-[#172033]"
-              >
-                Account Holder Name
-              </label>
-
-              <div className="mt-3 flex min-h-11 items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-5 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
-
-                <User
-                  size={27}
-                  className="shrink-0 text-slate-400"
-                />
-
-                <input
-                  id="account-holder"
-                  type="text"
-                  value={accountHolder}
-                  onChange={handleAccountHolderChange}
-                  className="w-full bg-transparent font-semibold text-[#172033] outline-none"
-                  placeholder="Enter account holder name"
-                />
-
-              </div>
-
-            </div>
-
-            {/* ==================================================
-                ACCOUNT TYPE
-            ================================================== */}
-
-            <div className="mt-4">
-
-              <label className="text-base font-bold text-[#172033]">
-                Account Type
-              </label>
-
-              <div className="relative mt-3">
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setOpenDropdown(
-                      openDropdown ===
-                        "accountType"
-                        ? null
-                        : "accountType"
-                    )
-                  }
-                  disabled={isSaving}
-                  className={`flex min-h-11 w-full items-center gap-4 rounded-2xl border bg-slate-50/80 px-5 text-left transition ${
-                    openDropdown ===
-                    "accountType"
-                      ? "border-[#7c3aed] ring-1 ring-[#7c3aed]"
-                      : "border-slate-200 hover:border-slate-400"
-                  }`}
-                >
-
-                  <WalletCards
-                    size={27}
-                    className="shrink-0 text-slate-400"
-                  />
-
-                  <span className="flex-1 font-semibold text-[#172033]">
-                    {accountType}
-                  </span>
-
-                  <ChevronDown
-                    size={24}
-                    className={`shrink-0 text-slate-500 transition-transform ${
-                      openDropdown ===
-                      "accountType"
-                        ? "rotate-180"
-                        : ""
-                    }`}
-                  />
-
-                </button>
-
-                {openDropdown ===
-                  "accountType" && (
-                  <div className="absolute left-0 right-0 top-[72px] z-40 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
-
-                    {accountTypes.map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() =>
-                          handleAccountTypeSelect(
-                            type
-                          )
-                        }
-                        className={`flex w-full items-center px-5 py-4 text-left text-base font-semibold transition ${
-                          accountType === type
-                            ? "bg-slate-200 text-[#7c3aed]"
-                            : "text-[#172033] hover:bg-slate-50"
-                        }`}
-                      >
-
-                        {accountType === type ? (
-                          <Check
-                            size={18}
-                            className="mr-3 shrink-0 text-[#7c3aed]"
-                          />
-                        ) : (
-                          <span className="mr-3 w-[18px]" />
-                        )}
-
-                        {type}
-
-                      </button>
-                    ))}
-
+                  <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-200 border border-emerald-400/40 backdrop-blur-sm">
+                    <Check size={14} />
+                    <span>{currentBank ? "Active Payout" : "Setup Required"}</span>
                   </div>
-                )}
-
-              </div>
-
-            </div>
-
-            {/* ==================================================
-                IFSC CODE
-            ================================================== */}
-
-            <div className="mt-4">
-
-              <label
-                htmlFor="ifsc"
-                className="text-base font-bold text-[#172033]"
-              >
-                IFSC Code
-              </label>
-
-              <div className="mt-3 flex min-h-11 items-center rounded-2xl border border-slate-200 bg-slate-50/80 px-5 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
-
-                <input
-                  id="ifsc"
-                  type="text"
-                  value={ifsc}
-                  maxLength={11}
-                  onChange={handleIfscChange}
-                  className="w-full bg-transparent font-semibold uppercase text-[#172033] outline-none"
-                  placeholder="Enter IFSC code"
-                />
-
-              </div>
-
-              {/* DYNAMIC BRANCH */}
-
-              {ifsc && (
-                <div className="mt-2 rounded-xl bg-[#f8f5ff] px-4 py-3 text-sm font-semibold text-[#7c3aed]">
-
-                  🏢 {currentBankInfo.branch}
-                  {" • "}
-                  {currentBankInfo.location}
-
                 </div>
-              )}
 
-            </div>
+                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3 border-t border-white/15 pt-4">
+                  <div>
+                    <span className="text-[11px] text-white/70 block">Account Number</span>
+                    <p className="font-mono text-sm font-bold tracking-wider text-white">
+                      {maskedAccountNumber}
+                    </p>
+                  </div>
 
-            {/* ==================================================
-                ACCOUNT NUMBER
-            ================================================== */}
+                  <div>
+                    <span className="text-[11px] text-white/70 block">Account Holder</span>
+                    <p className="text-sm font-bold text-white truncate">
+                      {profile?.fullName || accountHolder || "—"}
+                    </p>
+                  </div>
 
-            <div className="mt-4">
+                  <div className="sm:text-right">
+                    <span className="text-[11px] text-white/70 block">IFSC Code</span>
+                    <p className="font-mono text-sm font-bold text-white">
+                      {currentBank?.ifscCode || "—"}
+                    </p>
+                  </div>
+                </div>
 
-              <label
-                htmlFor="account-number"
-                className="text-base font-bold text-[#172033]"
-              >
-                Account Number
-              </label>
-
-              <div className="mt-3 flex min-h-11 items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 px-5 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
-
-                <WalletCards
-                  size={27}
-                  className="shrink-0 text-slate-400"
-                />
-
-                <input
-                  id="account-number"
-                  type="text"
-                  inputMode="numeric"
-                  value={accountNumber}
-                  maxLength={20}
-                  onChange={
-                    handleAccountNumberChange
-                  }
-                  className="w-full bg-transparent font-semibold text-[#172033] outline-none"
-                  placeholder="Enter account number"
-                />
-
-              </div>
-
-            </div>
-
-            {/* ==================================================
-                CONFIRM ACCOUNT NUMBER
-            ================================================== */}
-
-            <div className="mt-4">
-
-              <label
-                htmlFor="confirm-account-number"
-                className="text-base font-bold text-[#172033]"
-              >
-                Confirm Account Number
-              </label>
-
-              <div
-                className={`mt-3 flex min-h-11 items-center gap-4 rounded-2xl border px-5 transition ${
-                  confirmAccountNumber.length ===
-                  0
-                    ? "border-slate-200 bg-slate-50/80"
-                    : confirmAccountNumber ===
-                        accountNumber
-                      ? "border-emerald-400 bg-emerald-50"
-                      : "border-purple-400 bg-purple-50"
-                }`}
-              >
-
-                <CheckCircle2
-                  size={27}
-                  className={
-                    confirmAccountNumber.length ===
-                    0
-                      ? "shrink-0 text-slate-400"
-                      : confirmAccountNumber ===
-                          accountNumber
-                        ? "shrink-0 text-emerald-500"
-                        : "shrink-0 text-purple-400"
-                  }
-                />
-
-                <input
-                  id="confirm-account-number"
-                  type="text"
-                  inputMode="numeric"
-                  value={confirmAccountNumber}
-                  maxLength={20}
-                  onChange={
-                    handleConfirmAccountNumberChange
-                  }
-                  className="w-full bg-transparent font-semibold text-[#172033] outline-none"
-                  placeholder="Re-enter account number"
-                />
-
-              </div>
-
-              {confirmAccountNumber.length >
-                0 &&
-                confirmAccountNumber ===
-                  accountNumber && (
-                  <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-emerald-500">
-                    <Check size={16} />
-                    Account numbers match
-                  </p>
+                {currentBank?.branchName && (
+                  <div className="mt-2 text-xs text-white/80">
+                    <span className="text-white/60">Branch: </span>
+                    {currentBank.branchName}
+                  </div>
                 )}
+              </div>
+            </section>
 
-              {confirmAccountNumber.length >
-                0 &&
-                confirmAccountNumber !==
-                  accountNumber && (
-                  <p className="mt-2 text-sm font-semibold text-purple-500">
-                    Account numbers do not match
-                  </p>
-                )}
-
-            </div>
-
-          </section>
-
-          {/* ==================================================
-              BANK ACCOUNT PROOF
-          ================================================== */}
-
-          <section className="rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-
-            <h2 className="text-sm font-semibold text-[#172033]">
-              Bank Account Proof
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Uploaded cancelled cheque or passbook for
-              payout clearance
-            </p>
-
-            <div className="mt-6 flex items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-500">
-                <FileText size={30} />
+            {/* Penny Drop Verification Banner */}
+            <section className="flex items-start gap-3.5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-slate-700">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                <ShieldCheck size={22} />
               </div>
 
-              <div className="min-w-0 flex-1">
-
-                <h3 className="font-bold text-[#172033]">
-                  Cancelled Cheque / Passbook
+              <div className="text-xs">
+                <h3 className="font-bold text-emerald-900">
+                  Automated Settlement Payout Active
                 </h3>
+                <p className="mt-0.5 leading-relaxed text-slate-600">
+                  Your registered bank account is synced with your Happy Pay merchant wallet for daily automated payouts and AEPS/DMT settlements.
+                </p>
+              </div>
+            </section>
 
-                <p className="mt-1 truncate text-sm font-semibold text-emerald-500">
-                  {proofFile}
+            {/* ==================================================
+                EDIT BANK SECTION: SYNCHRONIZED FORM
+            ================================================== */}
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+              <div className="flex flex-col gap-2 border-b border-slate-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Edit & Update Settlement Account
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Modify bank account details or register a new payout account
+                  </p>
+                </div>
+
+                <span className="w-fit rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-semibold text-[#7c3aed]">
+                  Live Database Sync
+                </span>
+              </div>
+
+              {/* Bank Name Dropdown */}
+              <div className="mt-5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Bank Name *
+                </label>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOpenDropdown(openDropdown === "bank" ? null : "bank")
+                    }
+                    disabled={isSaving}
+                    className={`flex min-h-11 w-full items-center gap-3 rounded-xl border bg-slate-50/70 px-4 text-left transition ${
+                      openDropdown === "bank"
+                        ? "border-[#7c3aed] ring-1 ring-[#7c3aed]"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <Building2 size={20} className="shrink-0 text-slate-400" />
+                    <span className="flex-1 text-xs font-semibold text-slate-800">
+                      {bankName || "Select your bank"}
+                    </span>
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 text-slate-500 transition-transform ${
+                        openDropdown === "bank" ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {openDropdown === "bank" && (
+                    <div className="absolute left-0 right-0 top-[52px] z-40 max-h-[300px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                      {/* Search in bank list */}
+                      <div className="border-b border-slate-100 p-2.5">
+                        <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-1.5 border border-slate-200">
+                          <Search size={14} className="text-slate-400" />
+                          <input
+                            type="text"
+                            value={bankSearch}
+                            onChange={(e) => setBankSearch(e.target.value)}
+                            placeholder="Search bank name..."
+                            className="w-full bg-transparent text-xs text-slate-800 outline-none"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+
+                      <div className="max-h-[220px] overflow-y-auto">
+                        {filteredBanks.map((bank) => (
+                          <button
+                            key={bank}
+                            type="button"
+                            onClick={() => handleBankSelect(bank)}
+                            className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
+                              bankName === bank
+                                ? "bg-purple-50 text-[#7c3aed] font-bold"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span>{bank}</span>
+                            {bankName === bank && <Check size={16} className="text-[#7c3aed]" />}
+                          </button>
+                        ))}
+
+                        {filteredBanks.length === 0 && (
+                          <div className="p-4 text-center text-xs text-slate-400">
+                            No bank found. You can enter custom bank name below.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Account Holder Name */}
+              <div className="mt-4">
+                <label
+                  htmlFor="account-holder"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Account Holder Name *
+                </label>
+
+                <div className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
+                  <User size={20} className="shrink-0 text-slate-400" />
+                  <input
+                    id="account-holder"
+                    type="text"
+                    value={accountHolder}
+                    onChange={(e) => setAccountHolder(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none"
+                    placeholder="Enter registered account holder name"
+                  />
+                </div>
+              </div>
+
+              {/* Account Type & IFSC */}
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Account Type */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Account Type
+                  </label>
+
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setOpenDropdown(
+                          openDropdown === "accountType" ? null : "accountType"
+                        )
+                      }
+                      disabled={isSaving}
+                      className="flex min-h-11 w-full items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 text-left transition hover:border-slate-300"
+                    >
+                      <WalletCards size={20} className="shrink-0 text-slate-400" />
+                      <span className="flex-1 text-xs font-semibold text-slate-800">
+                        {accountType}
+                      </span>
+                      <ChevronDown
+                        size={18}
+                        className={`shrink-0 text-slate-500 transition-transform ${
+                          openDropdown === "accountType" ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {openDropdown === "accountType" && (
+                      <div className="absolute left-0 right-0 top-[52px] z-40 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                        {ACCOUNT_TYPES.map((type) => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => handleAccountTypeSelect(type)}
+                            className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
+                              accountType === type
+                                ? "bg-purple-50 text-[#7c3aed] font-bold"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span>{type}</span>
+                            {accountType === type && (
+                              <Check size={16} className="text-[#7c3aed]" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* IFSC Code */}
+                <div>
+                  <label
+                    htmlFor="ifsc"
+                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  >
+                    IFSC Code *
+                  </label>
+
+                  <div className="flex min-h-11 items-center rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
+                    <input
+                      id="ifsc"
+                      type="text"
+                      value={ifsc}
+                      maxLength={11}
+                      onChange={handleIfscChange}
+                      className="w-full bg-transparent font-mono text-xs font-semibold uppercase text-slate-800 outline-none"
+                      placeholder="e.g. SBIN0001234"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Branch Name */}
+              <div className="mt-4">
+                <label
+                  htmlFor="branch-name"
+                  className="block text-xs font-semibold text-slate-700 mb-1.5"
+                >
+                  Branch Name
+                </label>
+
+                <div className="flex min-h-11 items-center rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
+                  <input
+                    id="branch-name"
+                    type="text"
+                    value={branchName}
+                    onChange={(e) => setBranchName(e.target.value)}
+                    className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none"
+                    placeholder="Enter branch name or city"
+                  />
+                </div>
+              </div>
+
+              {/* Account Number & Confirm Account Number */}
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {/* Account Number */}
+                <div>
+                  <label
+                    htmlFor="account-number"
+                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  >
+                    Account Number *
+                  </label>
+
+                  <div className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 px-4 transition focus-within:border-[#7c3aed] focus-within:ring-1 focus-within:ring-[#7c3aed]">
+                    <WalletCards size={20} className="shrink-0 text-slate-400" />
+                    <input
+                      id="account-number"
+                      type="text"
+                      inputMode="numeric"
+                      value={accountNumber}
+                      maxLength={20}
+                      onChange={handleAccountNumberChange}
+                      className="w-full bg-transparent font-mono text-xs font-semibold text-slate-800 outline-none"
+                      placeholder="Enter account number"
+                    />
+                  </div>
+                </div>
+
+                {/* Confirm Account Number */}
+                <div>
+                  <label
+                    htmlFor="confirm-account-number"
+                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                  >
+                    Confirm Account Number *
+                  </label>
+
+                  <div
+                    className={`flex min-h-11 items-center gap-3 rounded-xl border px-4 transition ${
+                      confirmAccountNumber.length === 0
+                        ? "border-slate-200 bg-slate-50/70"
+                        : confirmAccountNumber === accountNumber
+                        ? "border-emerald-400 bg-emerald-50/40"
+                        : "border-rose-400 bg-rose-50/40"
+                    }`}
+                  >
+                    <CheckCircle2
+                      size={20}
+                      className={
+                        confirmAccountNumber.length === 0
+                          ? "shrink-0 text-slate-400"
+                          : confirmAccountNumber === accountNumber
+                          ? "shrink-0 text-emerald-500"
+                          : "shrink-0 text-rose-500"
+                      }
+                    />
+                    <input
+                      id="confirm-account-number"
+                      type="text"
+                      inputMode="numeric"
+                      value={confirmAccountNumber}
+                      maxLength={20}
+                      onChange={handleConfirmAccountNumberChange}
+                      className="w-full bg-transparent font-mono text-xs font-semibold text-slate-800 outline-none"
+                      placeholder="Re-enter account number"
+                    />
+                  </div>
+
+                  {confirmAccountNumber.length > 0 &&
+                    confirmAccountNumber === accountNumber && (
+                      <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-emerald-600">
+                        <Check size={14} /> Account numbers match
+                      </p>
+                    )}
+
+                  {confirmAccountNumber.length > 0 &&
+                    confirmAccountNumber !== accountNumber && (
+                      <p className="mt-1 text-[11px] font-semibold text-rose-600">
+                        Account numbers do not match
+                      </p>
+                    )}
+                </div>
+              </div>
+
+              {/* Bank Account Proof Upload */}
+              <div className="mt-5 border-t border-slate-100 pt-5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Bank Account Proof (Optional)
+                </label>
+                <p className="text-[11px] text-slate-500 mb-3">
+                  Upload a copy of cancelled cheque or bank passbook (JPG, PNG, PDF up to 10MB)
                 </p>
 
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#7c3aed]">
+                    <FileText size={22} />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-semibold text-slate-800 truncate">
+                      {proofFileName || "No new file selected"}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      {proofFile
+                        ? `${(proofFile.size / 1024 / 1024).toFixed(2)} MB`
+                        : "Upload cancelled cheque or passbook"}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSaving}
+                    className="flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#6d28d9] disabled:opacity-50"
+                  >
+                    <Upload size={14} />
+                    <span>Choose</span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleUpload}
-                disabled={isSaving}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#7c3aed] text-white transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
-                aria-label="Upload bank proof"
-              >
-                <Upload size={22} />
-              </button>
+              {/* Submit Button */}
+              <div className="mt-7 flex items-center justify-end gap-3 border-t border-slate-100 pt-5">
+                <button
+                  type="button"
+                  onClick={() => navigate("/retailer/profile")}
+                  disabled={isSaving}
+                  className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
 
-            </div>
-
-          </section>
-
-          {/* ==================================================
-              ERROR
-          ================================================== */}
-
-          {error && (
-            <div className="rounded-2xl border border-purple-200 bg-purple-50 px-5 py-4 text-sm font-semibold text-purple-600">
-              {error}
-            </div>
-          )}
-
-          {/* ==================================================
-              SAVE BUTTON
-          ================================================== */}
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving}
-            className={`flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl px-5 text-base font-bold text-white shadow-md transition-all ${
-              isSaving
-                ? "cursor-wait bg-[#6d28d9]"
-                : "bg-[#7c3aed] hover:bg-[#6d28d9] active:scale-[0.99]"
-            }`}
-          >
-
-            {isSaving ? (
-              <>
-                <LoaderCircle
-                  size={24}
-                  className="animate-spin"
-                />
-
-                <span>
-                  Saving Bank Details...
-                </span>
-              </>
-            ) : (
-              <>
-                <Save size={22} />
-
-                <span>
-                  Save & Update Bank Details
-                </span>
-              </>
-            )}
-
-          </button>
-
-        </main>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#7c3aed] px-6 py-2.5 text-xs font-semibold text-white shadow-md hover:bg-[#6d28d9] disabled:opacity-50 transition"
+                >
+                  {isSaving ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin" />
+                      <span>Saving & Synchronizing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      <span>Save & Update Bank Account</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </section>
+          </main>
+        )}
       </div>
     </div>
   );
 }
-

@@ -5,11 +5,12 @@ import SidebarDesktop from "../../components/SidebarDesktop";
 import SidebarMobile from "../../components/SidebarMobile";
 import Navbar from "../../components/Navbar";
 import { logout } from "../../utils/auth";
+import { getAuthUser } from "../../context/AuthContext";
 
 const AppLayout = () => {
   const navigate = useNavigate();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-
+ const user=getAuthUser()?.fullName
   const handleLogout = () => {
     logout();
 
@@ -36,6 +37,7 @@ const AppLayout = () => {
         {/* NAVBAR */}
         <div className="shrink-0 px-3 pt-3 pb-0 sm:px-4 lg:px-6 lg:pt-4">
           <Navbar
+          UserName={user}
             onOpenSidebar={() => setMobileSidebarOpen(true)}
             // onLogout={handleLogout}
           />

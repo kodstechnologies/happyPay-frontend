@@ -1820,7 +1820,8 @@ const Aeps = () => {
                 maxLength={12}
                 value={retailerAadhaar}
                 onChange={handleRetailerAadhaarChange}
-                disabled={isCapturingRetailer || isVerifyingTfa || retailerAuthenticated}
+                disabled
+                // ={isCapturingRetailer || isVerifyingTfa || retailerAuthenticated}
                 placeholder="Enter 12-digit Aadhaar number"
                 className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
               />
@@ -2012,19 +2013,7 @@ const Aeps = () => {
     );
   };
 
-  /*
-   * ============================================================
-   * STEP 2: CUSTOMER AADHAAR
-   * ============================================================
-   */
-
-  /*
-   * ============================================================
-   * STEP 2
-   * CUSTOMER AADHAAR
-   * ============================================================
-   */
-
+ 
 
 
 
