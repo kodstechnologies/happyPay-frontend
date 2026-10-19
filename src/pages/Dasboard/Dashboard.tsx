@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useCallback } from "react";
 import {
   Fingerprint,
@@ -23,17 +22,7 @@ import { loadRazorpayScript } from "../../utils/razorpay";
 import { useNavigate } from "react-router-dom";
 
 import { apiClient } from "../../services/api/client";
-import { getToken } from "../../utils/auth";
 import { getAuthUser } from "../../context/AuthContext";
-import { rdService } from "../../utils/rdService";
-import { getGeolocationCoordinates } from "../../utils/geolocation";
-import {
-  checkDoEkyc,
-  doBioEkyc,
-  parsePidXml,
-  readEkycPrompt,
-  type EkycPrompt,
-} from "../../services/api/retailer/aepsApi";
 
 type ServicePath =
   | "/retailer/aeps"
@@ -150,18 +139,7 @@ const Dashboard = () => {
   ========================================================= */
 
   const [banners, setBanners] = useState<string[]>([]);
-  const [ekycPrompt, setEkycPrompt] = useState<EkycPrompt | null>(null);
-  const [capturingBiometric, setCapturingBiometric] = useState(false);
-  const [biometricError, setBiometricError] = useState("");
-  const [bioEkycResponse, setBioEkycResponse] = useState<unknown>(null);
-  const [doEkycResponse, setDoEkycResponse] = useState<unknown>(null);
-  const [kycStep, setKycStep] = useState("Calling eKYC...");
 
-  // Biometric device states
-  const [availableDevices, setAvailableDevices] = useState<import("../../utils/rdService").ActiveDevice[]>([]);
-  const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
-  const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
-  const [isScanningDevices, setIsScanningDevices] = useState(true);
 
   const fetchLiveBalance = useCallback(async (showLoader = false) => {
     if (showLoader) {
@@ -258,158 +236,7 @@ const Dashboard = () => {
     };
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
 
-    const checkKyc = async () => {
-      if (!getToken()) return;
-
-      try {
-        const authUser = getAuthUser();
-        const userId = authUser?.id || authUser?._id;
-        const outletId = authUser?.outletId || authUser?.AepsEkyc?.outletId || "";
-        const status = await checkDoEkyc(outletId, userId);
-        if (cancelled) return;
-
-        setDoEkycResponse(status);
-        setEkycPrompt(readEkycPrompt(status));
-        setKycStep(
-          status.data?.kycRequired
-            ? "eKYC completed. Click do bio ekyc to capture the fingerprint and send it."
-            : "eKYC completed. Click do bio ekyc to send the biometric request.",
-        );
-      } catch (error: any) {
-        if (!cancelled) {
-          setKycStep(error.message || "eKYC check failed.");
-        }
-      }
-    };
-
-    checkKyc();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Scan for biometric devices on mount
-  useEffect(() => {
-    let isMounted = true;
-
-    const scanDevices = async () => {
-      try {
-        const devices = await rdService.scanAllDevices();
-        if (!isMounted) return;
-
-        setAvailableDevices(devices);
-
-        if (devices.length > 0) {
-          setSelectedDevicePort(devices[0].port);
-          setWithdrawalDeviceName(devices[0].name);
-        } else {
-          setSelectedDevicePort(null);
-          setWithdrawalDeviceName("No device found");
-        }
-      } catch (error) {
-        console.error("Device scan failed:", error);
-        if (isMounted) {
-          setSelectedDevicePort(null);
-          setWithdrawalDeviceName("Scan failed");
-        }
-      } finally {
-        if (isMounted) {
-          setIsScanningDevices(false);
-        }
-      }
-    };
-
-    scanDevices();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const captureBiometric = async () => {
-    if (!ekycPrompt) return;
-
-    // Auto-scan if no device is selected
-    if (selectedDevicePort === null || availableDevices.length === 0) {
-      setIsScanningDevices(true);
-      setWithdrawalDeviceName("Scanning devices...");
-      setKycStep("Scanning for biometric devices...");
-
-      try {
-        const devices = await rdService.scanAllDevices();
-        setAvailableDevices(devices);
-
-        if (devices.length > 0) {
-          setSelectedDevicePort(devices[0].port);
-          setWithdrawalDeviceName(devices[0].name);
-        } else {
-          setBiometricError("No biometric devices found. Please ensure RD Service is running and device is connected.");
-          setIsScanningDevices(false);
-          return;
-        }
-      } catch (error) {
-        console.log(error)
-        setBiometricError("Failed to scan for biometric devices.");
-        setIsScanningDevices(false);
-        return;
-      } finally {
-        setIsScanningDevices(false);
-      }
-    }
-//test
-    setBiometricError("");
-    setCapturingBiometric(true);
-    setKycStep("Capturing fingerprint from the biometric device...");
-
-    try {
-      const capture = await rdService.captureFingerprint(selectedDevicePort, {
-        wadh: ekycPrompt.pidOptionWadh,
-        fType: "2", // ISO 19794-2 banking standard
-      });
-
-      if (!capture.success || !capture.data) {
-        setBiometricError(capture.message || "Fingerprint capture failed.");
-        return;
-      }
-
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
-
-      setKycStep("Fingerprint captured. Calling biometric eKYC...");
-
-      const authUser = getAuthUser();
-      const userId = authUser?.id || authUser?._id;
-      const effectiveOutletId = ekycPrompt.outletId || authUser?.outletId || authUser?.AepsEkyc?.outletId || "";
-
-      const result = await doBioEkyc({
-        userId,
-        outlet_id: effectiveOutletId,
-        referenceKey: ekycPrompt.referenceKey,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        ...parsePidXml(capture.data),
-      });
-
-      localStorage.setItem("referenceKey", ekycPrompt.referenceKey);
-      localStorage.setItem("outletId", ekycPrompt.outletId || authUser?.outletId || authUser?.AepsEkyc?.outletId || "");
-
-      console.log("doBioEkyc result", { ...parsePidXml(capture.data) });
-      setBioEkycResponse(result);
-      setKycStep("Biometric eKYC response received.");
-    } catch (error: any) {
-      setBiometricError(error.message || "Biometric eKYC failed.");
-      setKycStep(error.message || "Biometric eKYC failed.");
-    } finally {
-      setCapturingBiometric(false);
-    }
-  };
 
 
 
@@ -724,57 +551,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <section className="mb-6 rounded-2xl border border-[#dce4f8] bg-white p-4 shadow-sm">
-            <p className="text-sm font-bold text-[#172033]">After eKYC</p>
-            <p className="mt-1 text-sm text-[#5c677a]">{kycStep}</p>
 
-            {/* Device Status */}
-            <div className="mt-3 flex items-center gap-2 text-xs">
-              <span className="font-semibold text-[#172033]">Biometric Device:</span>
-              <span className={availableDevices.length > 0 ? "text-[#08a873]" : "text-red-600"}>
-                {withdrawalDeviceName}
-              </span>
-              {isScanningDevices && (
-                <RefreshCw className="h-3 w-3 animate-spin text-[#7c3aed]" />
-              )}
-            </div>
-
-            {ekycPrompt && (
-              <div className="mt-3 grid gap-2 text-xs text-[#172033] sm:grid-cols-2">
-                <p><span className="font-semibold">Message:</span> {ekycPrompt.message}</p>
-                <p><span className="font-semibold">Outlet:</span> {ekycPrompt.outletId || "--"}</p>
-                <p className="sm:col-span-2 break-all">
-                  <span className="font-semibold">Reference key:</span> {ekycPrompt.referenceKey || "--"}
-                </p>
-              </div>
-            )}
-            {doEkycResponse != null && (
-              <pre className="mt-3 max-h-48 overflow-auto rounded-xl bg-[#f8fafc] p-3 text-xs leading-5 text-slate-700">
-                {JSON.stringify(doEkycResponse, null, 2)}
-              </pre>
-            )}
-            {doEkycResponse != null && (
-              <button
-                type="button"
-                onClick={captureBiometric}
-                disabled={capturingBiometric || !ekycPrompt || availableDevices.length === 0}
-                className="mt-3 flex h-11 items-center justify-center rounded-xl bg-[#7c3aed] px-5 text-sm font-bold text-white disabled:opacity-70"
-              >
-                {capturingBiometric ? "Please wait..." : "do bio ekyc"}
-              </button>
-            )}
-            {biometricError && (
-              <p className="mt-3 text-sm text-red-600">{biometricError}</p>
-            )}
-            {bioEkycResponse != null && (
-              <>
-                <p className="mt-3 text-xs font-semibold text-[#172033]">Biometric eKYC response</p>
-                <pre className="mt-2 max-h-48 overflow-auto rounded-xl bg-[#f8fafc] p-3 text-xs leading-5 text-slate-700">
-                  {JSON.stringify(bioEkycResponse, null, 2)}
-                </pre>
-              </>
-            )}
-          </section>
 
           <div className="flex flex-col gap-6">
             

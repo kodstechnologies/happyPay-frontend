@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   Banknote,
-  ChevronDown,
   Landmark,
   WalletCards,
   ShieldCheck,
@@ -351,13 +350,6 @@ export default function Cms() {
     navigate("/retailer");
   };
 
-  const handleCompanyChange = (
-    event: React.ChangeEvent<HTMLSelectElement>,
-  ) => {
-    const companyId = event.target.value;
-    setSelectedCompanyId(companyId);
-    setActiveTab("collection");
-  };
 
   return (
     <div className="w-full">
@@ -666,7 +658,7 @@ export default function Cms() {
               </section>
 
               {/* COMPANY DROPDOWN / MANUAL FLOW (ALTERNATIVE) */}
-              <section className="rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.12)] sm:p-5">
+              {/* <section className="rounded-[16px] border border-slate-200 bg-white p-4 shadow-[0_8px_24px_-16px_rgba(15,23,42,0.12)] sm:p-5">
                 <label
                   htmlFor="cms-company"
                   className="mb-2 block text-sm font-bold text-[#172033]"
@@ -696,7 +688,7 @@ export default function Cms() {
                 <p className="mt-2 text-[11px] text-slate-500">
                   Select a partner company if you want to perform manual Cash Collection or Cash Drop without the external portal.
                 </p>
-              </section>
+              </section> */}
             </>
           ) : (
             <>

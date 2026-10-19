@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
 import MiniStatement, { type MiniStatementData } from "./MiniStatement";
@@ -37,6 +37,11 @@ import {
   cashWithdrawal,
   cashDeposit,
   sendAepsOtp,
+  onboardAepsMerchant,
+  checkDoEkyc,
+  doBioEkyc,
+  readEkycPrompt,
+  type EkycPrompt,
   type TfaPayload,
   type CashWithdrawalPayload,
   type CashDepositPayload,
@@ -241,6 +246,115 @@ const ProgressHeader = ({ step }: { step: Step }) => {
 
 const Aeps = () => {
   const navigate = useNavigate();
+  const { user: authUser, isLoading: isAuthLoading, refreshUser } = useAuth();
+
+  // Onboarding States
+  const [isOnboarding, setIsOnboarding] = useState(false);
+  const [onboardedOutletId, setOnboardedOutletId] = useState<string>("");
+  const [onboardError, setOnboardError] = useState("");
+  const [onboardSuccess, setOnboardSuccess] = useState("");
+
+  // Local state to track biometric completion during this browser session
+  const [bioKycCompletedLocally, setBioKycCompletedLocally] = useState<boolean>(false);
+
+  // 1. PRIORITY 1: Check Database via Auth Context First:
+  const isBioKycDoneInDb = Boolean(
+    authUser?.eKYCStatus === "COMPLETED" ||
+    authUser?.AepsEkyc?.eKYCStatus === "COMPLETED"
+  );
+
+  // 2. Comprehensive Bio KYC status: If DB says COMPLETED or completed in this session -> DONE!
+  const isBioKycDone = isBioKycDoneInDb || bioKycCompletedLocally;
+
+  const [isCheckingKyc, setIsCheckingKyc] = useState<boolean>(false);
+  const [isDoingBioKyc, setIsDoingBioKyc] = useState<boolean>(false);
+  const [ekycPrompt, setEkycPrompt] = useState<EkycPrompt | null>(null);
+  const [bioKycError, setBioKycError] = useState<string>("");
+  const [bioKycSuccess, setBioKycSuccess] = useState<string>("");
+
+  const token = getToken();
+  let tokenOutletId = "";
+  if (token) {
+    try {
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      tokenOutletId = payload.outletId || payload.outletid || "";
+    } catch {
+      // ignore
+    }
+  }
+
+  const isOnboarded = Boolean(
+    onboardedOutletId ||
+    authUser?.outletId ||
+    authUser?.AepsEkyc?.outletId ||
+    tokenOutletId
+  );
+
+  // Check eKYC status from server ONLY if onboarded and NOT yet completed in DB
+  const checkKycStatus = useCallback(async (forcedOutletId?: string) => {
+    // If already completed in database or session, do NOT call check API
+    if (isBioKycDone) {
+      return;
+    }
+
+    const effectiveOutletId =
+      forcedOutletId ||
+      onboardedOutletId ||
+      authUser?.outletId ||
+      authUser?.AepsEkyc?.outletId ||
+      tokenOutletId ||
+      "";
+
+    const userId = authUser?.id || authUser?._id;
+    if (!effectiveOutletId || !userId) return;
+
+    setIsCheckingKyc(true);
+    setBioKycError("");
+    try {
+      const response = await checkDoEkyc(effectiveOutletId, userId);
+      const prompt = readEkycPrompt(response);
+      setEkycPrompt(prompt);
+
+      const statusData = response?.data;
+      const rawResponse = response as Record<string, unknown> | undefined;
+      const providerStatus =
+        (typeof statusData?.status === "string" ? statusData.status : "") ||
+        (typeof rawResponse?.status === "string" ? String(rawResponse.status) : "");
+      const isCompleted =
+        statusData?.eKYCStatus === "COMPLETED" ||
+        providerStatus === "NO-ACTION-REQUIRED" ||
+        statusData?.kycRequired === false;
+
+      if (isCompleted) {
+        setBioKycCompletedLocally(true);
+        if (refreshUser) {
+          void refreshUser();
+        }
+      }
+    } catch (err: unknown) {
+      console.warn("eKYC status check:", err);
+    } finally {
+      setIsCheckingKyc(false);
+    }
+  }, [isBioKycDone, authUser, onboardedOutletId, tokenOutletId, refreshUser]);
+
+  useEffect(() => {
+    // Wait for auth context to load from DB first
+    if (isAuthLoading || isBioKycDone || !isOnboarded) return;
+
+    let isMounted = true;
+    const verifyKyc = async () => {
+      await Promise.resolve();
+      if (!isMounted) return;
+      await checkKycStatus();
+    };
+
+    void verifyKyc();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthLoading, isBioKycDone, isOnboarded, checkKycStatus]);
 
   /*
    * Step 0 = Retailer 2FA
@@ -426,18 +540,6 @@ const Aeps = () => {
    * Retailer authentication & 2FA State
    */
   const [retailerAadhaar, setRetailerAadhaar] = useState("");
-  const [retailerMobile, setRetailerMobile] = useState(() => {
-    try {
-      const token = getToken();
-      if (token) {
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        return tokenPayload.mobile || localStorage.getItem("retailerMobile") || "+91 1234567890";
-      }
-      return localStorage.getItem("retailerMobile") || "+91 1234567890";
-    } catch {
-      return localStorage.getItem("retailerMobile") || "+91 1234567890";
-    }
-  });
 
   const [isCapturingRetailer, setIsCapturingRetailer] =
     useState(false);
@@ -461,7 +563,7 @@ const Aeps = () => {
   const [tfaStatusMessage, setTfaStatusMessage] =
     useState("");
 
-  const fetchLoginStatus = async (): Promise<void> => {
+  const fetchLoginStatus = useCallback(async (): Promise<void> => {
     try {
       const token = getToken();
       if (!token) {
@@ -474,16 +576,22 @@ const Aeps = () => {
         return;
       }
 
-      // Decode JWT token to get outletId
+      // Decode JWT token or use authUser / newly onboarded outletId
       const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
+      const outletId =
+        onboardedOutletId ||
+        authUser?.outletId ||
+        authUser?.AepsEkyc?.outletId ||
+        tokenPayload.outletId ||
+        tokenPayload.outletid ||
+        "";
 
       if (!outletId) {
         setRetailerAuthenticated(false);
         setActcode("");
         setTfaStatusMessage("");
         setTfaError(
-          "Outlet ID is missing. Please check your retailer account."
+          "Merchant is not onboarded to AEPS yet. Please click 'Onboard to AEPS' above to activate your account."
         );
         return;
       }
@@ -533,7 +641,7 @@ const Aeps = () => {
     } finally {
       setIsCheckingLoginStatus(false);
     }
-  };
+  }, [onboardedOutletId, authUser]);
 
   const handleRefreshLoginStatus = (): void => {
     setIsCheckingLoginStatus(true);
@@ -541,19 +649,23 @@ const Aeps = () => {
     void fetchLoginStatus();
   };
 
-  // useEffect(() => {
-  //   void fetchLoginStatus();
-  // }, []);
-
   useEffect(() => {
+    let isMounted = true;
+
     const checkStatus = async () => {
+      await Promise.resolve();
+      if (!isMounted) return;
       await fetchLoginStatus();
     };
 
     void checkStatus();
-  }, []);
 
-  // Fetch retailer Aadhaar and mobile on mount
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchLoginStatus]);
+
+  // Fetch retailer Aadhaar on mount
   useEffect(() => {
     const fetchRetailerDetails = async () => {
       try {
@@ -572,9 +684,6 @@ const Aeps = () => {
           if (response.success && response.data) {
             if (response.data.aadhaarNumber) {
               setRetailerAadhaar(response.data.aadhaarNumber);
-            }
-            if (response.data.mobile) {
-              setRetailerMobile(response.data.mobile);
             }
           }
         }
@@ -660,8 +769,6 @@ const Aeps = () => {
   const [consent, setConsent] =
     useState(false);
 
-  const { user: authUser } = useAuth();
-
   /*
    * AEPS service
    */
@@ -718,17 +825,6 @@ const Aeps = () => {
     return `₹${value.toFixed(2)}`;
   };
 
-  const handleRetailerAadhaarChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = event.target.value
-      .replace(/\D/g, "")
-      .slice(0, 12);
-
-    setRetailerAadhaar(value);
-    setCapturedPidData("");
-    setTfaError("");
-  };
 
   const handleCustomerAadhaarChange = (
     event: React.ChangeEvent<HTMLInputElement>
@@ -1630,9 +1726,237 @@ const Aeps = () => {
    * ============================================================
    */
 
+  const handleOnboardMerchant = async () => {
+    setIsOnboarding(true);
+    setOnboardError("");
+    setOnboardSuccess("");
+
+    try {
+      const res = await onboardAepsMerchant();
+      if (res.success && res.data) {
+        setOnboardSuccess("Merchant onboarded successfully to AEPS!");
+        if (res.data.outletId) {
+          setOnboardedOutletId(res.data.outletId);
+        }
+        if (refreshUser) {
+          await refreshUser();
+        }
+        if (res.data.eKYCStatus === "COMPLETED") {
+          setBioKycCompletedLocally(true);
+          setIsCheckingLoginStatus(true);
+          setTfaError("");
+          void fetchLoginStatus();
+        } else {
+          void checkKycStatus(res.data.outletId);
+        }
+      } else {
+        setOnboardError(res.message || "Failed to onboard to AEPS.");
+      }
+    } catch (err: unknown) {
+      setOnboardError(getErrorMessage(err, "Failed to onboard to AEPS gateway."));
+    } finally {
+      setIsOnboarding(false);
+    }
+  };
+
+  const handleDoBioKyc = async () => {
+    const effectiveOutletId =
+      onboardedOutletId ||
+      authUser?.outletId ||
+      authUser?.AepsEkyc?.outletId ||
+      tokenOutletId ||
+      ekycPrompt?.outletId ||
+      "";
+
+    const userId = authUser?.id || authUser?._id;
+
+    if (!effectiveOutletId || !userId) {
+      setBioKycError("Outlet ID or User ID missing. Please ensure your account is onboarded.");
+      return;
+    }
+
+    setIsDoingBioKyc(true);
+    setBioKycError("");
+    setBioKycSuccess("");
+
+    try {
+      let targetPort = selectedDevicePort;
+
+      // Auto-scan if no device selected
+      if (targetPort === null || availableDevices.length === 0) {
+        setIsScanningDevices(true);
+        setWithdrawalDeviceName("Scanning devices...");
+        const devices = await rdService.scanAllDevices();
+        setAvailableDevices(devices);
+        setIsScanningDevices(false);
+
+        if (devices.length > 0) {
+          targetPort = devices[0].port;
+          setSelectedDevicePort(devices[0].port);
+          setWithdrawalDeviceName(devices[0].name);
+        } else {
+          setSelectedDevicePort(null);
+          setWithdrawalDeviceName("No device found");
+          throw new Error("No biometric device found. Please connect your USB RD Service scanner and retry.");
+        }
+      }
+
+      // Capture fingerprint with WADH from ekycPrompt if available, and fType: "2" (ISO 19794-2)
+      const captureResult = await rdService.captureFingerprint(targetPort, {
+        wadh: ekycPrompt?.pidOptionWadh,
+        fType: "2",
+      });
+
+      if (!captureResult.success || !captureResult.data) {
+        throw new Error(captureResult.message || "Failed to capture fingerprint from device.");
+      }
+
+      // Geolocation
+      const coords = await getGeolocationCoordinates({
+        fallbackLatitude: "0",
+        fallbackLongitude: "0",
+        timeout: 5000,
+      });
+
+      const parsedData = parsePidXml(captureResult.data);
+
+      const refKey =
+        ekycPrompt?.referenceKey ||
+        authUser?.AepsEkyc?.referenceKey ||
+        localStorage.getItem("referenceKey") ||
+        "";
+
+      await doBioEkyc({
+        userId,
+        outlet_id: effectiveOutletId,
+        referenceKey: refKey,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        ...parsedData,
+      });
+
+      setBioKycSuccess("Biometric eKYC completed successfully!");
+      setBioKycCompletedLocally(true);
+      localStorage.setItem("outletId", effectiveOutletId);
+      if (refKey) localStorage.setItem("referenceKey", refKey);
+
+      if (refreshUser) {
+        await refreshUser();
+      }
+
+      // Refresh 2FA login status
+      setIsCheckingLoginStatus(true);
+      void fetchLoginStatus();
+    } catch (err: unknown) {
+      console.error("Biometric eKYC failed:", err);
+      setBioKycError(getErrorMessage(err, "Biometric eKYC verification failed. Please check scanner and retry."));
+    } finally {
+      setIsDoingBioKyc(false);
+    }
+  };
+
   const renderRetailerAuth = () => {
     return (
       <>
+        {/* Onboard Merchant Action Banner (Visible only when NOT onboarded) */}
+        {!isOnboarded && (
+          <div className="rounded-2xl border-2 border-purple-200 bg-gradient-to-r from-purple-50 via-white to-purple-50 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-purple-600 text-white shadow-md">
+                  <Fingerprint className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    AEPS Merchant Onboarding Required
+                  </h3>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    Activate your merchant account on the AEPS gateway to start performing Aadhaar ATM, Cash Withdrawal, and Balance Enquiry transactions.
+                  </p>
+                  {onboardError && (
+                    <p className="mt-2 text-xs font-semibold text-red-600">{onboardError}</p>
+                  )}
+                  {onboardSuccess && (
+                    <p className="mt-2 text-xs font-semibold text-emerald-600">{onboardSuccess}</p>
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleOnboardMerchant}
+                disabled={isOnboarding}
+                className="flex shrink-0 items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-purple-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isOnboarding ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Onboarding...</span>
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint className="h-4 w-4" />
+                    <span>Onboard to AEPS</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Biometric eKYC Action Banner (Visible ONLY when NOT loading auth, ONBOARDED, and Bio KYC NOT done in DB/session) */}
+        {!isAuthLoading && isOnboarded && !isBioKycDone && (
+          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex items-start gap-3.5">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md">
+                  <Fingerprint className="h-6 w-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-slate-900">
+                      Biometric eKYC Verification Required
+                    </h3>
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                      Pending
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                    {ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions."}
+                  </p>
+                  {bioKycError && (
+                    <p className="mt-2 text-xs font-semibold text-red-600">{bioKycError}</p>
+                  )}
+                  {bioKycSuccess && (
+                    <p className="mt-2 text-xs font-semibold text-emerald-600">{bioKycSuccess}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleDoBioKyc}
+                  disabled={isDoingBioKyc || isCheckingKyc}
+                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-amber-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isDoingBioKyc ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Verifying Biometric...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Fingerprint className="h-4 w-4" />
+                      <span>Do Bio KYC</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 2FA + Biometric Device */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="flex h-full flex-col justify-between rounded-2xl border border-purple-100 bg-white p-3 text-slate-900 shadow-sm sm:p-4">
@@ -1783,52 +2107,6 @@ const Aeps = () => {
           </div>
         </div>
 
-        {/* Retailer Mobile + Aadhaar */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <section>
-            <label className="mb-2 block text-sm font-bold text-slate-900 sm:text-base">
-              Retailer Mobile Number{" "}
-              <span className="text-xs font-medium text-slate-500">
-                (Autofetched)
-              </span>
-            </label>
-
-            <div className="flex min-h-[48px] w-full max-w-xl items-center gap-3 rounded-xl border border-purple-100 bg-[#f8f5ff] px-3">
-              <Phone className="h-4 w-4 shrink-0 text-purple-600" />
-
-              <span className="text-sm font-semibold text-slate-800">
-                {retailerMobile}
-              </span>
-            </div>
-          </section>
-
-          <section>
-            <label
-              htmlFor="retailer-aadhaar"
-              className="mb-2 block text-sm font-bold text-slate-900 sm:text-base"
-            >
-              Retailer Aadhaar Number
-            </label>
-
-            <div className="flex min-h-[48px] w-full max-w-xl items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 focus-within:border-[#7c3aed]">
-              <IdCard className="h-5 w-5 shrink-0 text-purple-600" />
-
-              <input
-                id="retailer-aadhaar"
-                type="text"
-                inputMode="numeric"
-                maxLength={12}
-                value={retailerAadhaar}
-                onChange={handleRetailerAadhaarChange}
-                disabled
-                // ={isCapturingRetailer || isVerifyingTfa || retailerAuthenticated}
-                placeholder="Enter 12-digit Aadhaar number"
-                className="w-full bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-              />
-            </div>
-          </section>
-        </div>
-
         {tfaError && (
           <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
             {tfaError}
@@ -1896,11 +2174,15 @@ const Aeps = () => {
               <button
                 type="button"
                 onClick={handleScanAndCaptureBiometric}
-                disabled={retailerAadhaar.length !== 12 || isScanningDevices}
+                disabled={retailerAadhaar.length !== 12 || isScanningDevices || !isOnboarded || !isBioKycDone}
                 className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Fingerprint className="h-5 w-5" />
-                {isScanningDevices
+                {!isOnboarded
+                  ? "ONBOARDING REQUIRED"
+                  : !isBioKycDone
+                  ? "BIOMETRIC EKYC REQUIRED FIRST"
+                  : isScanningDevices
                   ? "SCANNING BIOMETRIC DEVICES..."
                   : "SCAN DEVICE & CAPTURE BIOMETRIC"}
               </button>
@@ -2350,7 +2632,7 @@ const Aeps = () => {
           </p>
         </div>
 
-        <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
           {services.map((service) => {
             const Icon = service.icon;
 
@@ -2849,7 +3131,7 @@ const Aeps = () => {
           });
 
       return (
-        <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div className="mx-auto w-full space-y-6">
           {/* Top Bar */}
           <div className="print:hidden flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -3243,7 +3525,7 @@ const Aeps = () => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6">
+    <div className="mx-auto w-full  space-y-6">
       {/* Page Header */}
       <section>
         <div className="flex items-center gap-3">
@@ -3269,13 +3551,13 @@ const Aeps = () => {
 
       <section className="hp-card overflow-hidden rounded-2xl p-5 sm:p-7">
         {step > 0 && step <= 5 && (
-          <div className="mx-auto mt-4 w-full max-w-3xl rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
+          <div className="mx-auto mt-4 w-full rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
             <ProgressHeader step={step as Step} />
           </div>
         )}
 
         <main className="mt-5">
-          <div className="mx-auto w-full max-w-3xl space-y-5">
+          <div className="mx-auto w-full space-y-5">
             {modalType === "" ? (
               <>
                 {step === 0 && renderRetailerAuth()}

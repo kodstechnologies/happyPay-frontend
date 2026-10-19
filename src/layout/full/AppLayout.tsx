@@ -11,6 +11,7 @@ const AppLayout = () => {
   const navigate = useNavigate();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
  const user=getAuthUser()?.fullName
+ console.log("Logdin user",getAuthUser())
   const handleLogout = () => {
     logout();
 

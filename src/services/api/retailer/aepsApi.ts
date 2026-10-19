@@ -223,12 +223,33 @@ export function verifyTfa(payload: TfaPayload) {
   });
 }
 
+export interface OnboardMerchantResult {
+  userId: string;
+  outletId: string;
+  eKYCStatus: string;
+  alreadyOnboarded?: boolean;
+  message?: string;
+  onboarding?: unknown;
+}
+
+export function onboardAepsMerchant() {
+  return apiClient<Envelope<OnboardMerchantResult>>("/api/v1/aeps/onboard", {
+    ...authOptions(),
+    method: "POST",
+  });
+}
+
 export function checkDoEkyc(outletId?: string, userId?: string) {
   return apiClient<
     Envelope<{
       provider: unknown;
       ekyc: unknown;
       kycRequired: boolean;
+      status?: string;
+      eKYCStatus?: string;
+      referenceKey?: string;
+      pidOptionWadh?: string;
+      message?: string;
     }>
   >("/api/v1/auth/check-ekyc", {
     ...authOptions(),
