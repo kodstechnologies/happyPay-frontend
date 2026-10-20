@@ -21,6 +21,7 @@ import {
   sendRetailerEmailOtp,
   verifyRetailerEmailOtp,
   updateRetailerShopDetails,
+  validatePincodeApi,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
 import {
@@ -63,6 +64,14 @@ const ShopDetailsStep = ({
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [pincode, setPincode] = useState("");
+  const [pincodeLoading, setPincodeLoading] = useState(false);
+  const [pincodeError, setPincodeError] = useState("");
+  const [pincodeValid, setPincodeValid] = useState(false);
+  const [pincodeInfo, setPincodeInfo] = useState<{
+    city?: string | null;
+    district?: string | null;
+    state?: string | null;
+  } | null>(null);
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
 
@@ -205,6 +214,52 @@ const ShopDetailsStep = ({
     setPan(value);
   };
 
+  const handlePincodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, "").slice(0, 6);
+    setPincode(value);
+
+    // If less than 6 digits, reset validation state
+    if (value.length < 6) {
+      setPincodeValid(false);
+      setPincodeError("");
+      setPincodeInfo(null);
+      return;
+    }
+
+    // Call API exactly as the 6th digit is entered
+    if (value.length === 6) {
+      setPincodeLoading(true);
+      setPincodeError("");
+      try {
+        const res = await validatePincodeApi(value);
+        if (res.data?.isValid) {
+          setPincodeValid(true);
+          setPincodeError("");
+          const loc = {
+            city: res.data.city || res.data.district || null,
+            district: res.data.district || null,
+            state: res.data.state || null,
+          };
+          setPincodeInfo(loc);
+
+          // Auto-fill city if empty or matching previous auto-filled city
+          if (loc.city && (!city.trim() || city === pincodeInfo?.city)) {
+            setCity(loc.city);
+          }
+        } else {
+          setPincodeValid(false);
+          setPincodeError(res.message || "Invalid pincode. No records found.");
+        }
+      } catch (err: unknown) {
+        setPincodeValid(false);
+        const msg = err instanceof Error ? err.message : "Invalid postal pincode";
+        setPincodeError(msg);
+      } finally {
+        setPincodeLoading(false);
+      }
+    }
+  };
+
   // ==========================================================
   // SUBMIT FULL SHOP DETAILS
   // ==========================================================
@@ -220,6 +275,8 @@ const ShopDetailsStep = ({
     if (!address.trim()) return setError("Shop address is required.");
     if (!city.trim()) return setError("City is required.");
     if (!pincode.trim()) return setError("Pincode is required.");
+    if (pincode.length !== 6) return setError("Pincode must be exactly 6 digits.");
+    if (pincodeError) return setError(pincodeError);
     if (!businessProof) return setError("Business proof type is required.");
 
     setSubmitting(true);
@@ -550,21 +607,57 @@ const ShopDetailsStep = ({
             />
           </div>
           <div>
-            <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-              Pincode
-            </label>
-            <input
-              type="text"
-              value={pincode}
-              onChange={(e) =>
-                setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              placeholder="Enter pincode"
-              maxLength={6}
-              inputMode="numeric"
-              className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 text-[14px] font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${pincode ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+            <div className="mb-2.5 flex items-center justify-between">
+              <label
+                htmlFor="shop-pincode"
+                className="block text-[14px] font-semibold text-[#172033]"
+              >
+                Pincode
+              </label>
+              {pincodeInfo?.state && (
+                <span className="text-[11px] font-semibold text-[#7c3aed]">
+                  {pincodeInfo.city ? `${pincodeInfo.city}, ` : ""}{pincodeInfo.state}
+                </span>
+              )}
+            </div>
+            <div className="relative">
+              <input
+                id="shop-pincode"
+                name="pincode"
+                type="text"
+                value={pincode}
+                onChange={handlePincodeChange}
+                placeholder="Enter 6-digit pincode"
+                maxLength={6}
+                inputMode="numeric"
+                className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-12 text-[14px] font-medium outline-none transition-all focus:bg-white ${
+                  pincodeError
+                    ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
+                    : pincodeValid
+                      ? "border-[#08ae82] focus:border-[#08ae82] focus:ring-4 focus:ring-[#08ae82]/10"
+                      : pincode
+                        ? "border-[#7c3aed] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+                        : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
                 }`}
-            />
+              />
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                {pincodeLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-[#7c3aed]" />
+                ) : pincodeValid ? (
+                  <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
+                ) : null}
+              </div>
+            </div>
+            {pincodeError && (
+              <p className="mt-1.5 text-[12px] font-medium text-[#d85b5b]">
+                {pincodeError}
+              </p>
+            )}
+            {pincodeValid && (
+              <p className="mt-1.5 text-[12px] font-medium text-[#08ae82]">
+                ✓ Valid pincode
+              </p>
+            )}
           </div>
         </div>
 

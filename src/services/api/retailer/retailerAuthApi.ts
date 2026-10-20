@@ -674,4 +674,27 @@ export function logoutRetailerApi(payload: {
   );
 }
 
+// ============================================================
+// PINCODE VALIDATION
+// ============================================================
+
+export interface PincodeValidationData {
+  isValid: boolean;
+  city?: string | null;
+  district?: string | null;
+  state?: string | null;
+  postOffices?: string[];
+  message?: string;
+  isFallback?: boolean;
+}
+
+export function validatePincodeApi(pincode: string) {
+  return apiClient<ApiEnvelope<PincodeValidationData>>(
+    `/api/v1/auth/pincode/validate/${encodeURIComponent(pincode)}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
 

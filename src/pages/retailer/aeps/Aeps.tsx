@@ -316,7 +316,7 @@ const Aeps = () => {
       setEkycPrompt(prompt);
 
       const statusData = response?.data;
-      const rawResponse = response as Record<string, unknown> | undefined;
+      const rawResponse = response as unknown as Record<string, unknown> | undefined;
       const providerStatus =
         (typeof statusData?.status === "string" ? statusData.status : "") ||
         (typeof rawResponse?.status === "string" ? String(rawResponse.status) : "");
