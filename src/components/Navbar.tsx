@@ -1,4 +1,4 @@
-import { Bell, Headphones, Menu, Search } from "lucide-react";
+import { Bell, Headphones, Menu } from "lucide-react";
 
 interface NavbarProps {
   onOpenSidebar?: () => void;
@@ -29,17 +29,6 @@ const Navbar = ({ onOpenSidebar, UserName = "Retailer" }: NavbarProps) => {
               HappyPay banking workspace
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* SEARCH */}
-      <div className="hidden min-w-0 flex-1 items-center justify-center px-4 md:flex">
-        <div className="flex h-10 w-full max-w-md items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 text-slate-400">
-          <Search className="h-4 w-4 shrink-0" />
-
-          <span className="truncate text-sm">
-            Search services, receipts, or tickets
-          </span>
         </div>
       </div>
 

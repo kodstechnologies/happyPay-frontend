@@ -6,6 +6,10 @@ import { useNavigate } from "react-router-dom";
 import type { AdminRetailer } from "../../../types/admin/retailer";
 import { clearAdminSession } from "../../../utils/adminAuth";
 import { DUMMY_RETAILERS, updateDummyRetailerStatus } from "./mockRetailers";
+import {
+  getAdminRetailers,
+  updateAdminRetailerAccountStatus,
+} from "../../../services/api/admin/adminRetailerApi";
 
 
 
@@ -31,6 +35,7 @@ export default function AdminRetailers() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [usingMockFallback, setUsingMockFallback] = useState(false);
   const PAGE_SIZE = 10;
 
   const handleRequestError = useCallback(
@@ -60,10 +65,23 @@ export default function AdminRetailers() {
     setError("");
 
     try {
+      const res = await getAdminRetailers({
+        page,
+        limit: PAGE_SIZE,
+        search: search.trim() || undefined,
+        status: status || undefined,
+      });
+
+      if (res?.data) {
+        setItems(res.data.items || []);
+        setTotal(res.data.total ?? 0);
+        setTotalPages(res.data.totalPages || 1);
+        setUsingMockFallback(false);
+      }
+    } catch (caught) {
+      console.warn("Could not fetch retailers from API, falling back to mock:", caught);
+      // Fallback to mock data for resilience
       let filteredItems = [...DUMMY_RETAILERS];
-      // Simulate network request so loading state is visible on refresh
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
       if (search) {
         const query = search.toLowerCase();
         filteredItems = filteredItems.filter(item => 
@@ -83,13 +101,14 @@ export default function AdminRetailers() {
 
       setItems(filteredItems);
       setTotal(filteredItems.length);
-      setTotalPages(Math.ceil(filteredItems.length / 10) || 1);
-    } catch (caught) {
+      setTotalPages(Math.ceil(filteredItems.length / PAGE_SIZE) || 1);
+      setUsingMockFallback(true);
       handleRequestError(caught);
     } finally {
       setLoading(false);
     }
   }, [
+    page,
     search,
     status,
     handleRequestError,
@@ -105,11 +124,19 @@ export default function AdminRetailers() {
     };
   }, [load]);
 
-  const updateStatus = (id: string, newStatus: AdminRetailer['status']) => {
-    updateDummyRetailerStatus(id, newStatus);
+  const updateStatus = async (id: string, newStatus: AdminRetailer['status']) => {
+    try {
+      if (newStatus) {
+        await updateAdminRetailerAccountStatus(id, newStatus);
+      }
+    } catch (err) {
+      console.warn("Could not persist status update to backend, updating locally:", err);
+      updateDummyRetailerStatus(id, newStatus);
+    }
+
     setItems((prevItems) => 
       prevItems.map((item) => 
-        item.id === id ? { ...item, status: newStatus } as AdminRetailer : item
+        item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
       )
     );
   };
@@ -154,11 +181,14 @@ export default function AdminRetailers() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") handleSearch();
                 }}
-                placeholder="Search Name, email, mobile..."
+                placeholder="Search Name, email, mobile, PAN..."
                 className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none focus:border-[#315bd1] focus:bg-white"
               />
             </div>
@@ -225,7 +255,7 @@ export default function AdminRetailers() {
               </thead>
 
               <tbody>
-                {items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE).map((item) => (
+                {(usingMockFallback ? items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : items).map((item) => (
                   <tr key={item.id}>
                     <td className="px-5 py-4 font-bold text-[#315bd1]">
                       {item.id}
@@ -243,7 +273,7 @@ export default function AdminRetailers() {
                       {item.mobile || "-"}
                     </td>
                     <td className="px-5 py-4 font-medium">
-                      {(item as unknown as { panCard?: string }).panCard || "-"}
+                      {(item as unknown as { panCard?: string; panNumber?: string }).panCard || (item as unknown as { panNumber?: string }).panNumber || "-"}
                     </td>
                     <td className="px-5 py-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${badge[item.status || "pending"] || badge.pending}`}>

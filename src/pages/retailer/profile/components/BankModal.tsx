@@ -8,11 +8,10 @@ import {
   Star,
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
-import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
+import { updateRetailerProfile, type RetailerUpdateResponse } from "../../../../services/api/retailer/retailerProfileApi";
 import { getBankList } from "../../../../services/api/retailer/retailerAuthApi";
 import type {
   RetailerBank,
-  RetailerFullProfile,
 } from "../../../../types/retailer/profile";
 
 const POPULAR_BANKS = [
@@ -38,7 +37,7 @@ interface BankModalProps {
   onClose: () => void;
   bankToEdit?: RetailerBank | null;
   isOnlyBank?: boolean;
-  onSuccess: (updatedProfile: RetailerFullProfile) => void;
+  onSuccess: (updatedProfile?: RetailerUpdateResponse) => void;
   onDeleteRequest?: (bank: RetailerBank) => void;
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
 }
@@ -136,7 +135,7 @@ export default function BankModal({
       };
 
       const res = await updateRetailerProfile(payload);
-      if (res && res.data) {
+      if (res && (res.success || res.data)) {
         onSuccess(res.data);
         onClose();
       } else {

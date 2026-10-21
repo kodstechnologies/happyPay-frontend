@@ -135,13 +135,25 @@ export default function Profile() {
     }, 4000);
   };
 
-  const handleProfileUpdated = (updatedProfile: RetailerFullProfile) => {
-    setProfile(updatedProfile);
+  // Silent background refresh that synchronizes canonical profile without full-page spinner flicker
+  const refreshProfile = useCallback(async () => {
+    try {
+      const res = await getRetailerProfile();
+      if (res && res.data) {
+        setProfile(res.data);
+      }
+    } catch (err: unknown) {
+      console.error("Failed to refresh profile:", err);
+    }
+  }, []);
+
+  const handleProfileUpdated = async () => {
+    await refreshProfile();
     showToast("Profile details updated successfully!");
   };
 
-  const handleDocumentUpdated = (updatedProfile: RetailerFullProfile) => {
-    setProfile(updatedProfile);
+  const handleDocumentUpdated = async () => {
+    await refreshProfile();
     showToast("Document uploaded successfully and submitted for review!");
   };
 
@@ -162,8 +174,8 @@ export default function Profile() {
     setBankModalState({ open: true, bankToEdit: bank });
   };
 
-  const handleBankUpdated = (updatedProfile: RetailerFullProfile) => {
-    setProfile(updatedProfile);
+  const handleBankUpdated = async () => {
+    await refreshProfile();
     showToast(
       bankModalState.bankToEdit
         ? "Bank account details updated successfully."
@@ -181,8 +193,8 @@ export default function Profile() {
         bankId: bank._id,
       });
 
-      if (res && res.data) {
-        setProfile(res.data);
+      if (res && (res.success || res.data)) {
+        await refreshProfile();
         showToast(`${bank.name || "Bank account"} is now set as your primary settlement account.`);
       } else {
         throw new Error(res?.message || "Failed to update primary bank.");
@@ -210,8 +222,8 @@ export default function Profile() {
         bankId: deletingBank._id,
       });
 
-      if (res && res.data) {
-        setProfile(res.data);
+      if (res && (res.success || res.data)) {
+        await refreshProfile();
         showToast(`${deletingBank.name || "Bank account"} deleted successfully.`);
         setDeletingBank(null);
       } else {

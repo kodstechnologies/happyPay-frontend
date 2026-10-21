@@ -17,10 +17,19 @@ export function getRetailerProfile() {
   });
 }
 
-export function updateRetailerProfile(payload: FormData | Record<string, unknown>) {
+export interface RetailerUpdateResponse {
+  id?: string;
+  updated?: boolean;
+  banks?: RetailerFullProfile["banks"];
+  primaryBank?: RetailerFullProfile["primaryBank"];
+  documentReviews?: RetailerFullProfile["documentReviews"];
+  [key: string]: unknown;
+}
+
+export function updateRetailerProfile<T = RetailerUpdateResponse>(payload: FormData | Record<string, unknown>) {
   const isFormData = payload instanceof FormData;
 
-  return apiClient<ApiEnvelope<RetailerFullProfile>>("/api/v1/auth/retailer/profile", {
+  return apiClient<ApiEnvelope<T>>("/api/v1/auth/retailer/profile", {
     method: "PATCH",
     token: getToken() || undefined,
     body: isFormData ? payload : JSON.stringify(payload),

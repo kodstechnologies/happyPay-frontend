@@ -2,6 +2,7 @@ import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { saveAdminSession } from "../../../utils/adminAuth";
+import { loginAdmin } from "../../../services/api/admin/adminAuthApi";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -10,8 +11,9 @@ export default function AdminLogin() {
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError("");
 
@@ -20,14 +22,26 @@ export default function AdminLogin() {
       return;
     }
 
-    saveAdminSession("local-admin-session", {
-      id: "local-admin",
-      name: "Super Admin",
-      email: email.trim(),
-      role: "Administrator",
-      status: "Active",
-    });
-    navigate("/admin/dashboard", { replace: true });
+    setIsSubmitting(true);
+    try {
+      const data = await loginAdmin({
+        email: email.trim(),
+        password,
+        rememberMe,
+      });
+
+      if (data?.accessToken) {
+        saveAdminSession(data.accessToken, data.admin || data.user);
+        navigate("/admin/dashboard", { replace: true });
+        return;
+      }
+      throw new Error("No access token received from server");
+    } catch (err: unknown) {
+      const errObj = err as { message?: string };
+      setError(errObj?.message || "Invalid email or password.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -81,11 +95,12 @@ export default function AdminLogin() {
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
                     className="min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50/70 pl-11 pr-4 text-sm outline-none focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/10"
-                    placeholder="admin@happypay.in"
+                    placeholder="admin@happypayfintech.com"
                     autoComplete="username"
                   />
                 </div>
               </div>
+
               <div>
                 <label htmlFor="admin-password" className="mb-2 block text-sm font-semibold text-slate-700">
                   Password
@@ -122,8 +137,12 @@ export default function AdminLogin() {
                 <Link to="/admin/forgot-password" className="text-sm font-semibold text-[#315bd1] hover:underline">Forgot password?</Link>
               </div>
 
-              <button type="submit" className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#315bd1] px-5 text-sm font-bold text-white transition hover:bg-[#274dbd]">
-                Sign in to Admin Portal
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex min-h-12 w-full items-center justify-center rounded-xl bg-[#315bd1] px-5 text-sm font-bold text-white transition hover:bg-[#274dbd] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isSubmitting ? "Signing in..." : "Sign in to Admin Portal"}
               </button>
             </form>
           </div>

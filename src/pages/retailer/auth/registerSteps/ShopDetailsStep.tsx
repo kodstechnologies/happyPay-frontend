@@ -33,16 +33,17 @@ import {
 
 type ShopDetailsStepProps = {
   userId?: string;
+  distributorId?: string;
   onShopDetailsSaved?: () => void;
 };
 
 const ShopDetailsStep = ({
   userId: userIdProp,
+  distributorId,
   onShopDetailsSaved,
 }: ShopDetailsStepProps) => {
   // Fall back to localStorage so the step works even if the prop wasn't passed
   const userId = userIdProp || localStorage.getItem("retailerUserId") || undefined;
-  const locationInputRef = useRef<HTMLInputElement | null>(null);
   const insideShopInputRef = useRef<HTMLInputElement | null>(null);
   const outsideShopInputRef = useRef<HTMLInputElement | null>(null);
   const shopLocationInputRef = useRef<HTMLInputElement | null>(null);
@@ -278,6 +279,10 @@ const ShopDetailsStep = ({
     if (pincode.length !== 6) return setError("Pincode must be exactly 6 digits.");
     if (pincodeError) return setError(pincodeError);
     if (!businessProof) return setError("Business proof type is required.");
+    if (latitude == null || isNaN(latitude)) return setError("Latitude is required.");
+    if (longitude == null || isNaN(longitude)) return setError("Longitude is required.");
+    if (latitude < -90 || latitude > 90) return setError("Latitude must be between -90 and 90.");
+    if (longitude < -180 || longitude > 180) return setError("Longitude must be between -180 and 180.");
 
     setSubmitting(true);
     try {
@@ -298,6 +303,7 @@ const ShopDetailsStep = ({
         shopLocationPhoto: shopLocationFile,
         businessProofDocument: businessProofFile,
         panDocument: panFile,
+        distributorId,
       });
 
       onShopDetailsSaved?.();
@@ -661,47 +667,94 @@ const ShopDetailsStep = ({
           </div>
         </div>
 
-        {/* Shop Location (lat/lng) */}
-        <div className="mt-5">
-          <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-            Shop Location
-          </label>
-          <button
-            type="button"
-            onClick={handleLocation}
-            className={`flex w-full items-center gap-4 rounded-2xl border-2 p-5 text-left transition-all ${latitude != null && longitude != null
-              ? "border-[#b9e8d4] bg-[#f3fcf8]"
-              : "border-[#dfe3e9] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-white"
-              }`}
-          >
-            <div
-              className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${latitude != null ? "bg-[#e4f7f1]" : "bg-[#edf1fc]"
-                }`}
+        {/* Shop Location (lat/lng input fields) */}
+        <div className="mt-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="block text-[14px] font-semibold text-[#172033]">
+              Shop Location (Coordinates)
+            </label>
+            <button
+              type="button"
+              onClick={handleLocation}
+              className="flex items-center gap-1.5 text-xs font-semibold text-[#7c3aed] hover:text-[#6d28d9] transition"
             >
-              {latitude != null ? (
-                <CheckCircle2
-                  className="h-6 w-6 text-[#08a77e]"
-                  strokeWidth={2.2}
+              <Navigation className="h-3.5 w-3.5" />
+              <span>Detect via GPS</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="shop-latitude"
+                className="mb-1.5 block text-xs font-semibold text-slate-600"
+              >
+                Latitude (-90 to 90) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="shop-latitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 28.6139"
+                  value={latitude ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLatitude(val === "" ? null : parseFloat(val));
+                  }}
+                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${
+                    latitude != null && (latitude < -90 || latitude > 90)
+                      ? "border-[#d85b5b]"
+                      : latitude != null
+                        ? "border-[#08ae82]"
+                        : "border-[#dfe3e9]"
+                  }`}
                 />
-              ) : (
-                <MapPin className="h-6 w-6 text-[#7c3aed]" strokeWidth={2} />
-              )}
+                <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <MapPin className="h-4 w-4" />
+                </div>
+              </div>
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[14px] font-bold text-[#172033]">
-                {latitude != null && longitude != null
-                  ? "Shop Location Captured"
-                  : "Pin your shop location"}
-              </p>
-              <p className="mt-1 text-[12px] leading-5 text-[#8992a3]">
-                {latitude != null && longitude != null
-                  ? `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`
-                  : "Tap to capture your current location"}
-              </p>
+
+            <div>
+              <label
+                htmlFor="shop-longitude"
+                className="mb-1.5 block text-xs font-semibold text-slate-600"
+              >
+                Longitude (-180 to 180) <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  id="shop-longitude"
+                  type="number"
+                  step="any"
+                  placeholder="e.g. 77.2090"
+                  value={longitude ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLongitude(val === "" ? null : parseFloat(val));
+                  }}
+                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${
+                    longitude != null && (longitude < -180 || longitude > 180)
+                      ? "border-[#d85b5b]"
+                      : longitude != null
+                        ? "border-[#08ae82]"
+                        : "border-[#dfe3e9]"
+                  }`}
+                />
+                <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <MapPin className="h-4 w-4" />
+                </div>
+              </div>
             </div>
-            <Navigation className="h-5 w-5 text-[#7c3aed]" strokeWidth={2} />
-          </button>
-          <input ref={locationInputRef} type="text" className="hidden" />
+          </div>
+
+          {latitude != null && longitude != null && (
+            <p className="text-xs font-medium text-[#08ae82] flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              <span>Coordinates: {latitude.toFixed(6)}, {longitude.toFixed(6)}</span>
+            </p>
+          )}
         </div>
 
         {/* Photos */}

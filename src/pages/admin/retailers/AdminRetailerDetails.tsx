@@ -4,6 +4,19 @@ import { useNavigate, useParams } from "react-router-dom";
 import { DUMMY_RETAILERS, DUMMY_SUB_RETAILERS, generateTransactions } from "./mockRetailers";
 import type { SubRetailer } from "./mockRetailers";
 import Pagination from "../../../components/common/Pagination";
+import {
+  getAdminRetailer,
+  getAdminRetailerTransactions,
+  getAdminDistributorSubRetailers,
+  updateAdminRetailerKyc,
+} from "../../../services/api/admin/adminRetailerApi";
+import type {
+  AdminRetailer,
+  AdminTransaction,
+  AdminSubRetailer,
+  PaginationMeta,
+  TransactionService,
+} from "../../../types/admin/retailer";
 
 type Tab = 'registration' | 'transactions' | 'retailers';
 type TxFilter = 'AEPS' | 'DMT' | 'CMS' | 'UPI Cashpoint' | 'Aadhar pay' | 'BBPS' | 'Others';
@@ -32,21 +45,42 @@ export default function AdminRetailerDetails() {
   const [rotation, setRotation] = useState(0);
   
   // Rejection modal
+  // Rejection modal
   const [rejectingDoc, setRejectingDoc] = useState<DocumentItem | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejectionReasonError, setRejectionReasonError] = useState('');
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Live Retailer Data
+  const [liveRetailer, setLiveRetailer] = useState<AdminRetailer | null>(null);
+
+  // Live Transactions Tab state
+  const [liveTransactions, setLiveTransactions] = useState<AdminTransaction[]>([]);
+  const [txPagination, setTxPagination] = useState<PaginationMeta | null>(null);
+  const [txPage, setTxPage] = useState(1);
+  const [txLoading, setTxLoading] = useState(false);
 
   // Retailers tab state
   const [subRetailerSearch, setSubRetailerSearch] = useState('');
   const [subRetailerPage, setSubRetailerPage] = useState(1);
   const SUB_RETAILER_PAGE_SIZE = 5;
 
+  // Live Sub-Retailers Tab state
+  const [liveSubRetailers, setLiveSubRetailers] = useState<AdminSubRetailer[]>([]);
+  const [subRetailerPagination, setSubRetailerPagination] = useState<PaginationMeta | null>(null);
+  const [subRetailersLoading, setSubRetailersLoading] = useState(false);
+  const [hasLoadedSubRetailers, setHasLoadedSubRetailers] = useState(false);
+
   // Retailer Profile Modal
   const [viewingRetailer, setViewingRetailer] = useState<SubRetailer | null>(null);
   const [retailerTxPage, setRetailerTxPage] = useState(1);
   const [retailerTxFilter, setRetailerTxFilter] = useState<string>('all');
   const RETAILER_TX_PAGE_SIZE = 8;
+
+  // Sub-Retailer Modal live transactions
+  const [modalLiveTx, setModalLiveTx] = useState<AdminTransaction[]>([]);
+  const [modalTxPagination, setModalTxPagination] = useState<PaginationMeta | null>(null);
+  const [modalTxLoading, setModalTxLoading] = useState(false);
   
   // Document statuses (local state for demo)
   const [documents, setDocuments] = useState<DocumentItem[]>([
@@ -77,8 +111,173 @@ export default function AdminRetailerDetails() {
     }
   ]);
 
-  // Just read from dummy items
-  const selected = DUMMY_RETAILERS.find(item => item.id === id);
+  // Fetch Retailer Profile from backend API
+  useEffect(() => {
+    if (!id) return;
+    let isMounted = true;
+    getAdminRetailer(id)
+      .then((res) => {
+        if (isMounted && res?.data) {
+          setLiveRetailer(res.data);
+        }
+      })
+      .catch((err) => {
+        console.warn("Could not fetch live retailer from API, falling back to mock:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  // Read from live API data, then dummy items, with fallback for direct deep-linking
+  const dummyMatch = useMemo(() => DUMMY_RETAILERS.find(item => item.id === id), [id]);
+  const selected = liveRetailer || dummyMatch || (id ? {
+    id,
+    fullName: "Retailer " + id,
+    role: "retailer",
+    status: "active",
+    email: "-",
+    mobile: "-",
+  } as AdminRetailer : null);
+
+  // Fetch Live Transactions for Retailer
+  useEffect(() => {
+    if (activeTab !== 'transactions' || !id) return;
+    let isMounted = true;
+
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      setTxLoading(true);
+
+      const serviceMap: Record<TxFilter, TransactionService | undefined> = {
+        'AEPS': 'AEPS',
+        'DMT': 'DMT',
+        'CMS': 'CMS',
+        'UPI Cashpoint': 'UPI',
+        'Aadhar pay': 'AEPS',
+        'BBPS': 'BBPS',
+        'Others': undefined,
+      };
+
+      getAdminRetailerTransactions(id, {
+        service: serviceMap[txFilter],
+        page: txPage,
+        limit: 10,
+      })
+        .then((res) => {
+          if (isMounted && res?.data) {
+            setLiveTransactions(res.data.transactions || []);
+            setTxPagination(res.data.pagination || null);
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not load live transactions:", err);
+          if (isMounted) {
+            setLiveTransactions([]);
+            setTxPagination(null);
+          }
+        })
+        .finally(() => {
+          if (isMounted) setTxLoading(false);
+        });
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [activeTab, id, txFilter, txPage]);
+
+  // Fetch Live Sub-Retailers for Distributor
+  useEffect(() => {
+    if (activeTab !== 'retailers' || selected?.role !== 'distributor' || !id) return;
+    let isMounted = true;
+
+    const timer = setTimeout(() => {
+      if (isMounted) setSubRetailersLoading(true);
+      getAdminDistributorSubRetailers(id, {
+        search: subRetailerSearch.trim() || undefined,
+        page: subRetailerPage,
+        limit: SUB_RETAILER_PAGE_SIZE,
+      })
+        .then((res) => {
+          if (isMounted && res?.data) {
+            setLiveSubRetailers(res.data.items || []);
+            setSubRetailerPagination(res.data.pagination || null);
+            setHasLoadedSubRetailers(true);
+          }
+        })
+        .catch((err) => {
+          console.warn("Could not load sub-retailers from API:", err);
+        })
+        .finally(() => {
+          if (isMounted) setSubRetailersLoading(false);
+        });
+    }, 250);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [activeTab, selected?.role, id, subRetailerSearch, subRetailerPage]);
+
+  const handleCloseViewingRetailer = () => {
+    setViewingRetailer(null);
+    setModalLiveTx([]);
+    setModalTxPagination(null);
+  };
+
+  // Fetch Sub-Retailer Modal live transactions
+  useEffect(() => {
+    if (!viewingRetailer) return;
+
+    let isMounted = true;
+
+    const timer = setTimeout(() => {
+      if (!isMounted) return;
+      setModalTxLoading(true);
+
+      const serviceMap: Record<string, TransactionService | undefined> = {
+        all: undefined,
+        AEPS: 'AEPS',
+        DMT: 'DMT',
+        CMS: 'CMS',
+        UPI: 'UPI',
+        BBPS: 'BBPS',
+        'Aadhaar Pay': 'AEPS',
+      };
+
+      getAdminRetailerTransactions(viewingRetailer.id, {
+        service: serviceMap[retailerTxFilter],
+        page: retailerTxPage,
+        limit: RETAILER_TX_PAGE_SIZE,
+      })
+        .then((res) => {
+          if (isMounted && res?.data?.transactions && res.data.transactions.length > 0) {
+            setModalLiveTx(res.data.transactions);
+            setModalTxPagination(res.data.pagination || null);
+          } else if (isMounted) {
+            setModalLiveTx([]);
+            setModalTxPagination(null);
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setModalLiveTx([]);
+            setModalTxPagination(null);
+          }
+        })
+        .finally(() => {
+          if (isMounted) setModalTxLoading(false);
+        });
+    }, 0);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [viewingRetailer, retailerTxFilter, retailerTxPage]);
 
   useEffect(() => {
     if (rejectingDoc && rejectionTextareaRef.current) {
@@ -86,13 +285,20 @@ export default function AdminRetailerDetails() {
     }
   }, [rejectingDoc]);
 
-  const handleApprove = (docId: string) => {
+  const handleApprove = async (docId: string) => {
     setDocuments(prev => prev.map(doc => 
       doc.id === docId ? { ...doc, status: 'approved' as DocStatus, rejectionReason: undefined } : doc
     ));
+    if (id) {
+      try {
+        await updateAdminRetailerKyc(id, "approved");
+      } catch (e) {
+        console.warn("Could not sync KYC approval to backend:", e);
+      }
+    }
   };
 
-  const handleRejectSubmit = () => {
+  const handleRejectSubmit = async () => {
     if (!rejectionReason.trim()) {
       setRejectionReasonError('Please provide a reason for rejection');
       return;
@@ -102,13 +308,49 @@ export default function AdminRetailerDetails() {
       return;
     }
     if (rejectingDoc) {
+      const reason = rejectionReason.trim();
       setDocuments(prev => prev.map(doc => 
-        doc.id === rejectingDoc.id ? { ...doc, status: 'rejected' as DocStatus, rejectionReason: rejectionReason.trim() } : doc
+        doc.id === rejectingDoc.id ? { ...doc, status: 'rejected' as DocStatus, rejectionReason: reason } : doc
       ));
+      if (id) {
+        try {
+          await updateAdminRetailerKyc(id, "rejected", reason);
+        } catch (e) {
+          console.warn("Could not sync KYC rejection to backend:", e);
+        }
+      }
       setRejectingDoc(null);
       setRejectionReason('');
       setRejectionReasonError('');
     }
+  };
+
+  const handleOpenSubRetailer = (sub: AdminSubRetailer | SubRetailer) => {
+    if ('pan' in sub && 'totalVolume' in sub && typeof sub.totalVolume === 'string') {
+      setViewingRetailer(sub as SubRetailer);
+    } else {
+      const live = sub as AdminSubRetailer;
+      setViewingRetailer({
+        id: live.id,
+        name: live.fullName || 'Unnamed Retailer',
+        aadhar: 'Verified',
+        email: live.email || '-',
+        mobile: live.mobile || '-',
+        pan: live.panNumber || '-',
+        status: live.status === 'suspended' ? 'blocked' : (live.status as 'active' | 'pending' | 'blocked'),
+        kycStatus: live.adminApproved as 'approved' | 'pending' | 'rejected',
+        shopName: live.shopName || 'Retail Shop',
+        shopAddress: live.shopAddress || 'Local Market',
+        bankName: live.primaryBank?.name || 'Bank',
+        accountNumber: live.primaryBank?.accountNumber || '-',
+        ifsc: live.primaryBank?.ifscCode || '-',
+        createdAt: new Date(live.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+        totalTransactions: live.totalTransactions || 0,
+        totalVolume: `₹${(live.totalVolume || 0).toLocaleString('en-IN')}`,
+      });
+    }
+    setRetailerTxPage(1);
+    setRetailerTxFilter('all');
   };
 
   const handleDownload = (doc: DocumentItem) => {
@@ -212,26 +454,45 @@ export default function AdminRetailerDetails() {
     return <div className="p-8 text-center text-slate-500 font-medium">Retailer not found</div>;
   }
 
+  const rawRetailer = (selected as unknown as Record<string, unknown>) || {};
   const personalInfoFields = [
     { label: "Retailer Name", value: selected.fullName },
     { label: "Mobile Number", value: selected.mobile },
     { label: "Email Address", value: selected.email },
-    { label: "Gender", value: "Male" },
-    { label: "DOB", value: "15/08/1988" },
-    { label: "Educational Qualification", value: "Bachelor's Degree" },
+    { label: "Gender", value: (rawRetailer.gender as string) || "Male" },
+    { label: "DOB", value: (rawRetailer.dob as string) || "15/08/1988" },
+    { label: "Educational Qualification", value: (rawRetailer.qualification as string) || "Bachelor's Degree" },
   ];
 
   const shopInfoFields = [
-    { label: "Shop Name", value: selected.shop?.name || "Dummy Shop" },
-    { label: "Shop Category", value: "Mobile & Accessories" },
-    { label: "Property Type", value: "Rented" },
-    { label: "Shop Address", value: selected.shop?.address ? `${selected.shop.address.addressLine || ''}, ${selected.shop.address.city || ''}, ${selected.shop.address.state || ''}` : "Dummy Address" },
+    { label: "Shop Name", value: selected.shop?.name || (rawRetailer.shopName as string) || "Dummy Shop" },
+    { label: "Shop Category", value: (rawRetailer.shopCategory as string) || "Mobile & Accessories" },
+    { label: "Property Type", value: (rawRetailer.propertyType as string) || "Rented" },
+    {
+      label: "Shop Address",
+      value:
+        (rawRetailer.shopAddress as string) ||
+        (selected.shop?.address
+          ? `${selected.shop.address.addressLine || ''}, ${selected.shop.address.city || ''}, ${selected.shop.address.state || ''}`
+          : "Dummy Address"),
+    },
   ];
 
+  const primaryBank =
+    (rawRetailer.banks as Array<{ name?: string; bankName?: string; ifscCode?: string; ifsc?: string; accountNumber?: string } | undefined>)?.[0] ||
+    (rawRetailer.bank as { name?: string; bankName?: string; ifscCode?: string; ifsc?: string; accountNumber?: string } | undefined);
+
   const bankInfoFields = [
-    { label: "Bank Name", value: "State Bank of India" },
-    { label: "IFSC Code", value: "SBIN0001234" },
-    { label: "Account Number", value: "XXXXXXXX9012" },
+    { label: "Bank Name", value: primaryBank?.name || primaryBank?.bankName || (rawRetailer.bankName as string) || "State Bank of India" },
+    { label: "IFSC Code", value: primaryBank?.ifscCode || primaryBank?.ifsc || (rawRetailer.ifsc as string) || "SBIN0001234" },
+    {
+      label: "Account Number",
+      value: primaryBank?.accountNumber
+        ? String(primaryBank.accountNumber).startsWith("XXXX")
+          ? primaryBank.accountNumber
+          : `XXXXXXXX${String(primaryBank.accountNumber).slice(-4)}`
+        : (rawRetailer.accountNumber as string) || "XXXXXXXX9012",
+    },
   ];
 
   return (
@@ -493,13 +754,84 @@ export default function AdminRetailerDetails() {
               {(['AEPS', 'UPI Cashpoint', 'Aadhar pay', 'BBPS', 'DMT', 'CMS', 'Others'] as const).map(tab => (
                 <button
                   key={tab}
-                  onClick={() => setTxFilter(tab)}
+                  onClick={() => { setTxFilter(tab); setTxPage(1); }}
                   className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors ${txFilter === tab ? 'bg-[#315bd1] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
                 >
                   {tab}
                 </button>
               ))}
             </div>
+
+            {txLoading ? (
+              <div className="space-y-3 p-5">
+                {[1, 2, 3, 4].map((item) => (
+                  <div key={item} className="h-12 animate-pulse rounded-lg bg-slate-100" />
+                ))}
+              </div>
+            ) : liveTransactions.length > 0 ? (
+              <div className="space-y-4">
+                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                  <table className="hp-table">
+                    <thead>
+                      <tr>
+                        <th>Txn ID</th>
+                        <th>Service</th>
+                        <th>Type</th>
+                        <th>Description / Payee</th>
+                        <th>Amount</th>
+                        <th>Commission</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {liveTransactions.map((tx) => (
+                        <tr key={tx._id || tx.transactionId}>
+                          <td className="font-mono text-xs font-bold text-slate-700">{tx.transactionId}</td>
+                          <td>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700">
+                              {tx.service}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                              tx.type === 'credit' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'
+                            }`}>
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td className="font-medium text-slate-700">
+                            {tx.description || tx.payee?.accountHolderName || tx.payee?.bankName || "-"}
+                          </td>
+                          <td className="font-bold text-slate-800">₹{tx.amount.toLocaleString("en-IN")}</td>
+                          <td className="font-bold text-emerald-600">₹{(tx.commissionEarned || 0).toFixed(2)}</td>
+                          <td>
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${txStatusBadge[tx.status] || 'bg-slate-100 text-slate-700'}`}>
+                              {tx.status}
+                            </span>
+                          </td>
+                          <td className="text-slate-500">
+                            {new Date(tx.createdAt).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <Pagination
+                  currentPage={txPage}
+                  totalPages={txPagination?.totalPages || 1}
+                  onPageChange={setTxPage}
+                  totalItems={txPagination?.total || liveTransactions.length}
+                  pageSize={txPagination?.limit || 10}
+                />
+              </div>
+            ) : null}
             
             <div className="overflow-x-auto rounded-xl border border-slate-100">
               {txFilter === 'AEPS' && (
@@ -689,7 +1021,11 @@ export default function AdminRetailerDetails() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Store className="h-4 w-4 text-[#315bd1]" />
-                <span className="text-sm font-bold text-slate-700">{filteredSubRetailers.length} Retailers</span>
+                <span className="text-sm font-bold text-slate-700">
+                  {hasLoadedSubRetailers && liveSubRetailers.length > 0
+                    ? `${subRetailerPagination?.total ?? liveSubRetailers.length} Retailers`
+                    : `${filteredSubRetailers.length} Retailers`}
+                </span>
                 <span className="text-xs text-slate-400">under this distributor</span>
               </div>
               <div className="relative w-full sm:w-64">
@@ -704,65 +1040,122 @@ export default function AdminRetailerDetails() {
             </div>
 
             {/* Table */}
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              <table className="hp-table">
-                <thead>
-                  <tr>
-                    <th>Retailer ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Mobile</th>
-                    <th>Status</th>
-                    <th>KYC</th>
-                    <th>Created</th>
-                    <th className="text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedSubRetailers.length === 0 ? (
+            {subRetailersLoading ? (
+              <div className="space-y-3 p-5">
+                {[1, 2, 3, 4].map((item) => (
+                  <div key={item} className="h-12 animate-pulse rounded-lg bg-slate-100" />
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-100">
+                <table className="hp-table">
+                  <thead>
                     <tr>
-                      <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">No retailers found</td>
+                      <th>Retailer ID</th>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Mobile</th>
+                      <th>Status</th>
+                      <th>KYC</th>
+                      <th>Created</th>
+                      <th className="text-center">Action</th>
                     </tr>
-                  ) : (
-                    paginatedSubRetailers.map((sub) => (
-                      <tr key={sub.id}>
-                        <td className="font-bold text-[#315bd1]">{sub.id}</td>
-                        <td className="font-bold text-slate-800">{sub.name}</td>
-                        <td className="text-slate-600">{sub.email}</td>
-                        <td>{sub.mobile}</td>
-                        <td>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge[sub.status]?.bg || 'bg-slate-100'} ${statusBadge[sub.status]?.text || 'text-slate-600'}`}>
-                            {sub.status}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kycBadge[sub.kycStatus]?.bg || 'bg-slate-100'} ${kycBadge[sub.kycStatus]?.text || 'text-slate-600'}`}>
-                            {sub.kycStatus}
-                          </span>
-                        </td>
-                        <td className="text-slate-500">{sub.createdAt}</td>
-                        <td className="text-center">
-                          <button
-                            onClick={() => { setViewingRetailer(sub); setRetailerTxPage(1); setRetailerTxFilter('all'); }}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                            View
-                          </button>
-                        </td>
+                  </thead>
+                  <tbody>
+                    {(hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())) ? (
+                      liveSubRetailers.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">No retailers found</td>
+                        </tr>
+                      ) : (
+                        liveSubRetailers.map((sub) => (
+                          <tr key={sub.id}>
+                            <td className="font-bold text-[#315bd1]">{sub.id}</td>
+                            <td className="font-bold text-slate-800">{sub.fullName || "Unnamed Retailer"}</td>
+                            <td className="text-slate-600">{sub.email || "-"}</td>
+                            <td>{sub.mobile || "-"}</td>
+                            <td>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge[sub.status]?.bg || 'bg-slate-100'} ${statusBadge[sub.status]?.text || 'text-slate-600'}`}>
+                                {sub.status}
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kycBadge[sub.adminApproved]?.bg || 'bg-slate-100'} ${kycBadge[sub.adminApproved]?.text || 'text-slate-600'}`}>
+                                {sub.adminApproved}
+                              </span>
+                            </td>
+                            <td className="text-slate-500">
+                              {new Date(sub.createdAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </td>
+                            <td className="text-center">
+                              <button
+                                onClick={() => handleOpenSubRetailer(sub)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )
+                    ) : paginatedSubRetailers.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">No retailers found</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      paginatedSubRetailers.map((sub) => (
+                        <tr key={sub.id}>
+                          <td className="font-bold text-[#315bd1]">{sub.id}</td>
+                          <td className="font-bold text-slate-800">{sub.name}</td>
+                          <td className="text-slate-600">{sub.email}</td>
+                          <td>{sub.mobile}</td>
+                          <td>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge[sub.status]?.bg || 'bg-slate-100'} ${statusBadge[sub.status]?.text || 'text-slate-600'}`}>
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kycBadge[sub.kycStatus]?.bg || 'bg-slate-100'} ${kycBadge[sub.kycStatus]?.text || 'text-slate-600'}`}>
+                              {sub.kycStatus}
+                            </span>
+                          </td>
+                          <td className="text-slate-500">{sub.createdAt}</td>
+                          <td className="text-center">
+                            <button
+                              onClick={() => handleOpenSubRetailer(sub)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Pagination */}
             <Pagination
               currentPage={subRetailerPage}
-              totalPages={subRetailerTotalPages}
+              totalPages={
+                hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())
+                  ? (subRetailerPagination?.totalPages || 1)
+                  : subRetailerTotalPages
+              }
               onPageChange={setSubRetailerPage}
-              totalItems={filteredSubRetailers.length}
+              totalItems={
+                hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())
+                  ? (subRetailerPagination?.total || liveSubRetailers.length)
+                  : filteredSubRetailers.length
+              }
               pageSize={SUB_RETAILER_PAGE_SIZE}
             />
           </div>
@@ -777,7 +1170,7 @@ export default function AdminRetailerDetails() {
         >
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setViewingRetailer(null)}
+            onClick={handleCloseViewingRetailer}
           />
           <div
             className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col"
@@ -799,7 +1192,7 @@ export default function AdminRetailerDetails() {
                 </div>
               </div>
               <button
-                onClick={() => setViewingRetailer(null)}
+                onClick={handleCloseViewingRetailer}
                 className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="h-5 w-5" />
@@ -903,7 +1296,31 @@ export default function AdminRetailerDetails() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedRetailerTx.length === 0 ? (
+                      {modalTxLoading ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-8">
+                            <div className="h-6 animate-pulse bg-slate-100 rounded w-1/3 mx-auto" />
+                          </td>
+                        </tr>
+                      ) : modalLiveTx.length > 0 ? (
+                        modalLiveTx.map((tx) => (
+                          <tr key={tx._id || tx.transactionId}>
+                            <td className="font-mono text-xs font-bold text-slate-600">{tx.transactionId}</td>
+                            <td>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700">{tx.service}</span>
+                            </td>
+                            <td className="font-medium text-slate-700">{tx.description || tx.payee?.accountHolderName || "-"}</td>
+                            <td className="font-bold text-slate-800">₹{tx.amount.toLocaleString("en-IN")}</td>
+                            <td className="font-bold text-emerald-600">₹{(tx.commissionEarned || 0).toFixed(2)}</td>
+                            <td>
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${txStatusBadge[tx.status] || "bg-slate-100 text-slate-700"}`}>{tx.status}</span>
+                            </td>
+                            <td className="text-slate-500">
+                              {new Date(tx.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                            </td>
+                          </tr>
+                        ))
+                      ) : paginatedRetailerTx.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="text-center py-8 text-slate-500 font-medium">No transactions found</td>
                         </tr>
@@ -932,9 +1349,9 @@ export default function AdminRetailerDetails() {
                 <div className="border-t border-slate-100 px-4 py-3">
                   <Pagination
                     currentPage={retailerTxPage}
-                    totalPages={retailerTxTotalPages}
+                    totalPages={modalLiveTx.length > 0 ? (modalTxPagination?.totalPages || 1) : retailerTxTotalPages}
                     onPageChange={setRetailerTxPage}
-                    totalItems={filteredRetailerTx.length}
+                    totalItems={modalLiveTx.length > 0 ? (modalTxPagination?.total || modalLiveTx.length) : filteredRetailerTx.length}
                     pageSize={RETAILER_TX_PAGE_SIZE}
                     compact
                   />

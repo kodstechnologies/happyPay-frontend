@@ -17,11 +17,12 @@ export type BankDetailsStepHandle = {
 
 type BankDetailsStepProps = {
   userId?: string;
+  distributorId?: string;
   onRegistrationComplete?: () => void;
 };
 
 const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
-  ({ userId: userIdProp, onRegistrationComplete }, ref) => {
+  ({ userId: userIdProp, distributorId, onRegistrationComplete }, ref) => {
     const userId =
       userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
@@ -135,6 +136,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         deviceId,
         platform: "web",
         deviceName: navigator.platform || "Web browser",
+        distributorId,
       });
 
       // After successful bank details submission, directly complete registration

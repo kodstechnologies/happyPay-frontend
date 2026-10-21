@@ -274,9 +274,9 @@ export function getRetailerKyc(retailerId: string) {
   });
 }
 
-export interface AepsServicePayload extends Partial<BiometricPayload> {
+export interface AepsServicePayload extends Partial<Omit<BiometricPayload, "referenceKey">> {
   outlet_id: string;
-  referenceKey: string;
+  referenceKey: string | null;
   latitude: string;
   longitude: string;
   aadhaar: string;

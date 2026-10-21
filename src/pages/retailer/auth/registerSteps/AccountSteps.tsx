@@ -14,10 +14,11 @@ import {
 } from "../../../../services/api/retailer/retailerAuthApi";
 
 type AccountStepProps = {
+  distributorId?: string;
   onAccountCreated?: (userId: string) => void;
 };
 
-const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
+const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
   const navigate = useNavigate();
   const [mobile, setMobile] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -97,14 +98,19 @@ const AccountStep = ({ onAccountCreated }: AccountStepProps) => {
       const res = await verifyRetailerRegisterOtp({
         mobile,
         otp,
+        distributorId,
       });
 
       const id = res.data.user._id;
       setUserId(id);
       setOtpVerified(true);
 
-      localStorage.setItem("retailerUserId", id);
-      localStorage.setItem("pendingRetailerMobile", mobile);
+      if (!distributorId) {
+        localStorage.setItem("retailerUserId", id);
+        localStorage.setItem("pendingRetailerMobile", mobile);
+      } else {
+        localStorage.setItem("subRetailerUserId", id);
+      }
 
       onAccountCreated?.(id);
     } catch (err: unknown) {

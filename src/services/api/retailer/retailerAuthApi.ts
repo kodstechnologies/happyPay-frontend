@@ -81,6 +81,7 @@ export function sendRetailerRegisterOtp(mobile: string) {
 export function verifyRetailerRegisterOtp(payload: {
   mobile: string;
   otp: string;
+  distributorId?: string;
 }) {
   return apiClient<ApiEnvelope<VerifyOtpResult>>(
     "/api/v1/otp/verify",
@@ -272,6 +273,7 @@ export interface UpdateShopDetailsPayload {
   shopLocationPhoto?: File | null;
   businessProofDocument?: File | null;
   panDocument?: File | null;
+  distributorId?: string;
 }
 
 export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
@@ -288,6 +290,7 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   if (payload.longitude != null)
     fd.append("longitude", String(payload.longitude));
   fd.append("businessProofType", payload.businessProofType);
+  if (payload.distributorId) fd.append("distributorId", payload.distributorId);
 
   if (payload.shopInsidePhoto)
     fd.append("shopInsidePhoto", payload.shopInsidePhoto);
@@ -535,6 +538,7 @@ export interface UpdateBankDetailsPayload {
   deviceId?: string | null;
   platform?: string | null;
   deviceName?: string | null;
+  distributorId?: string;
 }
 
 export function updateRetailerBankDetails(payload: UpdateBankDetailsPayload) {
@@ -691,6 +695,87 @@ export interface PincodeValidationData {
 export function validatePincodeApi(pincode: string) {
   return apiClient<ApiEnvelope<PincodeValidationData>>(
     `/api/v1/auth/pincode/validate/${encodeURIComponent(pincode)}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+// ============================================================
+// DOWNLINE RETAILERS (DISTRIBUTOR NETWORK)
+// ============================================================
+
+export interface DownlineRetailer {
+  id: string;
+  name: string;
+  mobile: string;
+  email: string;
+  shopName: string;
+  status: "Pending" | "Approved" | "Active" | "Blocked" | "Suspended" | "Rejected";
+  rawStatus: string;
+  adminApproved: string;
+  registeredAt: string;
+}
+
+export interface DownlineRetailersResponse {
+  items: DownlineRetailer[];
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export function getDownlineRetailersApi(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  adminApproved?: string;
+}) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.search) query.set("search", params.search);
+  if (params?.status) query.set("status", params.status);
+  if (params?.adminApproved) query.set("adminApproved", params.adminApproved);
+
+  const qs = query.toString();
+  return apiClient<ApiEnvelope<DownlineRetailer[]>>(
+    `/api/v1/auth/retailer/downline-retailers${qs ? `?${qs}` : ""}`,
+    {
+      method: "GET",
+    }
+  );
+}
+
+export interface DownlineTransaction {
+  id: string;
+  _id?: string;
+  date?: string;
+  createdAt?: string;
+  service: string;
+  amount: number;
+  status: string;
+  type?: string;
+  narration?: string;
+}
+
+export function getDownlineRetailerTransactionsApi(
+  retailerId: string,
+  params?: {
+    page?: number;
+    limit?: number;
+  }
+) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+
+  const qs = query.toString();
+  return apiClient<ApiEnvelope<DownlineTransaction[]>>(
+    `/api/v1/auth/retailer/downline-retailers/${retailerId}/transactions${qs ? `?${qs}` : ""}`,
     {
       method: "GET",
     }

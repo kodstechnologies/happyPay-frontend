@@ -24,6 +24,7 @@ import {
   ReceiptText,
   Copy,
   CheckCircle2,
+  Search,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
@@ -52,7 +53,7 @@ import { getGeolocationCoordinates } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
 import { useAuth } from "../../../context/AuthContext";
 
-type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type Step = 0 | 1 | 2;
 
 type ServiceId =
   | "cash-withdrawal"
@@ -221,19 +222,14 @@ const generateRRN = () => {
 
 const ProgressHeader = ({ step }: { step: Step }) => {
   const progressSteps = [
-    { label: "Mobile" },
-    { label: "Aadhaar" },
-    { label: "Bank" },
-    { label: "Review" },
-    { label: "Service" },
+    { label: "Customer & Bank Details" },
+    { label: "Select AEPS Service" },
   ];
-
-  const activeProgress = step - 1;
 
   return (
     <StepIndicator
       steps={progressSteps}
-      currentStep={activeProgress}
+      currentStep={step}
     />
   );
 };
@@ -719,6 +715,7 @@ const Aeps = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const BANKS_PER_PAGE = 50;
+  const [bankSearchTerm, setBankSearchTerm] = useState("");
 
   // Fetch bank list when dropdown is opened
   const fetchBanks = async (page: number = 1, append: boolean = false) => {
@@ -1149,7 +1146,7 @@ const Aeps = () => {
 
   const prepareAepsPayload = async (
     pidData: ReturnType<typeof parsePidXml>,
-    overrideReferenceKey?: string
+    overrideReferenceKey?: string | null
   ): Promise<AepsServicePayload> => {
     const token = getToken();
     let tokenOutletId = "";
@@ -1176,7 +1173,10 @@ const Aeps = () => {
       tokenRefKey ||
       "";
 
-    const referenceKey = overrideReferenceKey || retailerRefKey;
+    const referenceKey =
+      overrideReferenceKey !== undefined
+        ? overrideReferenceKey
+        : retailerRefKey;
 
     const coords = await getGeolocationCoordinates({
       fallbackLatitude: "0",
@@ -1332,14 +1332,16 @@ const Aeps = () => {
         setServiceFetchingMessage(`Processing cash withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
         try {
           const refKeyToUse =
-            withdrawalAmount > 5000 && otpReferenceKey
-              ? otpReferenceKey
-              : (authUser?.AepsEkyc?.referenceKey || undefined);
+            withdrawalAmount > 5000
+              ? (otpReferenceKey || null)
+              : null;
+              // (authUser?.AepsEkyc?.referenceKey || undefined)
           const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
           const payload: CashWithdrawalPayload = {
             ...basePayload,
+            referenceKey: refKeyToUse,
             amount: withdrawalAmount,
-            ...(otp ? { otp } : {}),
+            ...(withdrawalAmount > 5000 && otp ? { otp } : {}),
           };
 
           console.log("Cash withdrawal payload:", payload);
@@ -1396,14 +1398,15 @@ const Aeps = () => {
           setServiceFetchingMessage(`Step 2: Authorizing withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
           try {
             const refKeyToUse =
-              withdrawalAmount > 5000 && otpReferenceKey
-                ? otpReferenceKey
-                : (authUser?.AepsEkyc?.referenceKey || undefined);
+              withdrawalAmount > 5000
+                ? (otpReferenceKey || null)
+                : null;
             const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
             const payload: CashWithdrawalPayload = {
               ...basePayload,
+              referenceKey: refKeyToUse,
               amount: withdrawalAmount,
-              ...(otp ? { otp } : {}),
+              ...(withdrawalAmount > 5000 && otp ? { otp } : {}),
             };
 
             const result = await cashWithdrawal(payload);
@@ -1555,8 +1558,17 @@ const Aeps = () => {
         }
 
         const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-        const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-        const referenceKey = tokenPayload.referenceKey || "";
+        const outletId =
+          authUser?.AepsEkyc?.outletId ||
+          authUser?.outletId ||
+          tokenPayload.outletId ||
+          tokenPayload.outletid ||
+          "";
+        const referenceKey =
+          authUser?.AepsEkyc?.referenceKey ||
+          authUser?.referenceKey ||
+          tokenPayload.referenceKey ||
+          "";
         if (!outletId || !referenceKey) {
           throw new Error(
             "Outlet ID or Reference key is missing. Please complete eKYC first."
@@ -1583,10 +1595,28 @@ const Aeps = () => {
         const responseData = otpResponse?.data as Record<string, unknown> | undefined;
         const innerData =
           (responseData?.data as Record<string, unknown> | undefined) || responseData;
+
+        // Check for provider failure in OTP response
+        if (responseData?.status === false || innerData?.status === false) {
+          const errMsg =
+            (innerData?.msg as string) ||
+            (innerData?.message as string) ||
+            (responseData?.msg as string) ||
+            (responseData?.message as string) ||
+            "Failed to send OTP to customer";
+          throw new Error(errMsg);
+        }
+
         const sessionRefKey =
           (innerData?.referenceKey as string) ||
+          (innerData?.reference_key as string) ||
+          (innerData?.refKey as string) ||
           (responseData?.referenceKey as string) ||
+          (responseData?.reference_key as string) ||
+          (responseData?.refKey as string) ||
           "";
+
+        console.log("OTP Send Response:", otpResponse, "Captured sessionRefKey:", sessionRefKey);
 
         if (sessionRefKey) {
           setOtpReferenceKey(sessionRefKey);
@@ -1631,7 +1661,7 @@ const Aeps = () => {
     setModalType("");
     setBalWithBalanceChecked(false);
     setFetchedBalance(null);
-    setStep(5);
+    setStep(2);
   };
 
   /*
@@ -1653,7 +1683,7 @@ const Aeps = () => {
     setModalType("");
     setBalWithBalanceChecked(false);
     setFetchedBalance(null);
-    setStep(5);
+    setStep(1);
   };
 
   /*
@@ -1692,8 +1722,6 @@ const Aeps = () => {
       return;
     }
 
-
-
     if (step === 0) {
       navigate("/retailer");
       return;
@@ -1707,15 +1735,6 @@ const Aeps = () => {
     if (step === 2) {
       setStep(1);
       return;
-    }
-
-    if (step === 3) {
-      setStep(2);
-      return;
-    }
-
-    if (step === 4) {
-      setStep(3);
     }
   };
 
@@ -2157,13 +2176,13 @@ const Aeps = () => {
               </div>
             </div>
 
-           <div className="w-full flex justify-end">
+           <div className="w-full flex justify-end pt-2">
              <button
               type="button"
               onClick={handleStartTransaction}
-              className="flex py-4 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9]"
+              className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700"
             >
-              <Play className="h-5 w-5 fill-current" />
+              <Play className="h-4 w-4 fill-current" />
               START TRANSACTION
             </button>
            </div>
@@ -2173,21 +2192,23 @@ const Aeps = () => {
         {!retailerAuthenticated && !isCapturingRetailer && (
           <>
             {!capturedPidData ? (
-              <button
-                type="button"
-                onClick={handleScanAndCaptureBiometric}
-                disabled={retailerAadhaar.length !== 12 || isScanningDevices || !isOnboarded || !isBioKycDone}
-                className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Fingerprint className="h-5 w-5" />
-                {!isOnboarded
-                  ? "ONBOARDING REQUIRED"
-                  : !isBioKycDone
-                  ? "BIOMETRIC EKYC REQUIRED FIRST"
-                  : isScanningDevices
-                  ? "SCANNING BIOMETRIC DEVICES..."
-                  : "SCAN DEVICE & CAPTURE BIOMETRIC"}
-              </button>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={handleScanAndCaptureBiometric}
+                  disabled={retailerAadhaar.length !== 12 || isScanningDevices || !isOnboarded || !isBioKycDone}
+                  className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Fingerprint className="h-4 w-4" />
+                  {!isOnboarded
+                    ? "ONBOARDING REQUIRED"
+                    : !isBioKycDone
+                    ? "BIOMETRIC EKYC REQUIRED FIRST"
+                    : isScanningDevices
+                    ? "SCANNING BIOMETRIC DEVICES..."
+                    : "SCAN DEVICE & CAPTURE BIOMETRIC"}
+                </button>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 p-4">
@@ -2215,24 +2236,26 @@ const Aeps = () => {
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleVerifyTfa}
-                  disabled={isVerifyingTfa || retailerAadhaar.length !== 12}
-                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {isVerifyingTfa ? (
-                    <>
-                      <RefreshCw className="h-5 w-5 animate-spin" />
-                      VERIFYING 2FA...
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="h-5 w-5" />
-                      VERIFY 2FA
-                    </>
-                  )}
-                </button>
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleVerifyTfa}
+                    disabled={isVerifyingTfa || retailerAadhaar.length !== 12}
+                    className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isVerifyingTfa ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        VERIFYING 2FA...
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="h-4 w-4" />
+                        VERIFY 2FA
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </>
@@ -2243,330 +2266,368 @@ const Aeps = () => {
 
   /*
    * ============================================================
-   * STEP 1: CUSTOMER MOBILE
-   * ============================================================
-   */
-  const renderCustomerMobile = () => {
-    return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 1: Customer Mobile Number
-          </h2>
-          <p className="mt-2 text-base text-slate-500">
-            Enter the customer's registered mobile number
-          </p>
-        </div>
-
-        <section className="w-full max-w-2xl">
-          <label
-            htmlFor="customer-mobile"
-            className="mb-2 block text-sm font-bold text-slate-900"
-          >
-            Mobile Number
-          </label>
-
-          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
-            <span className="text-sm font-bold text-slate-500">+91</span>
-            <input
-              id="customer-mobile"
-              type="text"
-              inputMode="numeric"
-              maxLength={10}
-              value={customerMobile}
-              onChange={(e) => {
-                const value = e.target.value.replace(/\D/g, "").slice(0, 10);
-                setCustomerMobile(value);
-              }}
-              placeholder="Enter 10-digit mobile number"
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-            />
-          </div>
-        </section>
-
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          disabled={customerMobile.length !== 10}
-          className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
-        >
-          <ArrowRight className="h-5 w-5" />
-          CONTINUE TO AADHAAR
-        </button>
-      </>
-    );
-  };
-
- 
-
-
-
-  const renderCustomerAadhaar = () => {
-    return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 2: Customer Aadhaar Number
-          </h2>
-
-          <p className="mt-2 text-base text-slate-500">
-            Enter the customer's Aadhaar number for verification
-          </p>
-        </div>
-
-        <section className="w-full max-w-2xl">
-          <label
-            htmlFor="customer-aadhaar"
-            className="mb-2 block text-sm font-bold text-slate-900"
-          >
-            Aadhaar Number
-          </label>
-
-          <div className="flex min-h-[52px] items-center gap-3 rounded-xl border-2 border-slate-200 bg-white px-4">
-            <IdCard className="h-5 w-5 shrink-0 text-slate-400" />
-
-            <input
-              id="customer-aadhaar"
-              type="text"
-              inputMode="numeric"
-              maxLength={12}
-              value={customerAadhaar}
-              onChange={handleCustomerAadhaarChange}
-              placeholder="Enter 12-digit Aadhaar number"
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-slate-400"
-            />
-          </div>
-        </section>
-
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={customerAadhaar.length !== 12}
-          className="flex min-h-[48px] w-full max-w-2xl items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-purple-700 disabled:cursor-not-allowed disabled:bg-[#cbd0d6]"
-        >
-          <ArrowRight className="h-5 w-5" />
-          CONTINUE TO BANK SELECTION
-        </button>
-      </>
-    );
-  };
-
-  /*
-   * ============================================================
-   * STEP 3: BANK SELECTION
+   * STEP 1: CUSTOMER & BANK DETAILS (UNIFIED SECTION)
    * ============================================================
    */
 
-  const renderBankSelection = () => {
+  const POPULAR_BANKS = [
+    { name: "SBI", fullName: "State Bank of India" },
+    { name: "HDFC", fullName: "HDFC Bank" },
+    { name: "ICICI", fullName: "ICICI Bank" },
+    { name: "Bank of Baroda", fullName: "Bank of Baroda" },
+    { name: "PNB", fullName: "Punjab National Bank" },
+    { name: "Canara", fullName: "Canara Bank" },
+    { name: "Axis", fullName: "Axis Bank" },
+    { name: "Union Bank", fullName: "Union Bank of India" },
+  ];
+
+  const handleSelectPopularBank = (popularName: string) => {
+    if (!banksFetched) {
+      void fetchBanks(1, false);
+    }
+    const matched = availableBanks.find((b) =>
+      b.name.toLowerCase().includes(popularName.toLowerCase())
+    );
+    if (matched) {
+      handleBankSelect(matched);
+    }
+  };
+
+  const filteredBanks = bankSearchTerm
+    ? availableBanks.filter((b) =>
+        b.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
+      )
+    : availableBanks;
+
+  const isCustomerFormValid =
+    customerMobile.length === 10 &&
+    customerAadhaar.length === 12 &&
+    selectedBank !== null &&
+    consent;
+
+  const renderCustomerDetails = () => {
     return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 3: Bank Selection
-          </h2>
-
-          <p className="mt-2 text-base text-slate-500">
-            Select the customer's linked bank account
-          </p>
-        </div>
-
-        <section>
-          <h3 className="mb-4 text-lg font-bold text-slate-900">
-            Select Bank
-          </h3>
-
-          <div className="relative">
-            <Building2 className="pointer-events-none absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-[#7c3aed]" />
-            <select
-              ref={bankSelectRef}
-              value={selectedBank?.iin || ""}
-              onChange={(e) => {
-                const bank = availableBanks.find(b => b.iin === e.target.value);
-                if (bank) handleBankSelect(bank);
-              }}
-              onFocus={handleBankDropdownOpen}
-              onClick={handleBankDropdownOpen}
-              disabled={loadingBanks}
-              className="w-full appearance-none rounded-2xl border-2 border-slate-200 bg-white py-4 pl-14 pr-12 text-lg font-bold text-slate-900 outline-none hover:border-[#7c3aed]/50 focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 transition-all cursor-pointer disabled:opacity-50"
-            >
-              <option value="" disabled>{loadingBanks ? "Loading banks..." : "PLEASE SELECT BANK"}</option>
-              {availableBanks.map(bank => (
-                <option key={bank.iin} value={bank.iin}>{bank.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
+      <div className="space-y-6">
+        {/* Section Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700 font-bold text-xs">
+                01
+              </span>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+                Customer & Bank Details
+              </h2>
+            </div>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500">
+              Enter customer credentials and select their linked bank account for AEPS transactions.
+            </p>
           </div>
 
-          {banksFetched && currentPage < totalPages && (
-            <button
-              type="button"
-              onClick={handleLoadMoreBanks}
-              disabled={loadingMore}
-              className="mt-3 flex items-center gap-2 text-sm font-medium text-purple-600 hover:text-purple-700 disabled:opacity-50"
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
+                customerMobile.length === 10
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-500"
+              }`}
             >
-              {loadingMore ? (
-                <>
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  Loading more banks...
-                </>
-              ) : (
-                <>
-                  <ArrowDown className="h-4 w-4" />
-                  Load more banks ({currentPage} / {totalPages})
-                </>
+              <Phone className="h-3 w-3" />
+              {customerMobile.length === 10 ? "Mobile ✓" : "Mobile"}
+            </span>
+
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
+                customerAadhaar.length === 12
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              <IdCard className="h-3 w-3" />
+              {customerAadhaar.length === 12 ? "Aadhaar ✓" : "Aadhaar"}
+            </span>
+
+            <span
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
+                selectedBank
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-100 text-slate-500"
+              }`}
+            >
+              <Building2 className="h-3 w-3" />
+              {selectedBank ? "Bank ✓" : "Bank"}
+            </span>
+          </div>
+        </div>
+
+        {/* Inputs Grid: Mobile and Aadhaar */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Mobile Number */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm hover:border-purple-200 transition">
+            <div className="flex items-center justify-between mb-2">
+              <label
+                htmlFor="customer-mobile"
+                className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                <Phone className="h-3.5 w-3.5 text-purple-600" />
+                Customer Mobile Number <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {customerMobile.length}/10
+              </span>
+            </div>
+
+            <div className="flex h-12 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/60 px-3 transition focus-within:border-purple-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/15">
+              <span className="flex items-center justify-center rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-extrabold text-purple-700">
+                +91
+              </span>
+              <input
+                id="customer-mobile"
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                value={customerMobile}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setCustomerMobile(val);
+                }}
+                placeholder="Enter 10-digit mobile number"
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+              />
+              {customerMobile.length === 10 && (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                </div>
               )}
-            </button>
-          )}
-        </section>
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              Customer's registered mobile for transaction SMS & receipts
+            </p>
+          </div>
 
-        <label className="flex cursor-pointer items-start gap-4 rounded-2xl border-2 border-slate-200 bg-white p-5">
+          {/* Aadhaar Number */}
+          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm hover:border-purple-200 transition">
+            <div className="flex items-center justify-between mb-2">
+              <label
+                htmlFor="customer-aadhaar"
+                className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                <IdCard className="h-3.5 w-3.5 text-purple-600" />
+                Customer Aadhaar Number <span className="text-red-500">*</span>
+              </label>
+              <span className="text-[11px] font-semibold text-slate-400">
+                {customerAadhaar.length}/12
+              </span>
+            </div>
+
+            <div className="flex h-12 items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50/60 px-3 transition focus-within:border-purple-600 focus-within:bg-white focus-within:ring-2 focus-within:ring-purple-500/15">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-700">
+                <IdCard className="h-4 w-4" />
+              </div>
+              <input
+                id="customer-aadhaar"
+                type="text"
+                inputMode="numeric"
+                maxLength={14}
+                value={
+                  customerAadhaar
+                    ? customerAadhaar.replace(/(\d{4})(?=\d)/g, "$1 ")
+                    : ""
+                }
+                onChange={handleCustomerAadhaarChange}
+                placeholder="XXXX XXXX XXXX"
+                className="min-w-0 flex-1 bg-transparent text-sm font-semibold tracking-wide text-slate-900 outline-none placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 font-mono"
+              />
+              {customerAadhaar.length === 12 && (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                  <Check className="h-3.5 w-3.5 stroke-[3]" />
+                </div>
+              )}
+            </div>
+            <p className="mt-1.5 text-[11px] text-slate-500">
+              12-digit UIDAI Aadhaar number for biometric authentication
+            </p>
+          </div>
+        </div>
+
+        {/* Bank Selection Section */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <div>
+              <label
+                htmlFor="bank-select"
+                className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5"
+              >
+                <Building2 className="h-3.5 w-3.5 text-purple-600" />
+                Select Customer Bank <span className="text-red-500">*</span>
+              </label>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Select customer's bank account linked with Aadhaar
+              </p>
+            </div>
+
+            {selectedBank && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 border border-purple-200 self-start sm:self-auto">
+                <Check className="h-3 w-3" />
+                {selectedBank.name}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Popular Banks Chips */}
+          <div className="mb-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+              Popular Banks:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {POPULAR_BANKS.map((pop) => {
+                const isSelected =
+                  selectedBank &&
+                  (selectedBank.name.toLowerCase().includes(pop.fullName.toLowerCase()) ||
+                   selectedBank.name.toLowerCase().includes(pop.name.toLowerCase()));
+
+                return (
+                  <button
+                    key={pop.name}
+                    type="button"
+                    onClick={() => handleSelectPopularBank(pop.fullName)}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all border ${
+                      isSelected
+                        ? "border-purple-600 bg-purple-600 text-white shadow-sm ring-2 ring-purple-600/20"
+                        : "border-slate-200 bg-slate-50/70 text-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
+                    }`}
+                  >
+                    {pop.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Bank Search & Dropdown Filter */}
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={bankSearchTerm}
+                onChange={(e) => setBankSearchTerm(e.target.value)}
+                placeholder="Type to filter bank list..."
+                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-xs sm:text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-purple-600 focus:bg-white focus:ring-2 focus:ring-purple-500/15 transition"
+              />
+              {bankSearchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setBankSearchTerm("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-purple-600" />
+              <select
+                id="bank-select"
+                ref={bankSelectRef}
+                value={selectedBank?.iin || ""}
+                onChange={(e) => {
+                  const bank = availableBanks.find((b) => b.iin === e.target.value);
+                  if (bank) handleBankSelect(bank);
+                }}
+                onFocus={handleBankDropdownOpen}
+                onClick={handleBankDropdownOpen}
+                disabled={loadingBanks}
+                className="w-full h-12 appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-11 pr-10 text-sm font-semibold text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-500/15 cursor-pointer disabled:opacity-50"
+              >
+                <option value="" disabled>
+                  {loadingBanks ? "Loading banks..." : "-- Select Bank from List --"}
+                </option>
+                {filteredBanks.map((bank) => (
+                  <option key={bank.iin} value={bank.iin}>
+                    {bank.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            </div>
+
+            {banksFetched && currentPage < totalPages && (
+              <div className="flex items-center justify-between pt-1 text-xs">
+                <span className="text-slate-500">
+                  Showing {availableBanks.length} banks
+                </span>
+                <button
+                  type="button"
+                  onClick={handleLoadMoreBanks}
+                  disabled={loadingMore}
+                  className="inline-flex items-center gap-1.5 font-bold text-purple-600 hover:text-purple-700 disabled:opacity-50"
+                >
+                  {loadingMore ? (
+                    <>
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                      <span>Loading more...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowDown className="h-3.5 w-3.5" />
+                      <span>Load more banks ({currentPage}/{totalPages})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Consent Checkbox Box */}
+        <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-purple-100 bg-purple-50/40 p-4 transition hover:bg-purple-50/60">
           <input
             type="checkbox"
             checked={consent}
-            onChange={(event) =>
-              setConsent(
-                event.target.checked
-              )
-            }
-            className="mt-1 h-8 w-8 accent-[#172033]"
+            onChange={(event) => setConsent(event.target.checked)}
+            className="mt-1 h-5 w-5 rounded accent-purple-600 cursor-pointer"
           />
-
-          <span className="text-base leading-6 text-slate-800 sm:text-lg">
-            I hereby give consent to use my
-            Aadhaar number and biometric data
-            for fetching balance and cash
-            withdrawal as per NPCI guidelines.
-          </span>
-        </label>
-
-        <button
-          type="button"
-          onClick={() => setStep(4)}
-          disabled={!selectedBank || !consent}
-          className="flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md disabled:bg-[#aab2c0] sm:text-xl"
-        >
-          <ArrowRight className="h-7 w-7" />
-          PROCEED TO REVIEW
-        </button>
-      </>
-    );
-  };
-
-  /*
-   * ============================================================
-   * STEP 4: REVIEW
-   * ============================================================
-   */
-
-  const renderReview = () => {
-    return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 4: Verify Your Details
-          </h2>
-
-          <p className="mt-2 text-base text-slate-500">
-            Please confirm the details before proceeding to services
-          </p>
-        </div>
-
-        <div>
-          <h3 className="mb-4 text-lg font-bold text-slate-900">
-            Collected Information
-          </h3>
-
-          <div className="overflow-hidden rounded-2xl border-2 border-slate-200 bg-white">
-            <div className="flex items-center gap-4 border-b-2 border-slate-200 p-5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
-                <Phone className="h-7 w-7 text-[#172033]" />
-              </div>
-
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-500">
-                  Mobile Number
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-slate-900">
-                  +91 {customerMobile}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
-              >
-                <Edit3 className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-4 border-b-2 border-slate-200 p-5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
-                <IdCard className="h-7 w-7 text-[#172033]" />
-              </div>
-
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-500">
-                  Aadhaar Number
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-slate-900">
-                  {getCustomerAadhaarDisplay()}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(2)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
-              >
-                <Edit3 className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="flex items-center gap-4 p-5">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-purple-50">
-                <Building2 className="h-7 w-7 text-[#172033]" />
-              </div>
-
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-slate-500">
-                  Linked Bank
-                </p>
-
-                <p className="mt-1 text-lg font-bold text-slate-900">
-                  {selectedBank?.name}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setStep(3)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#172033]"
-              >
-                <Edit3 className="h-5 w-5" />
-              </button>
+          <div className="space-y-1">
+            <span className="text-xs sm:text-sm font-medium text-slate-700 leading-relaxed block">
+              I hereby give consent to use customer's Aadhaar number and biometric fingerprint data
+              for live balance enquiry, cash withdrawal, or mini statement as per UIDAI & NPCI regulatory guidelines.
+            </span>
+            <div className="flex items-center gap-1.5 text-[11px] text-purple-700 font-semibold">
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>NPCI Certified Aadhaar ATM Protocol</span>
             </div>
           </div>
-        </div>
+        </label>
 
-        <button
-          type="button"
-          onClick={() => setStep(5)}
-          className="mt-8 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700 text-lg font-bold text-white shadow-md sm:text-xl"
-        >
-          <ArrowRight className="h-7 w-7" />
-          PROCEED TO SERVICES
-        </button>
-      </>
+        {/* Proceed Button */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-100">
+          {!isCustomerFormValid ? (
+            <p className="text-xs text-slate-400">
+              Complete 10-digit mobile, 12-digit Aadhaar, select bank, and accept consent to proceed.
+            </p>
+          ) : (
+            <div />
+          )}
+
+          <button
+            type="button"
+            onClick={() => setStep(2)}
+            disabled={!isCustomerFormValid}
+            className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-purple-700 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 ml-auto"
+          >
+            <span>PROCEED TO SERVICES</span>
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
     );
   };
 
   /*
    * ============================================================
-   * STEP 5
-   * AEPS SERVICES
+   * STEP 2: AEPS SERVICES
    * ============================================================
    */
 
@@ -2575,107 +2636,147 @@ const Aeps = () => {
     title: string;
     description: string;
     icon: React.ElementType;
-    iconClass: string;
-    bgClass: string;
+    badge?: string;
   }[] = [
-      {
-        id: "cash-withdrawal",
-        title: "Cash Withdrawal",
-        description: "Withdraw cash from A/C",
-        icon: WalletCards,
-        iconClass: "text-[#172033]",
-        bgClass: "bg-purple-50",
-      },
-      {
-        id: "balance-check",
-        title: "Balance Enquiry",
-        description: "Enquire A/C balance",
-        icon: Banknote,
-        iconClass: "text-[#172033]",
-        bgClass: "bg-purple-50",
-      },
-      {
-        id: "mini-statement",
-        title: "Mini Statement",
-        description: "Last 5 transactions",
-        icon: ReceiptText,
-        iconClass: "text-[#172033]",
-        bgClass: "bg-purple-50",
-      },
-      {
-        id: "balance-withdrawal",
-        title: "Bal+Withdraw",
-        description: "Check & withdraw",
-        icon: ArrowRight,
-        iconClass: "text-[#172033]",
-        bgClass: "bg-purple-50",
-      },
-      {
-        id: "cash-deposit",
-        title: "Cash Deposit",
-        description: "Deposit cash into A/C",
-        icon: ArrowDown,
-        iconClass: "text-[#172033]",
-        bgClass: "bg-purple-50",
-      },
-    ];
+    {
+      id: "cash-withdrawal",
+      title: "Cash Withdrawal",
+      description: "Instant cash withdrawal from customer's bank account",
+      icon: WalletCards,
+      badge: "Instant Cash",
+    },
+    {
+      id: "balance-check",
+      title: "Balance Enquiry",
+      description: "Fetch live account balance directly from bank CBS",
+      icon: Banknote,
+      badge: "Live CBS",
+    },
+    {
+      id: "mini-statement",
+      title: "Mini Statement",
+      description: "View and print recent bank account transactions",
+      icon: ReceiptText,
+      badge: "Passbook",
+    },
+    {
+      id: "balance-withdrawal",
+      title: "Bal + Withdrawal",
+      description: "Verify live balance first, then proceed to withdraw",
+      icon: ArrowRight,
+      badge: "2-in-1",
+    },
+    {
+      id: "cash-deposit",
+      title: "Cash Deposit",
+      description: "Deposit cash directly into customer's bank account",
+      icon: ArrowDown,
+      badge: "Deposit",
+    },
+  ];
 
   const renderServices = () => {
     return (
-      <>
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">
-            Step 5: Select AEPS Service
-          </h2>
+      <div className="space-y-6">
+        {/* Customer & Bank Active Context Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50/70 via-white to-purple-50/70 p-4 shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs sm:text-sm">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
+                <Phone className="h-3.5 w-3.5" />
+              </div>
+              <span className="text-slate-500 font-medium">Mobile:</span>
+              <span className="font-bold text-slate-900">+91 {customerMobile}</span>
+            </div>
 
-          <p className="mt-2 text-base text-slate-500">
-            Select the transaction you want to
-            perform.
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
+                <IdCard className="h-3.5 w-3.5" />
+              </div>
+              <span className="text-slate-500 font-medium">Aadhaar:</span>
+              <span className="font-bold text-slate-900">{getCustomerAadhaarDisplay()}</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700">
+                <Building2 className="h-3.5 w-3.5" />
+              </div>
+              <span className="text-slate-500 font-medium">Bank:</span>
+              <span className="font-bold text-slate-900">{selectedBank?.name}</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setStep(1)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-white px-3 py-1.5 text-xs font-bold text-purple-700 shadow-sm hover:bg-purple-50 transition shrink-0 self-start sm:self-auto"
+          >
+            <Edit3 className="h-3.5 w-3.5" />
+            <span>Change Details</span>
+          </button>
+        </div>
+
+        {/* Header */}
+        <div className="pb-1 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700 font-bold text-xs">
+              02
+            </span>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-900">
+              Select AEPS Service
+            </h2>
+          </div>
+          <p className="mt-1 text-xs sm:text-sm text-slate-500">
+            Choose the banking transaction to perform for this customer.
           </p>
         </div>
 
-        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+        {/* Services Grid */}
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {services.map((service) => {
             const Icon = service.icon;
-
-            const selected =
-              selectedService ===
-              service.id;
+            const selected = selectedService === service.id;
 
             return (
               <button
                 type="button"
                 key={service.id}
-                onClick={() =>
-                  handleServiceClick(
-                    service.id
-                  )
-                }
-                className={`rounded-2xl border-2 p-5 text-left transition ${selected
-                  ? "border-[#172033] shadow-md"
-                  : "border-[#d8d8d8]"
-                  } bg-white shadow-sm hover:shadow-md transition-shadow hover:-translate-y-0.5 hover:shadow-[0_18px_38px_-24px_rgba(15,23,42,0.45)]`}
+                onClick={() => handleServiceClick(service.id)}
+                className={`group relative rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
+                  selected
+                    ? "border-purple-600 bg-purple-50/40 shadow-sm ring-2 ring-purple-600/20"
+                    : "border-slate-200/90 bg-white hover:border-purple-300"
+                }`}
               >
-                <div
-                  className={`flex h-12 w-12 items-center justify-center rounded-2xl ${service.bgClass}`}
-                >
-                  <Icon
-                    className={`h-8 w-8 ${service.iconClass}`}
-                  />
+                <div className="flex items-center justify-between">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
+                    <Icon className="h-6 w-6" />
+                  </div>
+
+                  {service.badge && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 group-hover:bg-purple-100 group-hover:text-purple-700 transition">
+                      {service.badge}
+                    </span>
+                  )}
                 </div>
 
-                <h3 className="mt-5 text-xl font-bold text-slate-900">
+                <h3 className="mt-4 text-base font-bold text-slate-900 group-hover:text-purple-700 transition">
                   {service.title}
                 </h3>
 
-                <p className="mt-1 text-base text-slate-700">
+                <p className="mt-1 text-xs text-slate-500 leading-relaxed">
                   {service.description}
                 </p>
+
+                <div className="mt-4 flex items-center gap-1 text-xs font-bold text-purple-600 opacity-90 group-hover:translate-x-1 transition-transform">
+                  <span>Proceed</span>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </div>
               </button>
             );
           })}
         </div>
-      </>
+      </div>
     );
   };
 
@@ -2934,7 +3035,7 @@ const Aeps = () => {
             </div>
           )}
 
-          <div className="mt-6 flex items-center justify-end gap-3">
+          <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => {
@@ -2946,19 +3047,15 @@ const Aeps = () => {
                   setFetchedBalance(null);
                 }
               }}
-              className="min-h-[52px] rounded-xl border border-slate-200 bg-white px-5 text-base font-bold text-slate-700 hover:bg-slate-50 transition"
+              className="inline-flex w-auto items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={
-                handleConfirmAmount
-              }
-              disabled={
-                isConfirmDisabled
-              }
-              className="flex min-h-[52px] flex-1 items-center justify-center rounded-xl bg-purple-600 text-base font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50 transition"
+              onClick={handleConfirmAmount}
+              disabled={isConfirmDisabled}
+              className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-50 transition"
             >
               {isDeposit ? "CONFIRM DEPOSIT" : "CONFIRM AMOUNT"}
             </button>
@@ -3024,7 +3121,7 @@ const Aeps = () => {
             />
           </div>
 
-          <div className="mt-7 flex items-center justify-end gap-5">
+          <div className="mt-7 flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
             <button
               type="button"
               onClick={() => {
@@ -3032,18 +3129,16 @@ const Aeps = () => {
                 setOtp("");
                 setOtpReferenceKey("");
               }}
-              className="px-4 py-3 text-lg font-bold text-[#172033]"
+              className="inline-flex w-auto items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition"
             >
               Cancel
             </button>
 
             <button
               type="button"
-              onClick={
-                handleVerifyOtp
-              }
+              onClick={handleVerifyOtp}
               disabled={otp.length !== 6}
-              className="min-h-[52px] min-w-[190px] rounded-2xl bg-purple-600 px-6 text-lg font-bold text-white shadow-md hover:bg-purple-700 disabled:bg-[#aab2c0]"
+              className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-40 transition"
             >
               VERIFY OTP
             </button>
@@ -3083,26 +3178,6 @@ const Aeps = () => {
     }
   };
 
-  const renderReceiptRow = (
-    label: string,
-    value: React.ReactNode,
-    valueClass = "text-slate-900"
-  ) => {
-    return (
-      <div className="flex items-center justify-between gap-4">
-        <span className="shrink-0 text-base text-slate-600 sm:text-lg">
-          {label}
-        </span>
-
-        <span
-          className={`break-all text-right text-base font-semibold sm:text-lg ${valueClass}`}
-        >
-          {value}
-        </span>
-      </div>
-    );
-  };
-
   /*
    * ============================================================
    * RECEIPT SCREEN
@@ -3115,282 +3190,135 @@ const Aeps = () => {
     }
 
     const isWithdrawal =
-      receiptData.receiptType ===
-      "withdrawal" ||
-      receiptData.receiptType ===
-      "balance-withdrawal";
+      receiptData.receiptType === "withdrawal" ||
+      receiptData.receiptType === "balance-withdrawal";
 
     const isDeposit = receiptData.receiptType === "cash-deposit";
-    const isBalance = receiptData.receiptType === "balance";
 
-    if (isBalance) {
-      const numericBal = receiptData.balance;
-      const formattedBal = isNaN(numericBal)
-        ? "0.00"
-        : numericBal.toLocaleString("en-IN", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          });
+    const numericBal = receiptData.balance;
+    const formattedBal = isNaN(numericBal)
+      ? "0.00"
+      : numericBal.toLocaleString("en-IN", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
 
-      return (
-        <div className="mx-auto w-full space-y-6">
-          {/* Top Bar */}
-          <div className="print:hidden flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleReceiptHome}
-                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 border border-slate-200"
-                aria-label="Go back"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">
-                  Aadhaar ATM
-                </p>
-                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
-                  Balance Enquiry
-                </h1>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={handlePrintReceipt}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
-            >
-              <Printer className="h-4 w-4 text-slate-500" />
-              <span>Print Receipt</span>
-            </button>
-          </div>
-
-          {/* Receipt Main Card */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white shadow-xl overflow-hidden print:border-none print:shadow-none">
-            {/* Bank & Hero Balance Banner */}
-            <div className="bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 p-6 sm:p-8 text-white relative overflow-hidden">
-              <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-44 h-44 rounded-full bg-white/5 pointer-events-none" />
-              <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                <div>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-sm text-purple-100">
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-                    <span>{receiptData.message || "Balance Enquiry Completed Successfully"}</span>
-                  </div>
-                  <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight">
-                    {receiptData.bankName}
-                  </h2>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-purple-200">
-                    <span>Aadhaar: <strong className="text-white">{receiptData.aadhaar}</strong></span>
-                    <span>•</span>
-                    <span>Mobile: <strong className="text-white">{receiptData.mobile}</strong></span>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-white/10 backdrop-blur-md p-5 border border-white/15 text-left md:text-right min-w-[220px]">
-                  <p className="text-xs uppercase tracking-wider font-semibold text-purple-200">
-                    Available Account Balance
-                  </p>
-                  <p className="mt-1 text-3xl sm:text-4xl font-black text-white">
-                    ₹ {formattedBal}
-                  </p>
-                  <p className="mt-1 text-[11px] text-purple-200 flex items-center md:justify-end gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-300 inline" />
-                    Live CBS Balance Verified
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Meta Details Grid */}
-            <div className="p-6 sm:p-8 space-y-6">
-              <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
-                  Transaction Audit Information
-                </h3>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Transaction ID</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-sm font-bold text-slate-900">
-                        {receiptData.transactionId}
-                      </span>
-                      {receiptData.transactionId && receiptData.transactionId !== "NA" && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(receiptData.transactionId);
-                            setCopiedReceiptTxnId(true);
-                            setTimeout(() => setCopiedReceiptTxnId(false), 2000);
-                          }}
-                          className="p-1 text-slate-400 hover:text-purple-600 rounded transition"
-                          title="Copy Transaction ID"
-                        >
-                          {copiedReceiptTxnId ? (
-                            <Check className="h-3.5 w-3.5 text-emerald-600" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Bank RRN</span>
-                    <span className="font-mono text-sm font-bold text-slate-800">
-                      {receiptData.rrn}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Date & Time</span>
-                    <span className="text-sm font-semibold text-slate-800">
-                      {new Date().toLocaleString("en-IN")}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Authentication Mode</span>
-                    <span className="text-sm font-semibold text-slate-800">
-                      {receiptData.authMode}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Biometric Device</span>
-                    <span className="text-sm font-semibold text-slate-800">
-                      {receiptData.biometricDevice}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
-                    <span className="text-sm text-slate-500">Status</span>
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
-                      <CheckCircle2 className="h-3 w-3" />
-                      {receiptData.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Actions */}
-              <div className="print:hidden flex flex-col sm:flex-row items-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handlePrintReceipt}
-                  className="flex h-12 w-full sm:flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
-                >
-                  <Printer className="h-4 w-4 text-slate-500" />
-                  PRINT RECEIPT
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleStartNewTransaction}
-                  className="flex h-12 w-full sm:flex-1 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] text-sm font-bold text-white shadow-md hover:bg-[#6d28d9] transition"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  NEW TRANSACTION
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
+    const formattedAmount = (receiptData.amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
     return (
-      <div className="">
-        <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-2xl border border-white bg-white px-4 py-3 shadow-[0_14px_40px_-24px_rgba(15,23,42,0.45)] sm:px-5">
+      <div className="mx-auto w-full space-y-6">
+        {/* Top Bar */}
+        <div className="print:hidden flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleReceiptHome}
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 border border-slate-200"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#7c3aed]">
+                Aadhaar ATM
+              </p>
+              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
+                {getReceiptTitle(receiptData.receiptType) || "Transaction Receipt"}
+              </h1>
+            </div>
+          </div>
+
           <button
             type="button"
-            onClick={handleReceiptHome}
-            className="flex h-10 w-10 items-center justify-center rounded-full text-slate-800 hover:bg-slate-100"
+            onClick={handlePrintReceipt}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition"
           >
-            <ArrowLeft className="h-6 w-6" />
+            <Printer className="h-4 w-4 text-slate-500" />
+            <span>Print Receipt</span>
           </button>
-
-          <h1 className="text-2xl font-bold text-slate-900">
-            AEPS Receipt
-          </h1>
         </div>
 
-        <main className="px-3 py-5 sm:px-6">
-          <div className="mx-auto w-full max-w-md rounded-[30px] border border-white bg-white p-4 shadow-[0_25px_70px_-35px_rgba(15,23,42,0.25)] sm:p-6">
-            <div className="text-center">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-purple-50">
-                <Check className="h-10 w-10 text-[#172033]" />
+        {/* Receipt Main Card */}
+        <div className="rounded-3xl border border-slate-200/80 bg-white shadow-xl overflow-hidden print:border-none print:shadow-none">
+          {/* Bank & Hero Balance Banner */}
+          <div className="bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-900 p-6 sm:p-8 text-white relative overflow-hidden">
+            <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-44 h-44 rounded-full bg-white/5 pointer-events-none" />
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold backdrop-blur-sm text-purple-100">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+                  <span>{receiptData.message || getReceiptTitle(receiptData.receiptType)}</span>
+                </div>
+                <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight">
+                  {receiptData.bankName}
+                </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-purple-200">
+                  <span>Aadhaar: <strong className="text-white">{receiptData.aadhaar}</strong></span>
+                  <span>•</span>
+                  <span>Mobile: <strong className="text-white">{receiptData.mobile}</strong></span>
+                </div>
               </div>
 
-              <h2 className="mt-4 text-xl font-bold text-[#172033] sm:text-2xl">
-                {getReceiptTitle(receiptData.receiptType)}
-              </h2>
-
-              <p className="mt-1 text-lg text-slate-700 sm:text-xl">
-                {receiptData.bankName}
-              </p>
-            </div>
-
-            <div className="mt-8 rounded-[20px] border border-slate-200/80 bg-white p-5 shadow-[0_18px_45px_-30px_rgba(15,23,42,0.35)] sm:p-7">
-              {isWithdrawal && (
-                <>
-                  <div className="text-center rounded-[16px] bg-[#f8f9fc] border border-slate-100 p-4 shadow-sm sm:p-5">
-                    <p className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                      ₹{receiptData.amount.toFixed(2)}
-                    </p>
-
-                    <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
+              <div className="rounded-2xl bg-white/10 backdrop-blur-md p-5 border border-white/15 text-left md:text-right min-w-[220px]">
+                {isWithdrawal ? (
+                  <>
+                    <p className="text-xs uppercase tracking-wider font-semibold text-purple-200">
                       Amount Withdrawn
                     </p>
-                  </div>
-
-                  <div className="my-6 border-t border-slate-100" />
-                </>
-              )}
-
-              {isDeposit && (
-                <>
-                  <div className="text-center rounded-[16px] bg-[#f8f9fc] border border-slate-100 p-4 shadow-sm sm:p-5">
-                    <p className="text-3xl font-bold text-slate-900 sm:text-4xl">
-                      ₹{receiptData.amount.toFixed(2)}
+                    <p className="mt-1 text-3xl sm:text-4xl font-black text-white">
+                      ₹ {formattedAmount}
                     </p>
-
-                    <p className="mt-1 text-sm font-medium text-slate-500 sm:text-base">
+                    <p className="mt-1 text-xs text-purple-200">
+                      Remaining Balance: <strong className="text-white">₹ {formattedBal}</strong>
+                    </p>
+                  </>
+                ) : isDeposit ? (
+                  <>
+                    <p className="text-xs uppercase tracking-wider font-semibold text-purple-200">
                       Amount Deposited
                     </p>
-                  </div>
-
-                  <div className="my-6 border-t border-slate-100" />
-                </>
-              )}
-
-              <div className="grid grid-cols-1 gap-x-10 gap-y-6 md:grid-cols-2">
-                {renderReceiptRow(
-                  "Account Balance",
-                  formatCurrency(receiptData.balance),
-                  "text-[#172033]"
+                    <p className="mt-1 text-3xl sm:text-4xl font-black text-white">
+                      ₹ {formattedAmount}
+                    </p>
+                    <p className="mt-1 text-xs text-purple-200">
+                      Updated Balance: <strong className="text-white">₹ {formattedBal}</strong>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs uppercase tracking-wider font-semibold text-purple-200">
+                      Available Account Balance
+                    </p>
+                    <p className="mt-1 text-3xl sm:text-4xl font-black text-white">
+                      ₹ {formattedBal}
+                    </p>
+                    <p className="mt-1 text-[11px] text-purple-200 flex items-center md:justify-end gap-1">
+                      <ShieldCheck className="h-3.5 w-3.5 text-emerald-300 inline" />
+                      Live CBS Balance Verified
+                    </p>
+                  </>
                 )}
+              </div>
+            </div>
+          </div>
 
-                {renderReceiptRow(
-                  "Customer Aadhaar",
-                  receiptData.aadhaar
-                )}
-
-                {renderReceiptRow(
-                  "Customer Mobile",
-                  receiptData.mobile
-                )}
-
-                {renderReceiptRow(
-                  "Bank Name",
-                  receiptData.bankName
-                )}
-
-                {renderReceiptRow(
-                  "Transaction ID",
-                  <span className="inline-flex items-center gap-1">
-                    <span>{receiptData.transactionId}</span>
-                    {receiptData.transactionId && (
+          {/* Meta Details Grid */}
+          <div className="p-6 sm:p-8 space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">
+                Transaction Audit Information
+              </h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Transaction ID</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-sm font-bold text-slate-900">
+                      {receiptData.transactionId}
+                    </span>
+                    {receiptData.transactionId && receiptData.transactionId !== "NA" && (
                       <button
                         type="button"
                         onClick={() => {
@@ -3398,63 +3326,79 @@ const Aeps = () => {
                           setCopiedReceiptTxnId(true);
                           setTimeout(() => setCopiedReceiptTxnId(false), 2000);
                         }}
-                        className="p-0.5 text-slate-400 hover:text-purple-600 rounded"
-                        title="Copy"
+                        className="p-1 text-slate-400 hover:text-purple-600 rounded transition"
+                        title="Copy Transaction ID"
                       >
                         {copiedReceiptTxnId ? (
-                          <Check className="h-3 w-3 text-emerald-600" />
+                          <Check className="h-3.5 w-3.5 text-emerald-600" />
                         ) : (
-                          <Copy className="h-3 w-3" />
+                          <Copy className="h-3.5 w-3.5" />
                         )}
                       </button>
                     )}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Bank RRN</span>
+                  <span className="font-mono text-sm font-bold text-slate-800">
+                    {receiptData.rrn}
                   </span>
-                )}
+                </div>
 
-                {renderReceiptRow(
-                  "RRN Number",
-                  receiptData.rrn
-                )}
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Date & Time</span>
+                  <span className="text-sm font-semibold text-slate-800">
+                    {new Date().toLocaleString("en-IN")}
+                  </span>
+                </div>
 
-                {renderReceiptRow(
-                  "Biometric Device",
-                  receiptData.biometricDevice
-                )}
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Authentication Mode</span>
+                  <span className="text-sm font-semibold text-slate-800">
+                    {receiptData.authMode}
+                  </span>
+                </div>
 
-                {renderReceiptRow(
-                  "Auth Mode",
-                  receiptData.authMode
-                )}
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Biometric Device</span>
+                  <span className="text-sm font-semibold text-slate-800">
+                    {receiptData.biometricDevice}
+                  </span>
+                </div>
 
-                {renderReceiptRow(
-                  "Transaction Status",
-                  receiptData.status,
-                  "text-emerald-600 font-bold"
-                )}
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-3">
+                  <span className="text-sm text-slate-500">Status</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+                    <CheckCircle2 className="h-3 w-3" />
+                    {receiptData.status}
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="mt-8 space-y-4">
+            {/* Bottom Actions */}
+            <div className="print:hidden flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={handlePrintReceipt}
-                className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl border-2 border-[#cbd3e3] bg-transparent text-lg font-bold text-[#172033]"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition"
               >
-                <Printer className="h-5 w-5" />
+                <Printer className="h-4 w-4 text-slate-500" />
                 PRINT RECEIPT
               </button>
 
               <button
                 type="button"
                 onClick={handleStartNewTransaction}
-                className="flex min-h-[58px] w-full items-center justify-center gap-3 rounded-2xl bg-purple-600 transition hover:bg-purple-700 text-lg font-bold text-white shadow-md"
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-md hover:bg-purple-700 transition"
               >
-                <RefreshCw className="h-5 w-5" />
+                <RefreshCw className="h-4 w-4" />
                 NEW TRANSACTION
               </button>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     );
   };
@@ -3552,22 +3496,19 @@ const Aeps = () => {
 
 
       <section className="hp-card overflow-hidden rounded-2xl p-5 sm:p-7">
-        {step > 0 && step <= 5 && (
-          <div className="mx-auto mt-4 w-full rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
+        {step > 0 && step <= 2 && (
+          <div className="mx-auto mt-2 mb-5 w-full rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-6">
             <ProgressHeader step={step as Step} />
           </div>
         )}
 
-        <main className="mt-5">
+        <main className="mt-4">
           <div className="mx-auto w-full space-y-5">
             {modalType === "" ? (
               <>
                 {step === 0 && renderRetailerAuth()}
-                {step === 1 && renderCustomerMobile()}
-                {step === 2 && renderCustomerAadhaar()}
-                {step === 3 && renderBankSelection()}
-                {step === 4 && renderReview()}
-                {step === 5 && renderServices()}
+                {step === 1 && renderCustomerDetails()}
+                {step === 2 && renderServices()}
               </>
             ) : (
               <div className="flex w-full items-center justify-center bg-white rounded-2xl">

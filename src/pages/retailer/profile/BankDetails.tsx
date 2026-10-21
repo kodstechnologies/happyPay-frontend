@@ -257,19 +257,23 @@ export default function BankDetails() {
 
       const res = await updateRetailerProfile(payload);
 
-      if (res && res.data) {
-        setProfile(res.data);
-        setSuccessMessage("Bank account details successfully updated and synchronized!");
+      if (res && (res.success || res.data)) {
+        // Fetch fresh canonical profile from main profile API (CQS pattern)
+        const profileRes = await getRetailerProfile();
+        const prof = profileRes?.data || null;
 
-        // Update local fields to match returned data
-        const updatedPrimary = res.data.primaryBank || res.data.banks?.[0];
-        if (updatedPrimary) {
-          setBankName(updatedPrimary.name || "");
-          setIfsc(updatedPrimary.ifscCode || "");
-          setAccountNumber(updatedPrimary.accountNumber || "");
-          setConfirmAccountNumber(updatedPrimary.accountNumber || "");
-          setBranchName(updatedPrimary.branchName || "");
+        if (prof) {
+          setProfile(prof);
+          const updatedPrimary = prof.primaryBank || prof.banks?.[0];
+          if (updatedPrimary) {
+            setBankName(updatedPrimary.name || "");
+            setIfsc(updatedPrimary.ifscCode || "");
+            setAccountNumber(updatedPrimary.accountNumber || "");
+            setConfirmAccountNumber(updatedPrimary.accountNumber || "");
+            setBranchName(updatedPrimary.branchName || "");
+          }
         }
+        setSuccessMessage("Bank account details successfully updated and synchronized!");
       } else {
         throw new Error("Failed to update bank details.");
       }

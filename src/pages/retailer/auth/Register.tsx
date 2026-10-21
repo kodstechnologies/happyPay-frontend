@@ -89,9 +89,15 @@ const stepDescriptions = [
 
 type RetailerRegisterProps = {
   onExit?: () => void;
+  distributorId?: string;
+  onRegistrationComplete?: () => void;
 };
 
-const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
+const RetailerRegister = ({
+  onExit,
+  distributorId,
+  onRegistrationComplete: onRegistrationCompleteProp,
+}: RetailerRegisterProps) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -110,6 +116,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
 
   const [retailerUserId, setRetailerUserId] = useState<string>(() => {
     if (queryUserId) return queryUserId;
+    if (distributorId) return localStorage.getItem("subRetailerUserId") ?? "";
     return localStorage.getItem("retailerUserId") ?? "";
   });
 
@@ -370,9 +377,14 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     }
                   >
                     <AccountStep
+                      distributorId={distributorId}
                       onAccountCreated={(id) => {
                         setRetailerUserId(id);
-                        localStorage.setItem("retailerUserId", id);
+                        if (!distributorId) {
+                          localStorage.setItem("retailerUserId", id);
+                        } else {
+                          localStorage.setItem("subRetailerUserId", id);
+                        }
                         nextStep();
                       }}
                     />
@@ -386,7 +398,8 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                     }
                   >
                     <ShopDetailsStep
-                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                      distributorId={distributorId}
                       onShopDetailsSaved={nextStep}
                     />
                   </div>
@@ -400,7 +413,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                   >
                     <AboutRetailerStep
                       ref={aboutStepRef}
-                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
                     />
                   </div>
 
@@ -413,7 +426,7 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                   >
                     <AadhaarStep
                       ref={aadhaarStepRef}
-                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
                     />
                   </div>
 
@@ -426,8 +439,16 @@ const RetailerRegister = ({ onExit }: RetailerRegisterProps) => {
                   >
                     <BankDetailsStep
                       ref={bankStepRef}
-                      userId={retailerUserId || localStorage.getItem("retailerUserId") || undefined}
+                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                      distributorId={distributorId}
                       onRegistrationComplete={() => {
+                        if (distributorId) {
+                          localStorage.removeItem("subRetailerUserId");
+                        }
+                        if (onRegistrationCompleteProp) {
+                          onRegistrationCompleteProp();
+                          return;
+                        }
                         if (onExit) {
                           onExit();
                           return;
