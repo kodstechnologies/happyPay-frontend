@@ -49,7 +49,11 @@ import {
   type AepsServicePayload,
 } from "../../../services/api/retailer/aepsApi";
 import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
-import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import {
+  ensureConfirmedLocation,
+  initAepsLocation,
+  hasValidCoordinates,
+} from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -360,8 +364,14 @@ const Aeps = () => {
    * Step 4 = Review
    * Step 5 = Services (Cash Withdrawal, Balance Enquiry)
    */
-
   const [step, setStep] = useState<Step>(0);
+
+  // Re-verify and request location permission on first entering AePS if not yet cached
+  useEffect(() => {
+    if (!hasValidCoordinates()) {
+      void initAepsLocation();
+    }
+  }, []);
 
   // Real Biometric States
   const [availableDevices, setAvailableDevices] = useState<(import("../../../utils/rdService").ActiveDevice & {
@@ -1018,12 +1028,8 @@ const Aeps = () => {
         return;
       }
 
-      // Obtain geolocation coordinates.
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
+      // Obtain genuine geolocation coordinates (gatekeeper)
+      const coords = await ensureConfirmedLocation();
 
       // Parse the captured RD Service PID XML.
       const pidData = parsePidXml(capturedPidData);
@@ -1178,11 +1184,7 @@ const Aeps = () => {
         ? overrideReferenceKey
         : retailerRefKey;
 
-    const coords = await getGeolocationCoordinates({
-      fallbackLatitude: "0",
-      fallbackLongitude: "0",
-      timeout: 5000,
-    });
+    const coords = await ensureConfirmedLocation();
 
     return {
       outlet_id: outletId,
@@ -1575,11 +1577,7 @@ const Aeps = () => {
           );
         }
 
-        const coords = await getGeolocationCoordinates({
-          fallbackLatitude: "0",
-          fallbackLongitude: "0",
-          timeout: 5000,
-        });
+        const coords = await ensureConfirmedLocation();
 
         const otpResponse = await sendAepsOtp({
           outlet_id: outletId,
@@ -1830,12 +1828,8 @@ const Aeps = () => {
         throw new Error(captureResult.message || "Failed to capture fingerprint from device.");
       }
 
-      // Geolocation
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
+      // Geolocation (gatekeeper)
+      const coords = await ensureConfirmedLocation();
 
       const parsedData = parsePidXml(captureResult.data);
 

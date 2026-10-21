@@ -23,6 +23,7 @@ import { useNavigate } from "react-router-dom";
 
 import { apiClient } from "../../services/api/client";
 import { getAuthUser } from "../../context/AuthContext";
+import { initDashboardLocation } from "../../utils/geolocation";
 
 type ServicePath =
   | "/retailer/aeps"
@@ -186,6 +187,7 @@ const Dashboard = () => {
     };
 
     loadDashboard();
+    void initDashboardLocation();
 
     return () => {
       isMounted = false;

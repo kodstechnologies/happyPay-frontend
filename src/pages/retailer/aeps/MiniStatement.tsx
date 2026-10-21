@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { rdService } from "../../../utils/rdService";
 import { miniStatement, parsePidXml } from "../../../services/api/retailer/aepsApi";
-import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { ensureConfirmedLocation } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
 import {
   Fingerprint,
@@ -169,12 +169,8 @@ const MiniStatement = ({
       const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
       const referenceKey = tokenPayload.referenceKey || "";
 
-      // Get geolocation
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
+      // Obtain genuine geolocation (gatekeeper)
+      const coords = await ensureConfirmedLocation();
 
       // Build payload
       const payload = {

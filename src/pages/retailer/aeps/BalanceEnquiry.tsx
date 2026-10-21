@@ -3,7 +3,7 @@ import { Banknote, ArrowLeft, IdCard, Fingerprint, Phone, Building2, ChevronDown
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import { getToken } from "../../../utils/auth";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
-import { getGeolocationCoordinates } from "../../../utils/geolocation";
+import { ensureConfirmedLocation } from "../../../utils/geolocation";
 import { parsePidXml } from "../../../services/api/retailer/aepsApi";
 import { getBankList } from "../../../services/api/retailer/retailerAuthApi";
 
@@ -145,12 +145,8 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
         throw new Error("Reference key is missing from your account. Please complete eKYC first.");
       }
 
-      // Get geolocation
-      const coords = await getGeolocationCoordinates({
-        fallbackLatitude: "0",
-        fallbackLongitude: "0",
-        timeout: 5000,
-      });
+      // Obtain genuine geolocation (gatekeeper)
+      const coords = await ensureConfirmedLocation();
 
       // Parse captured biometric data
       const pidData = parsePidXml(capture.data);
