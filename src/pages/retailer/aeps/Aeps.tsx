@@ -2157,14 +2157,16 @@ const Aeps = () => {
               </div>
             </div>
 
-            <button
+           <div className="w-full flex justify-end">
+             <button
               type="button"
               onClick={handleStartTransaction}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9]"
+              className="flex py-4 items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-4 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-[#6d28d9]"
             >
               <Play className="h-5 w-5 fill-current" />
               START TRANSACTION
             </button>
+           </div>
           </>
         )}
 
