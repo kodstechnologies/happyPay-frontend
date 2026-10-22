@@ -1253,13 +1253,24 @@ const Aeps = () => {
   };
 
   const startBiometric = async (
-    serviceId: ServiceId
+    serviceId: ServiceId,
+    verifiedOtp?: string
   ) => {
     setIsProcessing(true);
 
     try {
+      // Pass OTP to RD Service PidOptions if withdrawal amount > 5000 (UIDAI / AEPS 2FA standard)
+      const otpForCapture =
+        (serviceId === "cash-withdrawal" || serviceId === "balance-withdrawal") &&
+        withdrawalAmount > 5000
+          ? (verifiedOtp || otp || undefined)
+          : undefined;
+
       // 1. Actually capture the fingerprint using RD service
-      const captureResult = await rdService.captureFingerprint(selectedDevicePort);
+      const captureResult = await rdService.captureFingerprint(selectedDevicePort, {
+        otp: otpForCapture,
+        fType: "2",
+      });
 
       if (!captureResult.success) {
         setIsProcessing(false);
@@ -1343,7 +1354,6 @@ const Aeps = () => {
             ...basePayload,
             referenceKey: refKeyToUse,
             amount: withdrawalAmount,
-            ...(withdrawalAmount > 5000 && otp ? { otp } : {}),
           };
 
           console.log("Cash withdrawal payload:", payload);
@@ -1408,7 +1418,6 @@ const Aeps = () => {
               ...basePayload,
               referenceKey: refKeyToUse,
               amount: withdrawalAmount,
-              ...(withdrawalAmount > 5000 && otp ? { otp } : {}),
             };
 
             const result = await cashWithdrawal(payload);
@@ -3076,7 +3085,7 @@ const Aeps = () => {
       }
 
       setModalType("biometric");
-      startBiometric(selectedService);
+      startBiometric(selectedService, otp);
     }
 
     return (

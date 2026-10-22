@@ -19,15 +19,19 @@ class RDService {
   private static readonly PORTS = Array.from({ length: 21 }, (_, i) => 11100 + i);
 
   // The XML configuration requested by UIDAI (default fType="2" for ISO 19794-2 banking standard)
-  private static getPidOptions(wadh?: string, fType: string = "2") {
+  private static getPidOptions(wadh?: string, fType: string = "2", otp?: string) {
     const safeWadh = (wadh || "")
       .replace(/&/g, "&amp;")
       .replace(/"/g, "&quot;");
     const wadhAttr = safeWadh ? ` wadh="${safeWadh}"` : "";
+    const safeOtp = (otp || "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;");
+    const otpAttr = safeOtp ? ` otp="${safeOtp}"` : "";
     const safeFType = fType || "2";
     return `
       <PidOptions ver="1.0">
-          <Opts fCount="1" fType="${safeFType}" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" posh="UNKNOWN" env="P"${wadhAttr} />
+          <Opts fCount="1" fType="${safeFType}" iCount="0" pCount="0" format="0" pidVer="2.0" timeout="10000" posh="UNKNOWN" env="P"${wadhAttr}${otpAttr} />
           <CustOpts>
               <Param name="mantrakey" value="" />
           </CustOpts>
@@ -125,7 +129,7 @@ class RDService {
    */
   public async captureFingerprint(
     port: number | null,
-    wadhOrOptions?: string | { wadh?: string; fType?: string; capturePath?: string }
+    wadhOrOptions?: string | { wadh?: string; fType?: string; capturePath?: string; otp?: string }
   ): Promise<RDDeviceResponse> {
     if (!port) {
       return { success: false, message: "Please select a Biometric Device first.", data: null };
@@ -138,10 +142,11 @@ class RDService {
     const wadh = options.wadh;
     const fType = options.fType || "2";
     const capturePath = options.capturePath || "/rd/capture";
+    const otp = options.otp;
 
     try {
-      console.log(`Starting fingerprint capture on port ${port} (${capturePath}, fType=${fType})...`);
-      const pidOptions = RDService.getPidOptions(wadh, fType);
+      console.log(`Starting fingerprint capture on port ${port} (${capturePath}, fType=${fType}${otp ? ", with OTP" : ""})...`);
+      const pidOptions = RDService.getPidOptions(wadh, fType, otp);
       
       // First try the regular captureBiometric method
       try {

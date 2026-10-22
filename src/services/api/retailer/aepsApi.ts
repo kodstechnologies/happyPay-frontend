@@ -287,7 +287,6 @@ export interface AepsServicePayload extends Partial<Omit<BiometricPayload, "refe
 
 export interface CashWithdrawalPayload extends AepsServicePayload {
   amount: number;
-  otp?: string;
 }
 
 export interface SendAepsOtpPayload {
