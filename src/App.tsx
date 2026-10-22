@@ -33,7 +33,6 @@ function App() {
           // Handle navigation based on notification type
           const notificationType = data.type;
           const screen = data.screen;
-
           if (notificationType === "NEW_RETAILER_REGISTRATION" && screen === "ADMIN_RETAILERS") {
             navigate("/admin/retailers");
           } else if (notificationType === "KYC_APPROVED" && screen === "KYC") {
