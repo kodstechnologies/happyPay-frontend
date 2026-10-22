@@ -1,4 +1,5 @@
 import { apiClient } from "../client";
+import { getToken } from "../../../utils/auth";
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -733,6 +734,7 @@ export function getDownlineRetailersApi(params?: {
   search?: string;
   status?: string;
   adminApproved?: string;
+  token?: string;
 }) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
@@ -741,11 +743,14 @@ export function getDownlineRetailersApi(params?: {
   if (params?.status) query.set("status", params.status);
   if (params?.adminApproved) query.set("adminApproved", params.adminApproved);
 
+  const effectiveToken = params?.token || getToken() || undefined;
+
   const qs = query.toString();
   return apiClient<ApiEnvelope<DownlineRetailer[]>>(
     `/api/v1/auth/retailer/downline-retailers${qs ? `?${qs}` : ""}`,
     {
       method: "GET",
+      token: effectiveToken,
     }
   );
 }
@@ -767,17 +772,21 @@ export function getDownlineRetailerTransactionsApi(
   params?: {
     page?: number;
     limit?: number;
+    token?: string;
   }
 ) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
 
+  const effectiveToken = params?.token || getToken() || undefined;
+
   const qs = query.toString();
   return apiClient<ApiEnvelope<DownlineTransaction[]>>(
     `/api/v1/auth/retailer/downline-retailers/${retailerId}/transactions${qs ? `?${qs}` : ""}`,
     {
       method: "GET",
+      token: effectiveToken,
     }
   );
 }

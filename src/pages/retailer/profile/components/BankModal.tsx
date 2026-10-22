@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Building2,
   CreditCard,
@@ -6,41 +6,31 @@ import {
   AlertCircle,
   ShieldCheck,
   Star,
+  Search,
+  Check,
+  ChevronDown,
+  Loader2,
+  X,
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
-import { updateRetailerProfile, type RetailerUpdateResponse } from "../../../../services/api/retailer/retailerProfileApi";
-import { getBankList } from "../../../../services/api/retailer/retailerAuthApi";
+import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
+import { getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
 import type {
   RetailerBank,
+  RetailerFullProfile,
 } from "../../../../types/retailer/profile";
-
-const POPULAR_BANKS = [
-  "State Bank of India",
-  "HDFC Bank",
-  "ICICI Bank",
-  "Axis Bank",
-  "Kotak Mahindra Bank",
-  "Bank of Baroda",
-  "Punjab National Bank",
-  "Canara Bank",
-  "Union Bank of India",
-  "Bank of India",
-  "IndusInd Bank",
-  "Yes Bank",
-  "IDFC FIRST Bank",
-  "Federal Bank",
-  "Central Bank of India",
-];
 
 interface BankModalProps {
   open: boolean;
   onClose: () => void;
   bankToEdit?: RetailerBank | null;
   isOnlyBank?: boolean;
-  onSuccess: (updatedProfile?: RetailerUpdateResponse) => void;
+  onSuccess: (updatedProfile?: RetailerFullProfile) => void;
   onDeleteRequest?: (bank: RetailerBank) => void;
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
 }
+
+const BANKS_PER_PAGE = 50;
 
 export default function BankModal({
   open,
@@ -64,31 +54,95 @@ export default function BankModal({
     Boolean(bankToEdit?.isPrimary) || isOnlyBank
   );
 
-  const [availableBanks, setAvailableBanks] = useState<string[]>(POPULAR_BANKS);
+  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+  const [loadingBanks, setLoadingBanks] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [bankSearch, setBankSearch] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch master bank list asynchronously
   useEffect(() => {
-    let isMounted = true;
-    getBankList()
+    if (!open) return;
+
+    let ignore = false;
+    getBankList(1, BANKS_PER_PAGE)
       .then((res) => {
-        if (!isMounted) return;
-        if (res?.data && Array.isArray(res.data)) {
-          const fetched = res.data.map((b) => b.name).filter(Boolean);
-          if (fetched.length > 0) {
-            setAvailableBanks(Array.from(new Set([...fetched, ...POPULAR_BANKS])));
+        if (ignore) return;
+        if (res?.success && res.data) {
+          setAvailableBanks(res.data);
+          const meta = res.meta as unknown as { totalPages?: number } | undefined;
+          if (meta?.totalPages) {
+            setTotalPages(meta.totalPages);
           }
         }
       })
-      .catch(() => {
-        // Keep POPULAR_BANKS fallback
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to fetch bank list in BankModal:", err);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoadingBanks(false);
+        }
       });
 
     return () => {
-      isMounted = false;
+      ignore = true;
     };
+  }, [open]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  const handleLoadMoreBanks = async () => {
+    if (currentPage < totalPages && !loadingMore) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      setLoadingMore(true);
+      try {
+        const res = await getBankList(nextPage, BANKS_PER_PAGE);
+        if (res?.success && res.data) {
+          setAvailableBanks((prev) => {
+            const existing = new Set(prev.map((b) => b.id || b.name));
+            const next = res.data.filter((b) => !existing.has(b.id || b.name));
+            return [...prev, ...next];
+          });
+          const meta = res.meta as unknown as { totalPages?: number } | undefined;
+          if (meta?.totalPages) {
+            setTotalPages(meta.totalPages);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load more banks in BankModal:", err);
+      } finally {
+        setLoadingMore(false);
+      }
+    }
+  };
+
+  const handleBankSelect = (selectedName: string) => {
+    setBankName(selectedName);
+    setIsDropdownOpen(false);
+    setBankSearch("");
+    setError(null);
+  };
+
+  const filteredBanks = availableBanks.filter((b) =>
+    b.name.toLowerCase().includes(bankSearch.toLowerCase())
+  );
 
   if (!open) return null;
 
@@ -195,21 +249,126 @@ export default function BankModal({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Bank Name <span className="text-rose-500">*</span>
             </label>
-            <div className="relative">
-              <input
-                type="text"
-                list="bank-list-options"
-                value={bankName}
-                onChange={(e) => setBankName(e.target.value)}
-                placeholder="Select or enter bank name (e.g. HDFC Bank)"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 transition"
-                required
-              />
-              <datalist id="bank-list-options">
-                {availableBanks.map((b) => (
-                  <option key={b} value={b} />
-                ))}
-              </datalist>
+            <div className="relative" ref={dropdownRef}>
+              <div
+                onClick={() => !loadingBanks && setIsDropdownOpen(!isDropdownOpen)}
+                className={`flex min-h-10 w-full cursor-pointer items-center gap-2.5 rounded-xl border bg-white px-3.5 py-2.5 text-xs transition focus-within:border-[#7c3aed] focus-within:ring-2 focus-within:ring-[#7c3aed]/20 ${
+                  isDropdownOpen
+                    ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/20"
+                    : bankName
+                      ? "border-[#7c3aed] font-medium text-slate-900"
+                      : "border-slate-200 text-slate-400"
+                }`}
+              >
+                <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
+                <span className="flex-1 truncate">
+                  {loadingBanks && availableBanks.length === 0
+                    ? "Loading banks..."
+                    : bankName || "Select bank from list..."}
+                </span>
+
+                {bankName && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setBankName("");
+                    }}
+                    className="p-0.5 text-slate-400 hover:text-slate-600"
+                    title="Clear selection"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${
+                    isDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
+
+              {isDropdownOpen && (
+                <div className="absolute left-0 right-0 top-[46px] z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+                  {/* Search Box */}
+                  <div className="border-b border-slate-100 p-2 bg-slate-50/70">
+                    <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+                      <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                      <input
+                        type="text"
+                        value={bankSearch}
+                        onChange={(e) => setBankSearch(e.target.value)}
+                        placeholder="Search bank name..."
+                        className="w-full bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                        autoFocus
+                      />
+                      {bankSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setBankSearch("")}
+                          className="text-[11px] text-slate-400 hover:text-slate-600 font-medium"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Bank list */}
+                  <div className="max-h-52 overflow-y-auto">
+                    {filteredBanks.map((bank) => (
+                      <button
+                        key={bank.id || bank.name}
+                        type="button"
+                        onClick={() => handleBankSelect(bank.name)}
+                        className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-xs font-medium transition ${
+                          bankName === bank.name
+                            ? "bg-purple-50 text-[#7c3aed] font-bold"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="truncate">{bank.name}</span>
+                        </div>
+                        {bankName === bank.name && (
+                          <Check className="h-3.5 w-3.5 text-[#7c3aed] shrink-0" strokeWidth={2.5} />
+                        )}
+                      </button>
+                    ))}
+
+                    {filteredBanks.length === 0 && (
+                      <div className="p-3.5 text-center text-xs text-slate-400">
+                        No banks found matching "{bankSearch}"
+                      </div>
+                    )}
+
+                    {/* Pagination: Load More */}
+                    {currentPage < totalPages && (
+                      <div className="border-t border-slate-100 p-2 text-center bg-slate-50/60">
+                        <button
+                          type="button"
+                          onClick={handleLoadMoreBanks}
+                          disabled={loadingMore}
+                          className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-xs font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
+                        >
+                          {loadingMore ? (
+                            <>
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              <span>Loading more banks...</span>
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="h-3.5 w-3.5" />
+                              <span>Load more banks ({availableBanks.length} loaded · Page {currentPage}/{totalPages})</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

@@ -10,7 +10,7 @@ import {
   Fingerprint,
   Building2,
   ShieldCheck,
-  
+  Loader2,
 } from "lucide-react";
 
 import StepIndicator from "../../../components/common/StepIndicator";
@@ -167,27 +167,35 @@ const RetailerRegister = ({
   };
 
 
+  const [submittingStep, setSubmittingStep] = useState(false);
+
   const nextStep = async () => {
-    // Handle step-specific submission before moving forward
-    if (currentStep === 2 && aboutStepRef.current) {
-      const success = await aboutStepRef.current.submit();
-      if (!success) return;
-    }
-    if (currentStep === 3 && aadhaarStepRef.current) {
-      const success = await aadhaarStepRef.current.submit();
-      if (!success) return;
-    }
-    if (currentStep === 4 && bankStepRef.current) {
-      const success = await bankStepRef.current.submit();
-      if (!success) return
-    }
+    if (submittingStep) return;
+    setSubmittingStep(true);
+    try {
+      // Handle step-specific submission before moving forward
+      if (currentStep === 2 && aboutStepRef.current) {
+        const success = await aboutStepRef.current.submit();
+        if (!success) return;
+      }
+      if (currentStep === 3 && aadhaarStepRef.current) {
+        const success = await aadhaarStepRef.current.submit();
+        if (!success) return;
+      }
+      if (currentStep === 4 && bankStepRef.current) {
+        const success = await bankStepRef.current.submit();
+        if (!success) return;
+      }
 
-    if (currentStep < steps.length - 1) {
-      setCurrentStep((prev) => prev + 1);
+      if (currentStep < steps.length - 1) {
+        setCurrentStep((prev) => prev + 1);
 
-      scrollToTop();
+        scrollToTop();
 
-      return;
+        return;
+      }
+    } finally {
+      setSubmittingStep(false);
     }
   };
 
@@ -469,7 +477,8 @@ const RetailerRegister = ({
                     <button
                       type="button"
                       onClick={previousStep}
-                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfe3e9] bg-white px-5 text-[12px] font-semibold text-[#596376] transition hover:bg-[#fafbfd] hover:border-[#cfd5df]"
+                      disabled={submittingStep}
+                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[#dfe3e9] bg-white px-5 text-[12px] font-semibold text-[#596376] transition hover:bg-[#fafbfd] hover:border-[#cfd5df] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <ArrowLeft className="h-4 w-4" />
 
@@ -487,10 +496,20 @@ const RetailerRegister = ({
                       <button
                         type="button"
                         onClick={nextStep}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90"
+                        disabled={submittingStep}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-gradient-to-r from-[#7c3aed] to-[#7c3aed] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <span>Continue</span>
-                        <ArrowRight className="h-4 w-4" />
+                        {submittingStep ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Saving...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Continue</span>
+                            <ArrowRight className="h-4 w-4" />
+                          </>
+                        )}
                       </button>
                     )}
 
@@ -499,10 +518,20 @@ const RetailerRegister = ({
                       <button
                         type="button"
                         onClick={nextStep}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-[#10a88a] hover:bg-[#0d8a70]"
+                        disabled={submittingStep}
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl px-6 text-[12px] font-bold text-white shadow-md transition bg-[#10a88a] hover:bg-[#0d8a70] disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        <span>Submit Registration</span>
-                        <Check className="h-4 w-4" strokeWidth={2.5} />
+                        {submittingStep ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Submitting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Submit Registration</span>
+                            <Check className="h-4 w-4" strokeWidth={2.5} />
+                          </>
+                        )}
                       </button>
                     )}
 

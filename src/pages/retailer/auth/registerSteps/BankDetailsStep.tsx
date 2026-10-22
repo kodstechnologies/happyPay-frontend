@@ -1,4 +1,4 @@
-import { useState, forwardRef, useImperativeHandle, useEffect } from "react";
+import { useState, forwardRef, useImperativeHandle, useEffect, useRef } from "react";
 import {
   Building2,
   CreditCard,
@@ -7,6 +7,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Loader2,
+  Search,
+  Check,
+  X,
 } from "lucide-react";
 
 import { updateRetailerBankDetails, getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
@@ -33,29 +36,82 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
-    // Bank list state
+    // Bank list state & pagination
     const [banks, setBanks] = useState<Bank[]>([]);
     const [loadingBanks, setLoadingBanks] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [bankSearch, setBankSearch] = useState("");
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const BANKS_PER_PAGE = 50;
 
-  // Fetch bank list on component mount
-  useEffect(() => {
-    const fetchBanks = async () => {
-      setLoadingBanks(true);
+    const fetchBanks = async (page: number = 1, append: boolean = false) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoadingBanks(true);
+      }
       try {
-        const response = await getBankList();
-        console.log("Bank list API response:", response);
+        const response = await getBankList(page, BANKS_PER_PAGE);
         if (response.success && response.data) {
-          setBanks(response.data);
+          if (append) {
+            setBanks((prev) => {
+              const existingIds = new Set(prev.map((b) => b.id || b.name));
+              const newItems = response.data.filter((b) => !existingIds.has(b.id || b.name));
+              return [...prev, ...newItems];
+            });
+          } else {
+            setBanks(response.data);
+          }
+          const meta = response.meta as { totalPages?: number } | undefined;
+          if (meta?.totalPages) {
+            setTotalPages(meta.totalPages);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch bank list:", err);
       } finally {
         setLoadingBanks(false);
+        setLoadingMore(false);
       }
     };
 
-    fetchBanks();
-  }, []);
+    // Fetch bank list on component mount
+    useEffect(() => {
+      void fetchBanks(1, false);
+    }, []);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+          setIsDropdownOpen(false);
+        }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleLoadMore = () => {
+      if (currentPage < totalPages && !loadingMore) {
+        const nextPage = currentPage + 1;
+        setCurrentPage(nextPage);
+        void fetchBanks(nextPage, true);
+      }
+    };
+
+    const handleBankSelect = (selectedName: string) => {
+      setBankName(selectedName);
+      setIsDropdownOpen(false);
+      setBankSearch("");
+      setError("");
+    };
+
+    const filteredBanks = banks.filter((b) =>
+      b.name.toLowerCase().includes(bankSearch.toLowerCase())
+    );
 
   const handleIfscChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -187,39 +243,130 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
           Bank Name
         </label>
 
-        <div className="relative">
-          <Building2
-            className="pointer-events-none absolute left-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
-            strokeWidth={2}
-          />
-
-          <select
-            name="bankName" value={bankName}
-            onChange={(event) =>
-              setBankName(event.target.value)
-            }
-            disabled={loadingBanks}
-            className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-12 pr-12 text-sm outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/10 disabled:opacity-60 ${
-              bankName
-                ? "border-[#7c3aed] font-medium text-[#172033]"
-                : "border-[#dfe1e6] text-[#a1a8b5]"
+        <div className="relative" ref={dropdownRef}>
+          <div
+            onClick={() => !loadingBanks && setIsDropdownOpen(!isDropdownOpen)}
+            className={`flex h-[54px] w-full cursor-pointer items-center gap-3 rounded-xl border bg-[#fafbfd] px-4 text-sm transition focus-within:border-[#7c3aed] focus-within:ring-2 focus-within:ring-[#7c3aed]/10 ${
+              isDropdownOpen
+                ? "border-[#7c3aed] ring-2 ring-[#7c3aed]/10 bg-white"
+                : bankName
+                  ? "border-[#7c3aed] font-medium text-[#172033]"
+                  : "border-[#dfe1e6] text-[#a1a8b5]"
             }`}
           >
-            <option value="" disabled>
-              {loadingBanks ? "Loading banks..." : "Select bank"}
-            </option>
+            <Building2
+              className="h-5 w-5 shrink-0 text-[#8992a3]"
+              strokeWidth={2}
+            />
+            <span className="flex-1 truncate text-sm">
+              {loadingBanks && banks.length === 0
+                ? "Loading banks..."
+                : bankName || "Select bank"}
+            </span>
 
-            {banks.map((bank) => (
-              <option key={bank.id} value={bank.name}>
-                {bank.name}
-              </option>
-            ))}
-          </select>
+            {bankName && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setBankName("");
+                }}
+                className="p-1 text-[#8992a3] hover:text-[#172033]"
+                title="Clear selection"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
 
-          <ChevronDown
-            className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#697386]"
-            strokeWidth={2.2}
-          />
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-[#697386] transition-transform ${
+                isDropdownOpen ? "rotate-180" : ""
+              }`}
+              strokeWidth={2.2}
+            />
+          </div>
+
+          {isDropdownOpen && (
+            <div className="absolute left-0 right-0 top-[60px] z-30 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              {/* Search Bar */}
+              <div className="border-b border-slate-100 p-2.5 bg-slate-50/50">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    value={bankSearch}
+                    onChange={(e) => setBankSearch(e.target.value)}
+                    placeholder="Search bank name..."
+                    className="w-full bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
+                    autoFocus
+                  />
+                  {bankSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setBankSearch("")}
+                      className="text-xs text-slate-400 hover:text-slate-600 font-semibold"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bank Items List */}
+              <div className="max-h-60 overflow-y-auto">
+                {filteredBanks.map((bank) => (
+                  <button
+                    key={bank.id || bank.name}
+                    type="button"
+                    onClick={() => handleBankSelect(bank.name)}
+                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
+                      bankName === bank.name
+                        ? "bg-purple-50 text-[#7c3aed] font-bold"
+                        : "text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 truncate">
+                      <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
+                      <span className="truncate">{bank.name}</span>
+                    </div>
+                    {bankName === bank.name && (
+                      <Check className="h-4 w-4 text-[#7c3aed] shrink-0" strokeWidth={2.5} />
+                    )}
+                  </button>
+                ))}
+
+                {filteredBanks.length === 0 && (
+                  <div className="p-4 text-center text-xs text-slate-400">
+                    No banks found matching "{bankSearch}"
+                  </div>
+                )}
+
+                {/* Pagination: Load More */}
+                {currentPage < totalPages && (
+                  <div className="border-t border-slate-100 p-2.5 text-center bg-slate-50/60">
+                    <button
+                      type="button"
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-xs font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>Loading more banks...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="h-3.5 w-3.5" />
+                          <span>Load more banks ({banks.length} loaded · Page {currentPage}/{totalPages})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

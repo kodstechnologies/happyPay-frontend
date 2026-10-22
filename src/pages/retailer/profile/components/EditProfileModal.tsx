@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { User, Store, AlertCircle } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import type { ModalSize } from "../../../../components/common/ModalWrapper";
-import { updateRetailerProfile, type RetailerUpdateResponse } from "../../../../services/api/retailer/retailerProfileApi";
+import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
 import {
   getCategories,
   getPropertyTypes,
@@ -16,7 +16,7 @@ interface EditProfileModalProps {
   open: boolean;
   onClose: () => void;
   profile: RetailerFullProfile;
-  onSuccess: (updatedProfile?: RetailerUpdateResponse) => void;
+  onSuccess: (updatedProfile?: RetailerFullProfile) => void;
   size?: ModalSize;
 }
 

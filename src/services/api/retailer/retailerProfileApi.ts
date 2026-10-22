@@ -17,7 +17,7 @@ export function getRetailerProfile() {
   });
 }
 
-export interface RetailerUpdateResponse {
+export interface RetailerUpdateResponse extends Partial<RetailerFullProfile> {
   id?: string;
   updated?: boolean;
   banks?: RetailerFullProfile["banks"];
@@ -26,7 +26,7 @@ export interface RetailerUpdateResponse {
   [key: string]: unknown;
 }
 
-export function updateRetailerProfile<T = RetailerUpdateResponse>(payload: FormData | Record<string, unknown>) {
+export function updateRetailerProfile<T = RetailerFullProfile>(payload: FormData | Record<string, unknown>) {
   const isFormData = payload instanceof FormData;
 
   return apiClient<ApiEnvelope<T>>("/api/v1/auth/retailer/profile", {

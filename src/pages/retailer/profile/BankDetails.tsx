@@ -24,29 +24,13 @@ import {
 import { getBankList } from "../../../services/api/retailer/retailerAuthApi";
 import type { RetailerFullProfile, RetailerBank } from "../../../types/retailer/profile";
 
-const FALLBACK_BANKS = [
-  "State Bank of India",
-  "HDFC Bank",
-  "ICICI Bank",
-  "Axis Bank",
-  "Kotak Mahindra Bank",
-  "Bank of Baroda",
-  "Punjab National Bank",
-  "Canara Bank",
-  "Union Bank of India",
-  "Bank of India",
-  "IndusInd Bank",
-  "Yes Bank",
-  "IDFC FIRST Bank",
-  "Federal Bank",
-  "Central Bank of India",
-];
-
 const ACCOUNT_TYPES = [
   "Current Account",
   "Savings Account",
   "Overdraft Account",
 ];
+
+const BANKS_PER_PAGE = 50;
 
 export default function BankDetails() {
   const navigate = useNavigate();
@@ -59,9 +43,12 @@ export default function BankDetails() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Bank list options
-  const [availableBanks, setAvailableBanks] = useState<string[]>(FALLBACK_BANKS);
+  // Bank list options & pagination
+  const [availableBanks, setAvailableBanks] = useState<string[]>([]);
   const [bankSearch, setBankSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loadingMoreBanks, setLoadingMoreBanks] = useState(false);
 
   // Form State
   const [bankName, setBankName] = useState("");
@@ -80,7 +67,7 @@ export default function BankDetails() {
   useEffect(() => {
     let ignore = false;
 
-    Promise.allSettled([getRetailerProfile(), getBankList()])
+    Promise.allSettled([getRetailerProfile(), getBankList(1, BANKS_PER_PAGE)])
       .then(([profileRes, bankListRes]) => {
         if (ignore) return;
 
@@ -106,10 +93,10 @@ export default function BankDetails() {
 
         if (bankListRes.status === "fulfilled" && bankListRes.value?.data) {
           const fetched = bankListRes.value.data.map((b) => b.name).filter(Boolean);
-          if (fetched.length > 0) {
-            // Combine fetched with fallback, deduplicated
-            const merged = Array.from(new Set([...fetched, ...FALLBACK_BANKS]));
-            setAvailableBanks(merged);
+          setAvailableBanks(fetched);
+          const meta = bankListRes.value?.meta as { totalPages?: number } | undefined;
+          if (meta?.totalPages) {
+            setTotalPages(meta.totalPages);
           }
         }
       })
@@ -131,6 +118,28 @@ export default function BankDetails() {
       ignore = true;
     };
   }, []);
+
+  const handleLoadMoreBanks = async () => {
+    if (currentPage >= totalPages || loadingMoreBanks) return;
+    setLoadingMoreBanks(true);
+    try {
+      const nextPage = currentPage + 1;
+      const res = await getBankList(nextPage, BANKS_PER_PAGE);
+      if (res && res.data) {
+        const nextNames = res.data.map((b) => b.name).filter(Boolean);
+        setAvailableBanks((prev) => Array.from(new Set([...prev, ...nextNames])));
+        setCurrentPage(nextPage);
+        const meta = res?.meta as { totalPages?: number } | undefined;
+        if (meta?.totalPages) {
+          setTotalPages(meta.totalPages);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load more banks:", err);
+    } finally {
+      setIsLoadingMoreBanks(false);
+    }
+  };
 
   // Active primary bank reference
   const currentBank: RetailerBank | null =
@@ -255,12 +264,15 @@ export default function BankDetails() {
         };
       }
 
-      const res = await updateRetailerProfile(payload);
+      const res = await updateRetailerProfile<RetailerFullProfile>(payload);
 
       if (res && (res.success || res.data)) {
-        // Fetch fresh canonical profile from main profile API (CQS pattern)
-        const profileRes = await getRetailerProfile();
-        const prof = profileRes?.data || null;
+        // Use returned canonical profile directly (Option 3), with fallback to getRetailerProfile
+        let prof: RetailerFullProfile | null = res.data?.id ? res.data : null;
+        if (!prof) {
+          const profileRes = await getRetailerProfile();
+          prof = profileRes?.data || null;
+        }
 
         if (prof) {
           setProfile(prof);
@@ -513,6 +525,29 @@ export default function BankDetails() {
                         {filteredBanks.length === 0 && (
                           <div className="p-4 text-center text-xs text-slate-400">
                             No bank found. You can enter custom bank name below.
+                          </div>
+                        )}
+
+                        {currentPage < totalPages && (
+                          <div className="border-t border-slate-100 p-2 text-center bg-slate-50/50">
+                            <button
+                              type="button"
+                              onClick={handleLoadMoreBanks}
+                              disabled={loadingMoreBanks}
+                              className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-xs font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
+                            >
+                              {loadingMoreBanks ? (
+                                <>
+                                  <LoaderCircle size={14} className="animate-spin" />
+                                  <span>Loading more banks...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown size={14} />
+                                  <span>Load more banks ({availableBanks.length} loaded · Page {currentPage}/{totalPages})</span>
+                                </>
+                              )}
+                            </button>
                           </div>
                         )}
                       </div>

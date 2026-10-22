@@ -147,13 +147,21 @@ export default function Profile() {
     }
   }, []);
 
-  const handleProfileUpdated = async () => {
-    await refreshProfile();
+  const handleProfileUpdated = (updated?: RetailerFullProfile) => {
+    if (updated?.id) {
+      setProfile(updated);
+    } else {
+      refreshProfile();
+    }
     showToast("Profile details updated successfully!");
   };
 
-  const handleDocumentUpdated = async () => {
-    await refreshProfile();
+  const handleDocumentUpdated = (updated?: RetailerFullProfile) => {
+    if (updated?.id) {
+      setProfile(updated);
+    } else {
+      refreshProfile();
+    }
     showToast("Document uploaded successfully and submitted for review!");
   };
 
@@ -174,8 +182,12 @@ export default function Profile() {
     setBankModalState({ open: true, bankToEdit: bank });
   };
 
-  const handleBankUpdated = async () => {
-    await refreshProfile();
+  const handleBankUpdated = (updated?: RetailerFullProfile) => {
+    if (updated?.id) {
+      setProfile(updated);
+    } else {
+      refreshProfile();
+    }
     showToast(
       bankModalState.bankToEdit
         ? "Bank account details updated successfully."
@@ -188,13 +200,17 @@ export default function Profile() {
 
     try {
       setSettingPrimaryBankId(bank._id);
-      const res = await updateRetailerProfile({
+      const res = await updateRetailerProfile<RetailerFullProfile>({
         action: "SET_PRIMARY_BANK",
         bankId: bank._id,
       });
 
       if (res && (res.success || res.data)) {
-        await refreshProfile();
+        if (res.data?.id) {
+          setProfile(res.data);
+        } else {
+          await refreshProfile();
+        }
         showToast(`${bank.name || "Bank account"} is now set as your primary settlement account.`);
       } else {
         throw new Error(res?.message || "Failed to update primary bank.");
@@ -217,13 +233,17 @@ export default function Profile() {
 
     try {
       setIsDeletingBank(true);
-      const res = await updateRetailerProfile({
+      const res = await updateRetailerProfile<RetailerFullProfile>({
         action: "DELETE_BANK",
         bankId: deletingBank._id,
       });
 
       if (res && (res.success || res.data)) {
-        await refreshProfile();
+        if (res.data?.id) {
+          setProfile(res.data);
+        } else {
+          await refreshProfile();
+        }
         showToast(`${deletingBank.name || "Bank account"} deleted successfully.`);
         setDeletingBank(null);
       } else {
@@ -636,13 +656,13 @@ export default function Profile() {
                           Personal Information
                         </h3>
                       </div>
-                      <button
+                      {/* <button
                         type="button"
                         onClick={() => setIsEditModalOpen(true)}
                         className="text-xs font-semibold text-[#7c3aed] hover:underline"
                       >
                         Edit
-                      </button>
+                      </button> */}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
@@ -743,13 +763,13 @@ export default function Profile() {
                           Shop & Business Details
                         </h3>
                       </div>
-                      <button
+                      {/* <button
                         type="button"
                         onClick={() => setIsEditModalOpen(true)}
                         className="text-xs font-semibold text-[#7c3aed] hover:underline"
                       >
                         Edit
-                      </button>
+                      </button> */}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3 text-xs">

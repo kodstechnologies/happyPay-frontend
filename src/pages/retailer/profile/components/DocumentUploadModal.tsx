@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import { Upload, FileText, AlertCircle } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
-import { updateRetailerProfile, type RetailerUpdateResponse } from "../../../../services/api/retailer/retailerProfileApi";
+import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
+import type { RetailerFullProfile } from "../../../../types/retailer/profile";
 
 interface DocumentUploadModalProps {
   open: boolean;
@@ -9,7 +10,7 @@ interface DocumentUploadModalProps {
   documentKey: string;
   documentTitle: string;
   currentUrl?: string | null;
-  onSuccess: (updatedProfile?: RetailerUpdateResponse) => void;
+  onSuccess: (updatedProfile?: RetailerFullProfile) => void;
 }
 
 export default function DocumentUploadModal({

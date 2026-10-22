@@ -1431,7 +1431,7 @@ const Dmt = () => {
     title: string;
   }) => {
     return (
-      <div className="hp-page-head mx-auto w-full max-w-[760px]">
+      <div className="hp-page-head mx-auto w-full">
         <button
           type="button"
           onClick={handleBack}
@@ -1461,7 +1461,7 @@ const Dmt = () => {
     return (
       <div className="">
         <main className="mt-4">
-          <div className="mx-auto w-full max-w-[760px] space-y-4">
+          <div className="mx-auto w-full space-y-4">
             <section className="min-h-[126px] overflow-hidden rounded-[16px] border border-[#f4d6dc] bg-white p-4 text-[#172033] shadow-[0_12px_28px_-18px_rgba(15,23,42,0.14)] sm:p-5">
               <div className="flex h-full flex-col gap-3 md:flex-row md:items-center md:gap-4">
                 <div className="flex min-w-0 items-center gap-4 md:w-[29%] md:shrink-0">
@@ -1637,7 +1637,7 @@ const Dmt = () => {
       <div className="">
         <PageHeader title="OTP Verification" />
 
-        <main className="mx-auto mt-3 flex max-w-[760px] flex-col items-center py-4 text-center sm:py-6">
+        <main className="mx-auto mt-3 flex flex-col items-center py-4 text-center sm:py-6">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#eef1f5]">
             <MessageSquare className="h-9 w-9 fill-[#172033] text-[#172033]" />
           </div>
@@ -2061,7 +2061,7 @@ const Dmt = () => {
       <div className="">
         <PageHeader title="Customer Details" />
 
-        <main className="mx-auto mt-4 max-w-[760px]">
+        <main className="mx-auto mt-4 ">
           {/* Customer Card */}
           <section className="rounded-[16px] border border-[#f6d6dc] bg-white p-4 shadow-md sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -2486,7 +2486,7 @@ const Dmt = () => {
       <div className="">
         <PageHeader title="Send Money Transfer" />
 
-        <main className="mx-auto mt-4 max-w-[760px]">
+        <main className="mx-auto w-full mt-4 ">
           {/* Beneficiary Card */}
           <section className="rounded-[18px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-4">
