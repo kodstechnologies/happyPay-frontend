@@ -12,6 +12,10 @@ export interface AdminLoginRequest {
   email: string;
   password: string;
   rememberMe?: boolean;
+  fcmToken?: string | null;
+  deviceId?: string;
+  platform?: string;
+  deviceName?: string;
 }
 
 export interface AdminRegisterRequest {

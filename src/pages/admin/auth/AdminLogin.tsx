@@ -3,6 +3,7 @@ import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { saveAdminSession } from "../../../utils/adminAuth";
 import { loginAdmin } from "../../../services/api/admin/adminAuthApi";
+import { getFCMToken } from "../../../config/firebase";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -24,10 +25,25 @@ export default function AdminLogin() {
 
     setIsSubmitting(true);
     try {
+      // Get FCM token for push notifications
+      let fcmToken = null;
+      try {
+        fcmToken = await getFCMToken();
+        if (fcmToken) {
+          localStorage.setItem("adminFcmToken", fcmToken);
+        }
+      } catch (e) {
+        console.warn("Failed to get FCM token", e);
+      }
+
       const data = await loginAdmin({
         email: email.trim(),
         password,
         rememberMe,
+        fcmToken: fcmToken || localStorage.getItem("adminFcmToken") || null,
+        deviceId: localStorage.getItem("adminDeviceId") || crypto.randomUUID(),
+        platform: "web",
+        deviceName: navigator.platform || "Web browser",
       });
 
       if (data?.accessToken) {
