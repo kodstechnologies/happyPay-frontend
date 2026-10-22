@@ -1449,7 +1449,7 @@ const Aeps = () => {
             referenceKey: cashDepositRefKey || basePayload.referenceKey,
             amount: withdrawalAmount,
             txnid: generateTransactionId(),
-            pidDatatype: (rawPid.PidDatatype as string) || "X",
+            PidDatatype: (rawPid.PidDatatype as string) || "X",
             Piddata: (rawPid.Piddata as string) || "",
             sysid: (rawPid.sysid as string) || "SYS01",
             nmPoints: (rawPid.nmPoints as string) || "0",

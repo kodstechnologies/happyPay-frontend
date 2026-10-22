@@ -328,7 +328,7 @@ export function cashWithdrawal(payload: CashWithdrawalPayload) {
 export interface CashDepositPayload extends AepsServicePayload {
   txnid: string;
   amount: number;
-  pidDatatype: string;
+  PidDatatype?: string;
   Piddata: string;
   sysid: string;
   nmPoints: string;
