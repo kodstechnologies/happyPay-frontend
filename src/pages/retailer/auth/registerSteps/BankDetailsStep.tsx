@@ -65,7 +65,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
           } else {
             setBanks(response.data);
           }
-          const meta = response.meta as { totalPages?: number } | undefined;
+          const meta = response.meta as unknown as { totalPages?: number } | undefined;
           if (meta?.totalPages) {
             setTotalPages(meta.totalPages);
           }

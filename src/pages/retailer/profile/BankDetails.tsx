@@ -94,7 +94,7 @@ export default function BankDetails() {
         if (bankListRes.status === "fulfilled" && bankListRes.value?.data) {
           const fetched = bankListRes.value.data.map((b) => b.name).filter(Boolean);
           setAvailableBanks(fetched);
-          const meta = bankListRes.value?.meta as { totalPages?: number } | undefined;
+          const meta = bankListRes.value?.meta as unknown as { totalPages?: number } | undefined;
           if (meta?.totalPages) {
             setTotalPages(meta.totalPages);
           }
@@ -129,7 +129,7 @@ export default function BankDetails() {
         const nextNames = res.data.map((b) => b.name).filter(Boolean);
         setAvailableBanks((prev) => Array.from(new Set([...prev, ...nextNames])));
         setCurrentPage(nextPage);
-        const meta = res?.meta as { totalPages?: number } | undefined;
+        const meta = res?.meta as unknown as { totalPages?: number } | undefined;
         if (meta?.totalPages) {
           setTotalPages(meta.totalPages);
         }
@@ -137,7 +137,7 @@ export default function BankDetails() {
     } catch (err) {
       console.error("Failed to load more banks:", err);
     } finally {
-      setIsLoadingMoreBanks(false);
+      setLoadingMoreBanks(false);
     }
   };
 
