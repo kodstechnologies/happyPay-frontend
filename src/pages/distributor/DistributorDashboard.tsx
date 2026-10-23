@@ -323,9 +323,7 @@ export default function DistributorDashboard() {
                               ) : (
                                 <p className="text-xs text-slate-400">Shop not specified</p>
                               )}
-                              <p className="text-[10px] font-mono text-slate-400 mt-0.5">
-                                ID: {retailer.id.slice(-8).toUpperCase()}
-                              </p>
+                              
                             </div>
                           </div>
                         </td>

@@ -402,7 +402,7 @@ export default function DistributorRetailerDetails() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-400">Date of Birth</p>
-                  <p className="font-semibold text-slate-800">{retailer.dateOfBirth || "-"}</p>
+                  <p className="font-semibold text-slate-800">{retailer.dateOfBirth?formatDate(retailer.dateOfBirth)?.split(',')[0]: "-"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-400">Marital Status</p>
