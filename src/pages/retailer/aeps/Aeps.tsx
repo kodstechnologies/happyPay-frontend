@@ -269,6 +269,7 @@ const Aeps = () => {
   const [isCheckingKyc, setIsCheckingKyc] = useState<boolean>(false);
   const [isDoingBioKyc, setIsDoingBioKyc] = useState<boolean>(false);
   const [ekycPrompt, setEkycPrompt] = useState<EkycPrompt | null>(null);
+  const [bioKycReferenceKey, setBioKycReferenceKey] = useState<string>("");
   const [bioKycError, setBioKycError] = useState<string>("");
   const [bioKycSuccess, setBioKycSuccess] = useState<string>("");
 
@@ -314,6 +315,9 @@ const Aeps = () => {
       const response = await checkDoEkyc(effectiveOutletId, userId);
       const prompt = readEkycPrompt(response);
       setEkycPrompt(prompt);
+      if (prompt.referenceKey) {
+        setBioKycReferenceKey(prompt.referenceKey);
+      }
 
       const statusData = response?.data;
       const rawResponse = response as unknown as Record<string, unknown> | undefined;
@@ -333,6 +337,13 @@ const Aeps = () => {
       }
     } catch (err: unknown) {
       console.warn("eKYC status check:", err);
+      // Extract referenceKey & pidOptionWadh even if check-bio-kyc returned 400 (e.g. pending registration)
+      const prompt = readEkycPrompt(err);
+      if (prompt.referenceKey) {
+        setEkycPrompt(prompt);
+        setBioKycReferenceKey(prompt.referenceKey);
+        console.log("[AePS] Captured referenceKey in React state from check bio kyc response:", prompt.referenceKey);
+      }
     } finally {
       setIsCheckingKyc(false);
     }
@@ -1806,6 +1817,37 @@ const Aeps = () => {
     setBioKycSuccess("");
 
     try {
+      // Step 1: Ensure active referenceKey from check-bio-kyc API stored in React state
+      let activePrompt = ekycPrompt;
+      let activeRefKey = bioKycReferenceKey || activePrompt?.referenceKey || "";
+
+      if (!activeRefKey) {
+        try {
+          const checkRes = await checkDoEkyc(effectiveOutletId, userId);
+          const p = readEkycPrompt(checkRes);
+          if (p.referenceKey) {
+            activePrompt = p;
+            activeRefKey = p.referenceKey;
+            setEkycPrompt(p);
+            setBioKycReferenceKey(p.referenceKey);
+          }
+        } catch (checkErr: unknown) {
+          const p = readEkycPrompt(checkErr);
+          if (p.referenceKey) {
+            activePrompt = p;
+            activeRefKey = p.referenceKey;
+            setEkycPrompt(p);
+            setBioKycReferenceKey(p.referenceKey);
+          }
+        }
+      }
+
+      const refKey = activeRefKey || bioKycReferenceKey || activePrompt?.referenceKey || "";
+
+      if (!refKey) {
+        throw new Error("Reference key not found from Check Bio KYC API. Please refresh and try again.");
+      }
+
       let targetPort = selectedDevicePort;
 
       // Auto-scan if no device selected
@@ -1827,9 +1869,9 @@ const Aeps = () => {
         }
       }
 
-      // Capture fingerprint with WADH from ekycPrompt if available, and fType: "2" (ISO 19794-2)
+      // Capture fingerprint with WADH from activePrompt if available, and fType: "2" (ISO 19794-2)
       const captureResult = await rdService.captureFingerprint(targetPort, {
-        wadh: ekycPrompt?.pidOptionWadh,
+        wadh: activePrompt?.pidOptionWadh,
         fType: "2",
       });
 
@@ -1841,12 +1883,6 @@ const Aeps = () => {
       const coords = await ensureConfirmedLocation();
 
       const parsedData = parsePidXml(captureResult.data);
-
-      const refKey =
-        ekycPrompt?.referenceKey ||
-        authUser?.AepsEkyc?.referenceKey ||
-        localStorage.getItem("referenceKey") ||
-        "";
 
       await doBioEkyc({
         userId,
@@ -1860,7 +1896,6 @@ const Aeps = () => {
       setBioKycSuccess("Biometric eKYC completed successfully!");
       setBioKycCompletedLocally(true);
       localStorage.setItem("outletId", effectiveOutletId);
-      if (refKey) localStorage.setItem("referenceKey", refKey);
 
       if (refreshUser) {
         await refreshUser();
