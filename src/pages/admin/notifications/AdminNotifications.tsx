@@ -1,29 +1,107 @@
-import { Bell, Check, Info, AlertTriangle, BellRing, Search } from "lucide-react";
-import { useState } from "react";
+import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw } from "lucide-react";
+import { useState, useEffect } from "react";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "../../../services/api/admin/adminNotificationsApi";
 
-const DUMMY_NOTIFICATIONS = [
-  { id: "1", type: "success", title: "Retailer 2FA Completed", message: "Retailer Ramesh Kumar (RET001) successfully completed 2FA authentication.", time: "10 mins ago", isRead: false },
-  { id: "2", type: "info", title: "New Transaction", message: "Retailer Suresh Verma (RET042) initiated an AEPS Cash Withdrawal of ₹5,000.", time: "25 mins ago", isRead: false },
-  { id: "3", type: "success", title: "New Retailer Registered", message: "Retailer Amit Singh has successfully completed KYC verification.", time: "4 hours ago", isRead: false },
-  { id: "4", type: "warning", title: "High Transaction Volume", message: "Unusually high DMT transaction volume detected from Retailer Rajesh (RET012).", time: "1 day ago", isRead: true },
-  { id: "5", type: "info", title: "System Update Scheduled", message: "A system update is scheduled for tonight at 2:00 AM.", time: "2 days ago", isRead: true },
-];
+interface Notification {
+  _id: string;
+  recipientId: string;
+  recipientType: "admin" | "retailer";
+  type: string;
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  isRead: boolean;
+  readAt?: Date;
+  createdAt: Date;
+  fcmSent?: boolean;
+  fcmFailureReason?: string;
+}
 
 export default function AdminNotifications() {
-  const [notifications, setNotifications] = useState(DUMMY_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const response = await getNotifications({ page: 1, limit: 50 });
+      setNotifications(response.data.notifications);
+    } catch (error) {
+      console.error("Failed to fetch notifications:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const markAsRead = (id: string) => {
-    setNotifications(notifications.map(n => (n.id === id ? { ...n, isRead: true } : n)));
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadNotifications = async () => {
+      try {
+        setLoading(true);
+        const response = await getNotifications({ page: 1, limit: 50 });
+        if (isMounted) {
+          setNotifications(response.data.notifications);
+        }
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const markAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsRead();
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    } catch (error) {
+      console.error("Failed to mark all as read:", error);
+    }
+  };
+
+  const markAsRead = async (id: string) => {
+    try {
+      await markNotificationAsRead(id);
+      setNotifications(notifications.map(n => (n._id === id ? { ...n, isRead: true } : n)));
+    } catch (error) {
+      console.error("Failed to mark as read:", error);
+    }
+  };
+
+  const formatTime = (date: Date) => {
+    const now = new Date();
+    const notificationDate = new Date(date);
+    const diffMs = now.getTime() - notificationDate.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "Just now";
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return `${diffDays} days ago`;
+  };
+
+  const getNotificationType = (type: string) => {
+    if (type === "NEW_RETAILER_REGISTRATION") return "success";
+    if (type === "KYC_APPROVED") return "success";
+    if (type === "KYC_REJECTED") return "warning";
+    return "info";
   };
 
   const filteredNotifications = notifications.filter(n =>
     n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.message.toLowerCase().includes(searchTerm.toLowerCase())
+    n.body.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -55,6 +133,15 @@ export default function AdminNotifications() {
           </div>
           <button
             type="button"
+            onClick={fetchNotifications}
+            disabled={loading}
+            className="flex h-9 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 text-[#315bd1] ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <button
+            type="button"
             onClick={markAllAsRead}
             className="flex h-9 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors"
           >
@@ -66,53 +153,61 @@ export default function AdminNotifications() {
 
       {/* List */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {filteredNotifications.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Loader2 className="h-8 w-8 text-slate-300 animate-spin mb-4" />
+            <h3 className="text-sm font-bold text-slate-900">Loading notifications...</h3>
+          </div>
+        ) : filteredNotifications.length > 0 ? (
           <div className="divide-y divide-slate-100">
-            {filteredNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                className={`flex gap-4 p-5 transition-colors hover:bg-slate-50 ${
-                  !notification.isRead ? "bg-blue-50/50" : ""
-                }`}
-              >
-                <div className="mt-1 shrink-0">
-                  {notification.type === "info" && (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                      <Info className="h-5 w-5" />
-                    </div>
-                  )}
-                  {notification.type === "success" && (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                      <Check className="h-5 w-5" />
-                    </div>
-                  )}
-                  {notification.type === "warning" && (
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                      <AlertTriangle className="h-5 w-5" />
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className={`text-sm font-bold ${!notification.isRead ? "text-slate-900" : "text-slate-700"}`}>
-                        {notification.title}
-                      </h3>
-                      <p className="mt-1 text-sm text-slate-500">{notification.message}</p>
-                      <p className="mt-2 text-xs font-semibold text-slate-400">{notification.time}</p>
-                    </div>
-                    {!notification.isRead && (
-                      <button
-                        onClick={() => markAsRead(notification.id)}
-                        className="shrink-0 text-xs font-bold text-[#315bd1] hover:text-[#23429b] transition-colors"
-                      >
-                        Mark read
-                      </button>
+            {filteredNotifications.map((notification) => {
+              const notificationType = getNotificationType(notification.type);
+              return (
+                <div
+                  key={notification._id}
+                  className={`flex gap-4 p-5 transition-colors hover:bg-slate-50 ${
+                    !notification.isRead ? "bg-blue-50/50" : ""
+                  }`}
+                >
+                  <div className="mt-1 shrink-0">
+                    {notificationType === "info" && (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                        <Info className="h-5 w-5" />
+                      </div>
+                    )}
+                    {notificationType === "success" && (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                        <Check className="h-5 w-5" />
+                      </div>
+                    )}
+                    {notificationType === "warning" && (
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
+                        <AlertTriangle className="h-5 w-5" />
+                      </div>
                     )}
                   </div>
+                  <div className="flex-1">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <h3 className={`text-sm font-bold ${!notification.isRead ? "text-slate-900" : "text-slate-700"}`}>
+                          {notification.title}
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">{notification.body}</p>
+                        <p className="mt-2 text-xs font-semibold text-slate-400">{formatTime(notification.createdAt)}</p>
+                      </div>
+                      {!notification.isRead && (
+                        <button
+                          onClick={() => markAsRead(notification._id)}
+                          className="shrink-0 text-xs font-bold text-[#315bd1] hover:text-[#23429b] transition-colors"
+                        >
+                          Mark read
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-12 text-center">
