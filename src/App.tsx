@@ -1,5 +1,5 @@
 import { useEffect, Suspense } from "react";
-import { useRoutes, useLocation } from "react-router-dom";
+import { useRoutes, useLocation, useNavigate } from "react-router-dom";
 import Router from "./routes/router";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -10,6 +10,7 @@ import HappyPayLoader from "./components/common/HappyPayLoader";
 function App() {
   const routing = useRoutes(Router);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (location.pathname.startsWith('/admin')) {
@@ -24,17 +25,37 @@ function App() {
     const unsubscribe = registerForegroundNotificationHandler((payload) => {
       const title = payload?.notification?.title || "New Notification";
       const body = payload?.notification?.body || "";
-      toast.info(`${title}: ${body}`);
+      const data = payload?.data || {};
+
+      // Show toast notification
+      toast.info(`${title}: ${body}`, {
+        onClick: () => {
+          // Handle navigation based on notification type
+          const notificationType = data.type;
+          const screen = data.screen;
+          if (notificationType === "NEW_RETAILER_REGISTRATION" && screen === "ADMIN_RETAILERS") {
+            navigate("/admin/retailers");
+          } else if (notificationType === "KYC_APPROVED" && screen === "KYC") {
+            navigate("/retailer/profile");
+          } else if (notificationType === "KYC_REJECTED" && screen === "KYC") {
+            navigate("/retailer/profile");
+          } else if (notificationType === "REGISTRATION_SUCCESS" && screen === "DASHBOARD") {
+            navigate("/retailer/dashboard");
+          }
+        },
+      });
+
+      console.log("Notification received:", payload);
     });
 
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [navigate]);
 
   return (
     <AuthProvider>
-      <ToastContainer position="top-right" autoClose={3000} hideProgressBar={false} />
+      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
       <Suspense
         fallback={
           <HappyPayLoader
@@ -45,7 +66,7 @@ function App() {
         }
       >
         {routing}
-        
+
       </Suspense>
     </AuthProvider>
   );
