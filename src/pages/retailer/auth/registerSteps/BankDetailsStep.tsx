@@ -30,6 +30,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
     const [bankName, setBankName] = useState("");
+    const [bank_id, setBankId] = useState<string | number | undefined>(undefined);
     const [ifscCode, setIfscCode] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
@@ -102,8 +103,9 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       }
     };
 
-    const handleBankSelect = (selectedName: string) => {
-      setBankName(selectedName);
+    const handleBankSelect = (bank: Bank) => {
+      setBankName(bank.name);
+      setBankId(bank.bank_id);
       setIsDropdownOpen(false);
       setBankSearch("");
       setError("");
@@ -183,9 +185,15 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       localStorage.setItem("retailerDeviceId", deviceId);
       const fcmToken = localStorage.getItem("fcmToken") || null;
 
+      const effectiveBankId =
+        bank_id !== undefined && bank_id !== null && bank_id !== ""
+          ? String(bank_id)
+          : banks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+
       await updateRetailerBankDetails({
         userId,
         bankName,
+        bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
         ifscCode,
         accountNumber,
         fcmToken,
@@ -316,9 +324,9 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
               <div className="max-h-60 overflow-y-auto">
                 {filteredBanks.map((bank) => (
                   <button
-                    key={bank.id || bank.name}
+                    key={bank.id || bank.bank_id || bank.name}
                     type="button"
-                    onClick={() => handleBankSelect(bank.name)}
+                    onClick={() => handleBankSelect(bank)}
                     className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
                       bankName === bank.name
                         ? "bg-purple-50 text-[#7c3aed] font-bold"

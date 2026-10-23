@@ -44,6 +44,7 @@ export default function BankModal({
   const isEdit = Boolean(bankToEdit);
 
   const [bankName, setBankName] = useState(bankToEdit?.name || "");
+  const [bank_id, setBankId] = useState<string | number | undefined>(bankToEdit?.bank_id);
   const [accountNumber, setAccountNumber] = useState(bankToEdit?.accountNumber || "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState(
     bankToEdit?.accountNumber || ""
@@ -133,8 +134,9 @@ export default function BankModal({
     }
   };
 
-  const handleBankSelect = (selectedName: string) => {
-    setBankName(selectedName);
+  const handleBankSelect = (bank: Bank) => {
+    setBankName(bank.name);
+    setBankId(bank.bank_id);
     setIsDropdownOpen(false);
     setBankSearch("");
     setError(null);
@@ -177,10 +179,16 @@ export default function BankModal({
     try {
       setIsSubmitting(true);
 
+      const effectiveBankId =
+        bank_id !== undefined && bank_id !== null && bank_id !== ""
+          ? String(bank_id)
+          : availableBanks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+
       const payload: Record<string, unknown> = {
         action: isEdit ? "EDIT_BANK" : "ADD_BANK",
         bankId: bankToEdit?._id,
         bankName: bankName.trim(),
+        bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
         accountNumber: accountNumber.trim(),
         confirmAccountNumber: confirmAccountNumber.trim(),
         ifscCode: ifscCode.trim().toUpperCase(),
@@ -318,9 +326,9 @@ export default function BankModal({
                   <div className="max-h-52 overflow-y-auto">
                     {filteredBanks.map((bank) => (
                       <button
-                        key={bank.id || bank.name}
+                        key={bank.id || bank.bank_id || bank.name}
                         type="button"
-                        onClick={() => handleBankSelect(bank.name)}
+                        onClick={() => handleBankSelect(bank)}
                         className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-xs font-medium transition ${
                           bankName === bank.name
                             ? "bg-purple-50 text-[#7c3aed] font-bold"

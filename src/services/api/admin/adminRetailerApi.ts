@@ -106,16 +106,79 @@ export function getAdminDistributorSubRetailers(
  */
 export function updateAdminRetailerAccountStatus(
   id: string,
-  status: "active" | "suspended" | "blocked" | "approved" | "rejected" | "pending"
+  status: "active" | "suspended" | "blocked" | "approved" | "rejected" | "pending",
+  reason?: string
 ) {
   return apiClient<Envelope<{ id: string; status: string; adminApproved: string }>>(
     `/api/admin/retailers/${id}/status`,
     {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason }),
       token: getAdminToken() ?? undefined,
     }
   );
+}
+
+export interface ReviewRetailerDocumentParams {
+  retailerId: string;
+  documentField: string;
+  action: "approve" | "reject";
+  reason?: string;
+}
+
+/**
+ * PATCH /api/v1/auth/admin/retailers/:retailerId/documents/review
+ * Unified API to review (approve or reject) any retailer document.
+ * Performs action dynamically based on document type and action.
+ */
+export function reviewAdminRetailerDocument({
+  retailerId,
+  documentField,
+  action,
+  reason,
+}: ReviewRetailerDocumentParams) {
+  return apiClient<Envelope<unknown>>(
+    `/api/v1/auth/admin/retailers/${retailerId}/documents/review`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        documentField,
+        action,
+        reason,
+      }),
+      token: getAdminToken() ?? undefined,
+    }
+  );
+}
+
+/**
+ * Approves an individual document for a retailer (delegates to reviewAdminRetailerDocument).
+ */
+export function approveAdminRetailerDocument(
+  retailerId: string,
+  documentField: string
+) {
+  return reviewAdminRetailerDocument({
+    retailerId,
+    documentField,
+    action: "approve",
+  });
+}
+
+/**
+ * Rejects an individual document for a retailer with a reason (delegates to reviewAdminRetailerDocument).
+ */
+export function rejectAdminRetailerDocument(
+  retailerId: string,
+  documentField: string,
+  reasonOfRejection: string
+) {
+  return reviewAdminRetailerDocument({
+    retailerId,
+    documentField,
+    action: "reject",
+    reason: reasonOfRejection,
+  });
 }
 
 /**

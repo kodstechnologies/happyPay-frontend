@@ -41,6 +41,7 @@ export interface RetailerShop {
 
 export interface RetailerBank {
   _id?: string;
+  bank_id?: string | number;
   name: string;
   ifscCode: string;
   accountNumber: string;

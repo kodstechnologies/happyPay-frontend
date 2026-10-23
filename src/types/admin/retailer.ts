@@ -7,16 +7,49 @@ export interface AdminRetailer {
   fullName?: string;
   email?: string;
   mobile?: string;
+  fatherName?: string;
+  gender?: string;
+  maritalStatus?: string;
+  educationalQualification?: string;
+  dateOfBirth?: string;
   panNumber?: string;
   aadhaarNumber?: string;
   aadhaarVerified?: boolean;
   isEmailVerified?: boolean;
   isMobileVerified?: boolean;
-  shop?: { name?: string; address?: { addressLine?: string; city?: string; state?: string; pincode?: string } }
+  panDocument?: string;
+  aadhaarDocument?: string;
+  businessProofDocument?: string;
+  businessProofType?: { _id?: string; name?: string; code?: string } | string;
+  selfie?: string;
+  shopInsidePhoto?: string;
+  shopOutsidePhoto?: string;
+  shopLocationPhoto?: string;
+  documentReviews?: Record<string, { status?: string; rejectionReason?: string | null; reviewedAt?: string | null }>;
+  banks?: Array<{
+    _id?: string;
+    name?: string;
+    ifscCode?: string;
+    accountNumber?: string;
+    confirmAccountNumber?: string;
+    branchName?: string;
+    isPrimary?: boolean;
+    isActive?: boolean;
+  }>;
+  shop?: {
+    name?: string;
+    completeAddress?: string;
+    category?: { _id?: string; name?: string } | string;
+    propertyType?: { _id?: string; name?: string } | string;
+    address?: { addressLine?: string; city?: string; state?: string; pincode?: string };
+    location?: { latitude?: number; longitude?: number };
+  };
   kycStatus?: "pending" | "under_review" | "approved" | "rejected";
+  adminApproved?: "pending" | "approved" | "rejected";
   status?: "pending" | "approved" | "active" | "rejected" | "suspended" | "blocked";
   role?: "distributor" | "retailer";
   kycRejectionReason?: string;
+  reasonOfRejection?: string;
   createdAt?: string;
   updatedAt?: string;
 }

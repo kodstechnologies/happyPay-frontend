@@ -21,7 +21,7 @@ import {
   getRetailerProfile,
   updateRetailerProfile,
 } from "../../../services/api/retailer/retailerProfileApi";
-import { getBankList } from "../../../services/api/retailer/retailerAuthApi";
+import { getBankList, type Bank } from "../../../services/api/retailer/retailerAuthApi";
 import type { RetailerFullProfile, RetailerBank } from "../../../types/retailer/profile";
 
 const ACCOUNT_TYPES = [
@@ -44,7 +44,7 @@ export default function BankDetails() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Bank list options & pagination
-  const [availableBanks, setAvailableBanks] = useState<string[]>([]);
+  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -52,6 +52,7 @@ export default function BankDetails() {
 
   // Form State
   const [bankName, setBankName] = useState("");
+  const [bank_id, setBankId] = useState<string | number | undefined>(undefined);
   const [accountHolder, setAccountHolder] = useState("");
   const [accountType, setAccountType] = useState("Current Account");
   const [ifsc, setIfsc] = useState("");
@@ -80,6 +81,7 @@ export default function BankDetails() {
 
           if (primaryBank) {
             setBankName(primaryBank.name || "");
+            setBankId(primaryBank.bank_id);
             setIfsc(primaryBank.ifscCode || "");
             setAccountNumber(primaryBank.accountNumber || "");
             setConfirmAccountNumber(primaryBank.accountNumber || "");
@@ -92,8 +94,7 @@ export default function BankDetails() {
         }
 
         if (bankListRes.status === "fulfilled" && bankListRes.value?.data) {
-          const fetched = bankListRes.value.data.map((b) => b.name).filter(Boolean);
-          setAvailableBanks(fetched);
+          setAvailableBanks(bankListRes.value.data);
           const meta = bankListRes.value?.meta as unknown as { totalPages?: number } | undefined;
           if (meta?.totalPages) {
             setTotalPages(meta.totalPages);
@@ -126,8 +127,11 @@ export default function BankDetails() {
       const nextPage = currentPage + 1;
       const res = await getBankList(nextPage, BANKS_PER_PAGE);
       if (res && res.data) {
-        const nextNames = res.data.map((b) => b.name).filter(Boolean);
-        setAvailableBanks((prev) => Array.from(new Set([...prev, ...nextNames])));
+        setAvailableBanks((prev) => {
+          const existingIds = new Set(prev.map((b) => b.id || b.bank_id || b.name));
+          const newItems = res.data.filter((b) => !existingIds.has(b.id || b.bank_id || b.name));
+          return [...prev, ...newItems];
+        });
         setCurrentPage(nextPage);
         const meta = res?.meta as unknown as { totalPages?: number } | undefined;
         if (meta?.totalPages) {
@@ -154,12 +158,13 @@ export default function BankDetails() {
 
   // Filtered banks for search
   const filteredBanks = availableBanks.filter((b) =>
-    b.toLowerCase().includes(bankSearch.toLowerCase())
+    b.name.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
   // Form handlers
-  const handleBankSelect = (bank: string) => {
-    setBankName(bank);
+  const handleBankSelect = (bank: Bank) => {
+    setBankName(bank.name);
+    setBankId(bank.bank_id);
     setOpenDropdown(null);
     setBankSearch("");
     setError(null);
@@ -247,9 +252,17 @@ export default function BankDetails() {
 
       let payload: FormData | Record<string, unknown>;
 
+      const effectiveBankId =
+        bank_id !== undefined && bank_id !== null && bank_id !== ""
+          ? String(bank_id)
+          : availableBanks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+
       if (proofFile) {
         const formData = new FormData();
         formData.append("bankName", bankName.trim());
+        if (effectiveBankId) {
+          formData.append("bank_id", String(effectiveBankId));
+        }
         formData.append("accountNumber", accountNumber.trim());
         formData.append("ifscCode", ifsc.trim().toUpperCase());
         formData.append("branchName", branchName.trim());
@@ -258,6 +271,7 @@ export default function BankDetails() {
       } else {
         payload = {
           bankName: bankName.trim(),
+          bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
           accountNumber: accountNumber.trim(),
           ifscCode: ifsc.trim().toUpperCase(),
           branchName: branchName.trim(),
@@ -279,6 +293,7 @@ export default function BankDetails() {
           const updatedPrimary = prof.primaryBank || prof.banks?.[0];
           if (updatedPrimary) {
             setBankName(updatedPrimary.name || "");
+            setBankId(updatedPrimary.bank_id);
             setIfsc(updatedPrimary.ifscCode || "");
             setAccountNumber(updatedPrimary.accountNumber || "");
             setConfirmAccountNumber(updatedPrimary.accountNumber || "");
@@ -508,17 +523,17 @@ export default function BankDetails() {
                       <div className="max-h-[220px] overflow-y-auto">
                         {filteredBanks.map((bank) => (
                           <button
-                            key={bank}
+                            key={bank.id || bank.bank_id || bank.name}
                             type="button"
                             onClick={() => handleBankSelect(bank)}
                             className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
-                              bankName === bank
+                              bankName === bank.name
                                 ? "bg-purple-50 text-[#7c3aed] font-bold"
                                 : "text-slate-700 hover:bg-slate-50"
                             }`}
                           >
-                            <span>{bank}</span>
-                            {bankName === bank && <Check size={16} className="text-[#7c3aed]" />}
+                            <span>{bank.name}</span>
+                            {bankName === bank.name && <Check size={16} className="text-[#7c3aed]" />}
                           </button>
                         ))}
 

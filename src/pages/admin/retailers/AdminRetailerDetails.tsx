@@ -1,14 +1,37 @@
-import { ArrowLeft, Eye, Download, CheckCircle, XCircle, X, FileText, ShieldCheck, ShieldAlert, Clock, ZoomIn, ZoomOut, RotateCw, Search, Store, User, CreditCard, MapPin, Phone, Mail, IndianRupee, TrendingUp } from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  ArrowLeft,
+  Eye,
+  Download,
+  CheckCircle,
+  XCircle,
+  X,
+  FileText,
+  ShieldCheck,
+  ShieldAlert,
+  Clock,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Search,
+  Store,
+  User,
+  CreditCard,
+  MapPin,
+  Phone,
+  Mail,
+  IndianRupee,
+  TrendingUp,
+} from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { DUMMY_RETAILERS, DUMMY_SUB_RETAILERS, generateTransactions } from "./mockRetailers";
-import type { SubRetailer } from "./mockRetailers";
 import Pagination from "../../../components/common/Pagination";
 import {
   getAdminRetailer,
   getAdminRetailerTransactions,
   getAdminDistributorSubRetailers,
   updateAdminRetailerKyc,
+  updateAdminRetailerAccountStatus,
+  reviewAdminRetailerDocument,
 } from "../../../services/api/admin/adminRetailerApi";
 import type {
   AdminRetailer,
@@ -18,9 +41,10 @@ import type {
   TransactionService,
 } from "../../../types/admin/retailer";
 
-type Tab = 'registration' | 'transactions' | 'retailers';
-type TxFilter = 'AEPS' | 'DMT' | 'CMS' | 'UPI Cashpoint' | 'Aadhar pay' | 'BBPS' | 'Others';
-type DocStatus = 'pending' | 'approved' | 'rejected';
+type Tab = "registration" | "transactions" | "retailers";
+type TxFilter = "All" | "AEPS" | "UPI Cashpoint" | "Aadhar pay" | "BBPS" | "DMT" | "CMS" | "Others";
+type DocStatus = "pending" | "approved" | "rejected";
+type DocFilter = "all" | "pending" | "approved" | "rejected";
 
 interface DocumentItem {
   id: string;
@@ -33,131 +57,216 @@ interface DocumentItem {
 }
 
 export default function AdminRetailerDetails() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  
-  const [activeTab, setActiveTab] = useState<Tab>('registration');
-  const [txFilter, setTxFilter] = useState<TxFilter>('AEPS');
-  
+
+  const [activeTab, setActiveTab] = useState<Tab>("registration");
+  const [txFilter, setTxFilter] = useState<TxFilter>("All");
+  const [docFilter, setDocFilter] = useState<DocFilter>("all");
+
+  // Retailer data state
+  const [liveRetailer, setLiveRetailer] = useState<AdminRetailer | null>(null);
+  const [retailerLoading, setRetailerLoading] = useState(true);
+  const [retailerError, setRetailerError] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
   // Document viewer modal
   const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
-  
-  // Rejection modal
-  // Rejection modal
+
+  // Rejection modal state (handles document rejection and overall retailer rejection)
   const [rejectingDoc, setRejectingDoc] = useState<DocumentItem | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [rejectionReasonError, setRejectionReasonError] = useState('');
+  const [isRejectingRetailer, setIsRejectingRetailer] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionReasonError, setRejectionReasonError] = useState("");
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Live Retailer Data
-  const [liveRetailer, setLiveRetailer] = useState<AdminRetailer | null>(null);
-
-  // Live Transactions Tab state
+  // Transactions Tab state (real data only)
   const [liveTransactions, setLiveTransactions] = useState<AdminTransaction[]>([]);
   const [txPagination, setTxPagination] = useState<PaginationMeta | null>(null);
   const [txPage, setTxPage] = useState(1);
   const [txLoading, setTxLoading] = useState(false);
 
-  // Retailers tab state
-  const [subRetailerSearch, setSubRetailerSearch] = useState('');
+  // Retailers tab state (distributor sub-retailers - real data only)
+  const [subRetailerSearch, setSubRetailerSearch] = useState("");
   const [subRetailerPage, setSubRetailerPage] = useState(1);
-  const SUB_RETAILER_PAGE_SIZE = 5;
-
-  // Live Sub-Retailers Tab state
+  const SUB_RETAILER_PAGE_SIZE = 8;
   const [liveSubRetailers, setLiveSubRetailers] = useState<AdminSubRetailer[]>([]);
   const [subRetailerPagination, setSubRetailerPagination] = useState<PaginationMeta | null>(null);
   const [subRetailersLoading, setSubRetailersLoading] = useState(false);
-  const [hasLoadedSubRetailers, setHasLoadedSubRetailers] = useState(false);
 
-  // Retailer Profile Modal
-  const [viewingRetailer, setViewingRetailer] = useState<SubRetailer | null>(null);
-  const [retailerTxPage, setRetailerTxPage] = useState(1);
-  const [retailerTxFilter, setRetailerTxFilter] = useState<string>('all');
-  const RETAILER_TX_PAGE_SIZE = 8;
-
-  // Sub-Retailer Modal live transactions
+  // Sub-Retailer Profile Modal (real data only)
+  const [viewingSubRetailer, setViewingSubRetailer] = useState<AdminSubRetailer | null>(null);
   const [modalLiveTx, setModalLiveTx] = useState<AdminTransaction[]>([]);
   const [modalTxPagination, setModalTxPagination] = useState<PaginationMeta | null>(null);
+  const [modalTxPage, setModalTxPage] = useState(1);
+  const [modalTxFilter, setModalTxFilter] = useState<string>("all");
   const [modalTxLoading, setModalTxLoading] = useState(false);
-  
-  // Document statuses (local state for demo)
-  const [documents, setDocuments] = useState<DocumentItem[]>([
-    {
-      id: 'pan',
-      label: 'PAN Card',
-      value: 'ABCDE1234F',
-      imageUrl: '/docs/pan_card.jpg',
-      status: 'pending',
-      uploadedAt: '2026-09-15'
-    },
-    {
-      id: 'aadhaar',
-      label: 'Aadhaar Card',
-      value: '1234-5678-9012',
-      imageUrl: '/docs/aadhaar_card.jpg',
-      status: 'approved',
-      uploadedAt: '2026-09-15'
-    },
-    {
-      id: 'gst',
-      label: 'Business Proof (GST)',
-      value: '29ABCDE1234F1Z5',
-      imageUrl: '/docs/gst_certificate.jpg',
-      status: 'rejected',
-      rejectionReason: 'Document is blurry and name does not match the registered business name. Please re-upload a clear copy.',
-      uploadedAt: '2026-09-16'
-    }
-  ]);
 
   // Fetch Retailer Profile from backend API
-  useEffect(() => {
+  const loadRetailer = useCallback(() => {
     if (!id) return;
-    let isMounted = true;
+    setRetailerLoading(true);
+    setRetailerError("");
+
     getAdminRetailer(id)
       .then((res) => {
-        if (isMounted && res?.data) {
+        if (res?.data) {
           setLiveRetailer(res.data);
+        } else {
+          setRetailerError("Retailer not found.");
         }
       })
       .catch((err) => {
-        console.warn("Could not fetch live retailer from API, falling back to mock:", err);
+        console.error("Could not fetch retailer profile:", err);
+        setRetailerError(err?.message || "Failed to load retailer details.");
+      })
+      .finally(() => {
+        setRetailerLoading(false);
       });
-
-    return () => {
-      isMounted = false;
-    };
   }, [id]);
 
-  // Read from live API data, then dummy items, with fallback for direct deep-linking
-  const dummyMatch = useMemo(() => DUMMY_RETAILERS.find(item => item.id === id), [id]);
-  const selected = liveRetailer || dummyMatch || (id ? {
-    id,
-    fullName: "Retailer " + id,
-    role: "retailer",
-    status: "active",
-    email: "-",
-    mobile: "-",
-  } as AdminRetailer : null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadRetailer();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadRetailer]);
+
+  // Memoized real document list derived directly from liveRetailer (Single Source of Truth)
+  const documents = useMemo<DocumentItem[]>(() => {
+    if (!liveRetailer) {
+      return [];
+    }
+
+    const docDefs: Array<{
+      id: string;
+      label: string;
+      value: string;
+      url?: string;
+    }> = [
+      {
+        id: "panDocument",
+        label: "PAN Card",
+        value: liveRetailer.panNumber || "-",
+        url: liveRetailer.panDocument,
+      },
+      {
+        id: "aadhaarDocument",
+        label: "Aadhaar Card",
+        value: liveRetailer.aadhaarNumber
+          ? liveRetailer.aadhaarNumber.length >= 4
+            ? `XXXX-XXXX-${liveRetailer.aadhaarNumber.slice(-4)}`
+            : liveRetailer.aadhaarNumber
+          : "-",
+        url: liveRetailer.aadhaarDocument,
+      },
+      {
+        id: "businessProofDocument",
+        label: `Business Proof (${
+          typeof liveRetailer.businessProofType === "object" && liveRetailer.businessProofType?.name
+            ? liveRetailer.businessProofType.name
+            : "GST / Trade Proof"
+        })`,
+        value:
+          typeof liveRetailer.businessProofType === "object" && liveRetailer.businessProofType?.name
+            ? liveRetailer.businessProofType.name
+            : "Business Registration",
+        url: liveRetailer.businessProofDocument,
+      },
+      {
+        id: "selfie",
+        label: "Retailer Photo / Selfie",
+        value: "Live Identity Photo",
+        url: liveRetailer.selfie,
+      },
+      {
+        id: "shopInsidePhoto",
+        label: "Shop Inside View",
+        value: "Interior Photo",
+        url: liveRetailer.shopInsidePhoto,
+      },
+      {
+        id: "shopOutsidePhoto",
+        label: "Shop Outside View",
+        value: "Exterior Photo",
+        url: liveRetailer.shopOutsidePhoto,
+      },
+      {
+        id: "shopLocationPhoto",
+        label: "Shop Location View",
+        value: "Landmark / Location Photo",
+        url: liveRetailer.shopLocationPhoto,
+      },
+    ];
+
+    const reviews = liveRetailer.documentReviews || {};
+    const items: DocumentItem[] = [];
+
+    for (const def of docDefs) {
+      if (!def.url) continue; // Show only real uploaded documents
+      const review = reviews[def.id] || {};
+      const statusRaw = (review.status || "").toLowerCase();
+      let status: DocStatus = "pending";
+      if (statusRaw === "approved") {
+        status = "approved";
+      } else if (statusRaw === "rejected") {
+        status = "rejected";
+      } else if (liveRetailer.adminApproved === "approved") {
+        status = "approved";
+      }
+
+      items.push({
+        id: def.id,
+        label: def.label,
+        value: def.value,
+        imageUrl: def.url,
+        status,
+        rejectionReason:
+          review.rejectionReason ||
+          (status === "rejected" ? liveRetailer.reasonOfRejection || undefined : undefined),
+        uploadedAt: liveRetailer.updatedAt || liveRetailer.createdAt || new Date().toISOString(),
+      });
+    }
+
+    return items;
+  }, [liveRetailer]);
+
+  // Computed document counts & active filter
+  const docCounts = useMemo(() => ({
+    all: documents.length,
+    approved: documents.filter((d) => d.status === "approved").length,
+    pending: documents.filter((d) => d.status === "pending").length,
+    rejected: documents.filter((d) => d.status === "rejected").length,
+  }), [documents]);
+
+  const filteredDocuments = useMemo(() => {
+    if (docFilter === "all") return documents;
+    return documents.filter((d) => d.status === docFilter);
+  }, [documents, docFilter]);
 
   // Fetch Live Transactions for Retailer
   useEffect(() => {
-    if (activeTab !== 'transactions' || !id) return;
+    if (activeTab !== "transactions" || !id) return;
     let isMounted = true;
 
-    const timer = setTimeout(() => {
-      if (!isMounted) return;
+    const timer = window.setTimeout(() => {
       setTxLoading(true);
 
       const serviceMap: Record<TxFilter, TransactionService | undefined> = {
-        'AEPS': 'AEPS',
-        'DMT': 'DMT',
-        'CMS': 'CMS',
-        'UPI Cashpoint': 'UPI',
-        'Aadhar pay': 'AEPS',
-        'BBPS': 'BBPS',
-        'Others': undefined,
+        All: undefined,
+        AEPS: "AEPS",
+        DMT: "DMT",
+        CMS: "CMS",
+        "UPI Cashpoint": "UPI",
+        "Aadhar pay": "AEPS",
+        BBPS: "BBPS",
+        Others: undefined,
       };
 
       getAdminRetailerTransactions(id, {
@@ -185,17 +294,17 @@ export default function AdminRetailerDetails() {
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     };
   }, [activeTab, id, txFilter, txPage]);
 
   // Fetch Live Sub-Retailers for Distributor
   useEffect(() => {
-    if (activeTab !== 'retailers' || selected?.role !== 'distributor' || !id) return;
+    if (activeTab !== "retailers" || liveRetailer?.role !== "distributor" || !id) return;
     let isMounted = true;
 
     const timer = setTimeout(() => {
-      if (isMounted) setSubRetailersLoading(true);
+      setSubRetailersLoading(true);
       getAdminDistributorSubRetailers(id, {
         search: subRetailerSearch.trim() || undefined,
         page: subRetailerPage,
@@ -205,11 +314,14 @@ export default function AdminRetailerDetails() {
           if (isMounted && res?.data) {
             setLiveSubRetailers(res.data.items || []);
             setSubRetailerPagination(res.data.pagination || null);
-            setHasLoadedSubRetailers(true);
           }
         })
         .catch((err) => {
           console.warn("Could not load sub-retailers from API:", err);
+          if (isMounted) {
+            setLiveSubRetailers([]);
+            setSubRetailerPagination(null);
+          }
         })
         .finally(() => {
           if (isMounted) setSubRetailersLoading(false);
@@ -220,41 +332,33 @@ export default function AdminRetailerDetails() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [activeTab, selected?.role, id, subRetailerSearch, subRetailerPage]);
-
-  const handleCloseViewingRetailer = () => {
-    setViewingRetailer(null);
-    setModalLiveTx([]);
-    setModalTxPagination(null);
-  };
+  }, [activeTab, liveRetailer?.role, id, subRetailerSearch, subRetailerPage]);
 
   // Fetch Sub-Retailer Modal live transactions
   useEffect(() => {
-    if (!viewingRetailer) return;
-
+    if (!viewingSubRetailer) return;
     let isMounted = true;
 
-    const timer = setTimeout(() => {
-      if (!isMounted) return;
+    const timer = window.setTimeout(() => {
       setModalTxLoading(true);
 
       const serviceMap: Record<string, TransactionService | undefined> = {
         all: undefined,
-        AEPS: 'AEPS',
-        DMT: 'DMT',
-        CMS: 'CMS',
-        UPI: 'UPI',
-        BBPS: 'BBPS',
-        'Aadhaar Pay': 'AEPS',
+        AEPS: "AEPS",
+        DMT: "DMT",
+        CMS: "CMS",
+        UPI: "UPI",
+        BBPS: "BBPS",
+        "Aadhaar Pay": "AEPS",
       };
 
-      getAdminRetailerTransactions(viewingRetailer.id, {
-        service: serviceMap[retailerTxFilter],
-        page: retailerTxPage,
-        limit: RETAILER_TX_PAGE_SIZE,
+      getAdminRetailerTransactions(viewingSubRetailer.id, {
+        service: serviceMap[modalTxFilter],
+        page: modalTxPage,
+        limit: 8,
       })
         .then((res) => {
-          if (isMounted && res?.data?.transactions && res.data.transactions.length > 0) {
+          if (isMounted && res?.data?.transactions) {
             setModalLiveTx(res.data.transactions);
             setModalTxPagination(res.data.pagination || null);
           } else if (isMounted) {
@@ -275,88 +379,182 @@ export default function AdminRetailerDetails() {
 
     return () => {
       isMounted = false;
-      clearTimeout(timer);
+      window.clearTimeout(timer);
     };
-  }, [viewingRetailer, retailerTxFilter, retailerTxPage]);
+  }, [viewingSubRetailer, modalTxFilter, modalTxPage]);
 
+  // Focus textarea when rejection modal opens
   useEffect(() => {
-    if (rejectingDoc && rejectionTextareaRef.current) {
+    if ((rejectingDoc || isRejectingRetailer) && rejectionTextareaRef.current) {
       rejectionTextareaRef.current.focus();
     }
-  }, [rejectingDoc]);
+  }, [rejectingDoc, isRejectingRetailer]);
 
-  const handleApprove = async (docId: string) => {
-    setDocuments(prev => prev.map(doc => 
-      doc.id === docId ? { ...doc, status: 'approved' as DocStatus, rejectionReason: undefined } : doc
-    ));
+  // Clear feedback timer
+  useEffect(() => {
+    if (!actionFeedback) return;
+    const timer = setTimeout(() => setActionFeedback(null), 4000);
+    return () => clearTimeout(timer);
+  }, [actionFeedback]);
+
+  // Approve Entire Retailer
+  const handleApproveRetailer = async () => {
+    if (!id || actionLoading) return;
+    setActionLoading(true);
+    setActionFeedback(null);
+
+    try {
+      await updateAdminRetailerAccountStatus(id, "approved");
+      await updateAdminRetailerKyc(id, "approved");
+      setLiveRetailer((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "active",
+              adminApproved: "approved",
+              kycStatus: "approved",
+              reasonOfRejection: undefined,
+            }
+          : prev
+      );
+      // Optimistically update document reviews on liveRetailer
+      setLiveRetailer((prev) => {
+        if (!prev) return prev;
+        const currentReviews = prev.documentReviews || {};
+        const updatedReviews: typeof currentReviews = { ...currentReviews };
+        Object.keys(currentReviews).forEach((k) => {
+          updatedReviews[k] = { ...updatedReviews[k], status: "APPROVED", rejectionReason: undefined };
+        });
+        return {
+          ...prev,
+          status: "active",
+          adminApproved: "approved",
+          kycStatus: "approved",
+          reasonOfRejection: undefined,
+          documentReviews: updatedReviews,
+        };
+      });
+      setActionFeedback({ type: "success", message: "Retailer approved successfully!" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to approve retailer.";
+      setActionFeedback({ type: "error", message: msg });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Approve Individual Document
+  const handleApproveDoc = async (docId: string) => {
+    // Optimistically update document review on liveRetailer
+    setLiveRetailer((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        documentReviews: {
+          ...prev.documentReviews,
+          [docId]: {
+            ...prev.documentReviews?.[docId],
+            status: "APPROVED",
+            rejectionReason: undefined,
+          },
+        },
+      };
+    });
+
     if (id) {
       try {
-        await updateAdminRetailerKyc(id, "approved");
+        await reviewAdminRetailerDocument({
+          retailerId: id,
+          documentField: docId,
+          action: "approve",
+        });
+        setActionFeedback({ type: "success", message: "Document verified and approved." });
       } catch (e) {
-        console.warn("Could not sync KYC approval to backend:", e);
+        console.warn("Could not sync document approval to backend:", e);
       }
     }
   };
 
+  // Rejection Submit (handles both document and overall retailer rejection)
   const handleRejectSubmit = async () => {
-    if (!rejectionReason.trim()) {
-      setRejectionReasonError('Please provide a reason for rejection');
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setRejectionReasonError("Please provide a reason for rejection");
       return;
     }
-    if (rejectionReason.trim().length < 10) {
-      setRejectionReasonError('Rejection reason must be at least 10 characters');
+    if (reason.length < 10) {
+      setRejectionReasonError("Rejection reason must be at least 10 characters");
       return;
     }
-    if (rejectingDoc) {
-      const reason = rejectionReason.trim();
-      setDocuments(prev => prev.map(doc => 
-        doc.id === rejectingDoc.id ? { ...doc, status: 'rejected' as DocStatus, rejectionReason: reason } : doc
-      ));
-      if (id) {
-        try {
-          await updateAdminRetailerKyc(id, "rejected", reason);
-        } catch (e) {
-          console.warn("Could not sync KYC rejection to backend:", e);
-        }
-      }
-      setRejectingDoc(null);
-      setRejectionReason('');
-      setRejectionReasonError('');
-    }
-  };
 
-  const handleOpenSubRetailer = (sub: AdminSubRetailer | SubRetailer) => {
-    if ('pan' in sub && 'totalVolume' in sub && typeof sub.totalVolume === 'string') {
-      setViewingRetailer(sub as SubRetailer);
-    } else {
-      const live = sub as AdminSubRetailer;
-      setViewingRetailer({
-        id: live.id,
-        name: live.fullName || 'Unnamed Retailer',
-        aadhar: 'Verified',
-        email: live.email || '-',
-        mobile: live.mobile || '-',
-        pan: live.panNumber || '-',
-        status: live.status === 'suspended' ? 'blocked' : (live.status as 'active' | 'pending' | 'blocked'),
-        kycStatus: live.adminApproved as 'approved' | 'pending' | 'rejected',
-        shopName: live.shopName || 'Retail Shop',
-        shopAddress: live.shopAddress || 'Local Market',
-        bankName: live.primaryBank?.name || 'Bank',
-        accountNumber: live.primaryBank?.accountNumber || '-',
-        ifsc: live.primaryBank?.ifscCode || '-',
-        createdAt: new Date(live.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-        totalTransactions: live.totalTransactions || 0,
-        totalVolume: `₹${(live.totalVolume || 0).toLocaleString('en-IN')}`,
-      });
+    setActionLoading(true);
+
+    try {
+      if (rejectingDoc) {
+        // Individual document rejection: update liveRetailer optimistically
+        setLiveRetailer((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            documentReviews: {
+              ...prev.documentReviews,
+              [rejectingDoc.id]: {
+                ...prev.documentReviews?.[rejectingDoc.id],
+                status: "REJECTED",
+                rejectionReason: reason,
+              },
+            },
+          };
+        });
+
+        if (id) {
+          await reviewAdminRetailerDocument({
+            retailerId: id,
+            documentField: rejectingDoc.id,
+            action: "reject",
+            reason,
+          });
+        }
+        setActionFeedback({ type: "success", message: `Document '${rejectingDoc.label}' rejected.` });
+      } else if (isRejectingRetailer) {
+        // Overall Retailer rejection
+        if (id) {
+          await updateAdminRetailerAccountStatus(id, "rejected", reason);
+          await updateAdminRetailerKyc(id, "rejected", reason);
+          setLiveRetailer((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "rejected",
+                  adminApproved: "rejected",
+                  kycStatus: "rejected",
+                  reasonOfRejection: reason,
+                  kycRejectionReason: reason,
+                }
+              : prev
+          );
+        }
+        setActionFeedback({ type: "success", message: "Retailer application rejected." });
+      }
+
+      setRejectingDoc(null);
+      setIsRejectingRetailer(false);
+      setRejectionReason("");
+      setRejectionReasonError("");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to process rejection.";
+      setActionFeedback({ type: "error", message: msg });
+    } finally {
+      setActionLoading(false);
     }
-    setRetailerTxPage(1);
-    setRetailerTxFilter('all');
   };
 
   const handleDownload = (doc: DocumentItem) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = doc.imageUrl;
-    link.download = `${doc.label.replace(/\s+/g, '_')}_${doc.value}.jpg`;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.download = `${doc.label.replace(/\s+/g, "_")}_${doc.value}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -364,404 +562,691 @@ export default function AdminRetailerDetails() {
 
   const getStatusConfig = (status: DocStatus) => {
     switch (status) {
-      case 'approved':
+      case "approved":
         return {
           icon: <ShieldCheck className="h-3.5 w-3.5" />,
-          label: 'Approved',
-          bg: 'bg-emerald-50',
-          text: 'text-emerald-700',
-          border: 'border-emerald-200',
-          ring: 'ring-emerald-500/20',
-          dot: 'bg-emerald-500'
+          label: "Approved",
+          bg: "bg-emerald-50",
+          text: "text-emerald-700",
+          border: "border-emerald-200",
+          ring: "ring-emerald-500/20",
         };
-      case 'rejected':
+      case "rejected":
         return {
           icon: <ShieldAlert className="h-3.5 w-3.5" />,
-          label: 'Rejected',
-          bg: 'bg-rose-50',
-          text: 'text-rose-700',
-          border: 'border-rose-200',
-          ring: 'ring-rose-500/20',
-          dot: 'bg-rose-500'
+          label: "Rejected",
+          bg: "bg-rose-50",
+          text: "text-rose-700",
+          border: "border-rose-200",
+          ring: "ring-rose-500/20",
         };
       default:
         return {
           icon: <Clock className="h-3.5 w-3.5" />,
-          label: 'Pending Review',
-          bg: 'bg-amber-50',
-          text: 'text-amber-700',
-          border: 'border-amber-200',
-          ring: 'ring-amber-500/20',
-          dot: 'bg-amber-500'
+          label: "Pending Review",
+          bg: "bg-amber-50",
+          text: "text-amber-700",
+          border: "border-amber-200",
+          ring: "ring-amber-500/20",
         };
     }
   };
 
-  // Sub-retailers filtered + paginated
-  const filteredSubRetailers = useMemo(() => {
-    if (!subRetailerSearch.trim()) return DUMMY_SUB_RETAILERS;
-    const q = subRetailerSearch.toLowerCase();
-    return DUMMY_SUB_RETAILERS.filter(r =>
-      r.name.toLowerCase().includes(q) ||
-      r.email.toLowerCase().includes(q) ||
-      r.mobile.includes(q) ||
-      r.id.toLowerCase().includes(q)
-    );
-  }, [subRetailerSearch]);
-
-  const subRetailerTotalPages = Math.ceil(filteredSubRetailers.length / SUB_RETAILER_PAGE_SIZE);
-  const paginatedSubRetailers = filteredSubRetailers.slice(
-    (subRetailerPage - 1) * SUB_RETAILER_PAGE_SIZE,
-    subRetailerPage * SUB_RETAILER_PAGE_SIZE
-  );
-
-  // Retailer transaction data (memoized per retailer)
-  const retailerTransactions = useMemo(() => {
-    if (!viewingRetailer) return [];
-    return generateTransactions(viewingRetailer.id);
-  }, [viewingRetailer]);
-
-  const filteredRetailerTx = useMemo(() => {
-    if (retailerTxFilter === 'all') return retailerTransactions;
-    return retailerTransactions.filter(tx => tx.type === retailerTxFilter);
-  }, [retailerTransactions, retailerTxFilter]);
-
-  const retailerTxTotalPages = Math.ceil(filteredRetailerTx.length / RETAILER_TX_PAGE_SIZE);
-  const paginatedRetailerTx = filteredRetailerTx.slice(
-    (retailerTxPage - 1) * RETAILER_TX_PAGE_SIZE,
-    retailerTxPage * RETAILER_TX_PAGE_SIZE
-  );
-
   const txStatusBadge: Record<string, string> = {
-    success: 'bg-emerald-100 text-emerald-700',
-    failed: 'bg-rose-100 text-rose-700',
-    pending: 'bg-amber-100 text-amber-700',
+    success: "bg-emerald-100 text-emerald-700",
+    failed: "bg-rose-100 text-rose-700",
+    pending: "bg-amber-100 text-amber-700",
   };
 
   const kycBadge: Record<string, { bg: string; text: string }> = {
-    approved: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    pending: { bg: 'bg-amber-50', text: 'text-amber-700' },
-    rejected: { bg: 'bg-rose-50', text: 'text-rose-700' },
+    approved: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    pending: { bg: "bg-amber-50", text: "text-amber-700" },
+    rejected: { bg: "bg-rose-50", text: "text-rose-700" },
   };
 
   const statusBadge: Record<string, { bg: string; text: string }> = {
-    active: { bg: 'bg-emerald-50', text: 'text-emerald-700' },
-    pending: { bg: 'bg-amber-50', text: 'text-amber-700' },
-    blocked: { bg: 'bg-rose-50', text: 'text-rose-700' },
+    active: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    approved: { bg: "bg-emerald-50", text: "text-emerald-700" },
+    pending: { bg: "bg-amber-50", text: "text-amber-700" },
+    blocked: { bg: "bg-rose-50", text: "text-rose-700" },
+    rejected: { bg: "bg-rose-50", text: "text-rose-700" },
+    suspended: { bg: "bg-rose-50", text: "text-rose-700" },
   };
 
-  if (!selected) {
-    return <div className="p-8 text-center text-slate-500 font-medium">Retailer not found</div>;
+  // Loading Skeleton State
+  if (retailerLoading) {
+    return (
+      <div className="mx-auto w-full space-y-6">
+        <div className="h-14 animate-pulse rounded-2xl bg-slate-100" />
+        <div className="hp-card rounded-2xl p-6 space-y-6 border border-slate-100">
+          <div className="h-10 animate-pulse rounded-lg bg-slate-100 w-1/3" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="h-20 animate-pulse rounded-xl bg-slate-100" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const rawRetailer = (selected as unknown as Record<string, unknown>) || {};
+  // Retailer Not Found State
+  if (!liveRetailer || retailerError) {
+    return (
+      <div className="mx-auto w-full  p-12 text-center bg-white rounded-2xl border border-slate-100 shadow-sm">
+        <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+          <User className="h-6 w-6 text-slate-400" />
+        </div>
+        <h3 className="text-base font-bold text-slate-800">Retailer not found</h3>
+        <p className="text-xs text-slate-500 mt-1">
+          {retailerError || `No retailer found with ID: ${id}`}
+        </p>
+        <button
+          onClick={() => navigate("/admin/retailers")}
+          className="mt-4 px-4 py-2 rounded-lg bg-[#315bd1] text-white text-xs font-bold hover:bg-[#2848a8] transition-colors"
+        >
+          Back to Retailers List
+        </button>
+      </div>
+    );
+  }
+
+  const selected = liveRetailer;
+
+  const isDistributor =
+    selected.role === "distributor" ||
+    (Array.isArray(selected.roles) &&
+      selected.roles.some((r: unknown) =>
+        typeof r === "object" && r !== null
+          ? (r as { slug?: string; name?: string }).slug === "distributor" ||
+            (r as { slug?: string; name?: string }).name?.toLowerCase() === "distributor"
+          : String(r) === "distributor"
+      ));
+
+  const roleDisplay = isDistributor ? "distributor" : selected.role || "retailer";
+
+  // Clean helper to extract human readable display names from populated objects or IDs
+  const getDisplayName = (val: unknown, defaultName = "-") => {
+    if (!val) return defaultName;
+    if (typeof val === "object" && val !== null && "name" in val && typeof (val as { name: unknown }).name === "string") {
+      return (val as { name: string }).name;
+    }
+    if (typeof val === "string") {
+      if (/^[a-f\d]{24}$/i.test(val)) {
+        return defaultName;
+      }
+      return val;
+    }
+    return defaultName;
+  };
+
+  // Real Personal Info Fields
   const personalInfoFields = [
-    { label: "Retailer Name", value: selected.fullName },
-    { label: "Mobile Number", value: selected.mobile },
-    { label: "Email Address", value: selected.email },
-    { label: "Gender", value: (rawRetailer.gender as string) || "Male" },
-    { label: "DOB", value: (rawRetailer.dob as string) || "15/08/1988" },
-    { label: "Educational Qualification", value: (rawRetailer.qualification as string) || "Bachelor's Degree" },
+    { label: "Retailer Name", value: selected.fullName || "-" },
+    { label: "Mobile Number", value: selected.mobile || "-" },
+    { label: "Email Address", value: selected.email || "-" },
+    {
+      label: "Gender",
+      value:
+        selected.gender === "M"
+          ? "Male"
+          : selected.gender === "F"
+          ? "Female"
+          : selected.gender || "-",
+    },
+    {
+      label: "Date of Birth",
+      value: selected.dateOfBirth
+        ? new Date(selected.dateOfBirth).toLocaleDateString("en-IN", {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+          })
+        : "-",
+    },
+    { label: "Father Name", value: selected.fatherName || "-" },
+    { label: "Marital Status", value: selected.maritalStatus || "-" },
+    { label: "Educational Qualification", value: selected.educationalQualification || "-" },
+    {
+      label: "Verification Status",
+      value: `Aadhaar: ${selected.aadhaarVerified ? "Verified" : "Pending"} • Mobile: ${
+        selected.isMobileVerified ? "Verified" : "Pending"
+      } • Email: ${selected.isEmailVerified ? "Verified" : "Pending"}`,
+    },
   ];
+
+  // Real Shop Info Fields
+  const shopCategoryName = getDisplayName(selected.shop?.category, "General");
+  const propertyTypeName = getDisplayName(selected.shop?.propertyType, "Owned");
+
+  const shopFormattedAddress =
+    selected.shop?.completeAddress ||
+    [
+      selected.shop?.address?.addressLine,
+      selected.shop?.address?.city,
+      selected.shop?.address?.state,
+      selected.shop?.address?.pincode,
+    ]
+      .filter(Boolean)
+      .join(", ") ||
+    "-";
 
   const shopInfoFields = [
-    { label: "Shop Name", value: selected.shop?.name || (rawRetailer.shopName as string) || "Dummy Shop" },
-    { label: "Shop Category", value: (rawRetailer.shopCategory as string) || "Mobile & Accessories" },
-    { label: "Property Type", value: (rawRetailer.propertyType as string) || "Rented" },
-    {
-      label: "Shop Address",
-      value:
-        (rawRetailer.shopAddress as string) ||
-        (selected.shop?.address
-          ? `${selected.shop.address.addressLine || ''}, ${selected.shop.address.city || ''}, ${selected.shop.address.state || ''}`
-          : "Dummy Address"),
-    },
+    { label: "Shop Name", value: selected.shop?.name || "-" },
+    { label: "Shop Category", value: shopCategoryName },
+    { label: "Property Type", value: propertyTypeName },
+    { label: "Shop Address", value: shopFormattedAddress },
   ];
 
-  const primaryBank =
-    (rawRetailer.banks as Array<{ name?: string; bankName?: string; ifscCode?: string; ifsc?: string; accountNumber?: string } | undefined>)?.[0] ||
-    (rawRetailer.bank as { name?: string; bankName?: string; ifscCode?: string; ifsc?: string; accountNumber?: string } | undefined);
-
-  const bankInfoFields = [
-    { label: "Bank Name", value: primaryBank?.name || primaryBank?.bankName || (rawRetailer.bankName as string) || "State Bank of India" },
-    { label: "IFSC Code", value: primaryBank?.ifscCode || primaryBank?.ifsc || (rawRetailer.ifsc as string) || "SBIN0001234" },
-    {
-      label: "Account Number",
-      value: primaryBank?.accountNumber
-        ? String(primaryBank.accountNumber).startsWith("XXXX")
-          ? primaryBank.accountNumber
-          : `XXXXXXXX${String(primaryBank.accountNumber).slice(-4)}`
-        : (rawRetailer.accountNumber as string) || "XXXXXXXX9012",
-    },
-  ];
+  const banksList = selected.banks && selected.banks.length > 0 ? selected.banks : [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto w-full space-y-6">
+      {/* Toast Feedback */}
+      {actionFeedback && (
+        <div
+          className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-fadeIn ${
+            actionFeedback.type === "success"
+              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              : "bg-rose-50 text-rose-800 border border-rose-200"
+          }`}
+        >
+          <span>{actionFeedback.message}</span>
+          <button onClick={() => setActionFeedback(null)} className="ml-2 hover:opacity-75">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
             className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+            title="Go back"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-              {selected.fullName}
+              {selected.fullName || "Unnamed Retailer"}
             </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              {selected.id} • <span className="uppercase text-[10px] font-bold text-[#315bd1] ml-1 bg-[#f0f4ff] px-2 py-0.5 rounded-full">{selected.role}</span>
-              <span className={`ml-2 uppercase text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                selected.status === 'active' ? 'bg-emerald-50 text-emerald-700' :
-                selected.status === 'pending' ? 'bg-amber-50 text-amber-700' :
-                'bg-rose-50 text-rose-700'
-              }`}>{selected.status}</span>
+            <p className="text-sm text-slate-500 mt-1 flex items-center flex-wrap gap-1">
+            
+              <span>•</span>
+              <span className="uppercase text-[10px] font-bold text-[#315bd1] bg-[#f0f4ff] px-2 py-0.5 rounded-full">
+                {roleDisplay}
+              </span>
+              <span
+                className={`uppercase text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  statusBadge[selected.status || "active"]?.bg || "bg-slate-100"
+                } ${statusBadge[selected.status || "active"]?.text || "text-slate-700"}`}
+              >
+                {selected.status || "active"}
+              </span>
+              {selected.adminApproved && (
+                <span
+                  className={`uppercase text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    kycBadge[selected.adminApproved]?.bg || "bg-slate-100"
+                  } ${kycBadge[selected.adminApproved]?.text || "text-slate-700"}`}
+                >
+                  KYC: {selected.adminApproved}
+                </span>
+              )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Action buttons removed as requested */}
+        {/* Approve & Reject Action Buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {selected.adminApproved !== "approved" ? (
+            <button
+              onClick={handleApproveRetailer}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm hover:shadow disabled:opacity-50"
+            >
+              <CheckCircle className="h-4 w-4" />
+              Approve Retailer
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setIsRejectingRetailer(true);
+                setRejectingDoc(null);
+                setRejectionReason("");
+                setRejectionReasonError("");
+              }}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-rose-600 text-white hover:bg-rose-700 transition-all shadow-sm hover:shadow disabled:opacity-50"
+            >
+              <XCircle className="h-4 w-4" />
+              Reject Retailer
+            </button>
+          )}
+
+          {selected.adminApproved === "rejected" && (
+            <button
+              onClick={handleApproveRetailer}
+              disabled={actionLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50"
+            >
+              <CheckCircle className="h-3.5 w-3.5" />
+              Re-Approve Retailer
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Main Content Card */}
       <div className="hp-card rounded-2xl p-6 shadow-sm border border-slate-100">
+        {/* Navigation Tabs */}
         <div className="flex gap-6 border-b border-slate-100 pb-0">
           <button
-            onClick={() => setActiveTab('registration')}
-            className={`text-sm font-bold pb-3 px-1 ${activeTab === 'registration' ? 'text-[#315bd1] border-b-2 border-[#315bd1]' : 'text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab("registration")}
+            className={`text-sm font-bold pb-3 px-1 transition-colors ${
+              activeTab === "registration"
+                ? "text-[#315bd1] border-b-2 border-[#315bd1]"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
           >
-            Registration
+            Registration Profile
           </button>
           <button
-            onClick={() => setActiveTab('transactions')}
-            className={`text-sm font-bold pb-3 px-1 ${activeTab === 'transactions' ? 'text-[#315bd1] border-b-2 border-[#315bd1]' : 'text-slate-500 hover:text-slate-700'}`}
+            onClick={() => setActiveTab("transactions")}
+            className={`text-sm font-bold pb-3 px-1 transition-colors ${
+              activeTab === "transactions"
+                ? "text-[#315bd1] border-b-2 border-[#315bd1]"
+                : "text-slate-500 hover:text-slate-700"
+            }`}
           >
-            Transactions
+            Live Transactions
           </button>
-          {selected.role === 'distributor' && (
+          {isDistributor && (
             <button
-              onClick={() => setActiveTab('retailers')}
-              className={`text-sm font-bold pb-3 px-1 ${activeTab === 'retailers' ? 'text-[#315bd1] border-b-2 border-[#315bd1]' : 'text-slate-500 hover:text-slate-700'}`}
+              onClick={() => setActiveTab("retailers")}
+              className={`text-sm font-bold pb-3 px-1 transition-colors ${
+                activeTab === "retailers"
+                  ? "text-[#315bd1] border-b-2 border-[#315bd1]"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              Retailers
+              Sub-Retailers
             </button>
           )}
         </div>
 
-        {activeTab === 'registration' && (
+        {/* Tab 1: Registration Profile */}
+        {activeTab === "registration" && (
           <div className="mt-6 space-y-8 animate-slide-in-right">
-            {/* ── Personal Information ── */}
+            {/* Show Rejection Banner if Rejected */}
+            {(selected.reasonOfRejection || selected.kycRejectionReason) &&
+              (selected.adminApproved === "rejected" || selected.status === "rejected") && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-4">
+                  <div className="flex items-center gap-2 text-rose-800 font-bold text-xs uppercase tracking-wider mb-1">
+                    <ShieldAlert className="h-4 w-4 text-rose-600" />
+                    Retailer Application Rejected
+                  </div>
+                  <p className="text-xs text-rose-700 leading-relaxed">
+                    {selected.reasonOfRejection || selected.kycRejectionReason}
+                  </p>
+                </div>
+              )}
+
+            {/* Personal Information */}
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <div className="h-7 w-7 rounded-lg bg-[#315bd1]/10 flex items-center justify-center">
-                  <svg className="h-3.5 w-3.5 text-[#315bd1]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                  <User className="h-3.5 w-3.5 text-[#315bd1]" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Personal Information</h3>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Personal Information
+                </h3>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {personalInfoFields.map((field, idx) => (
                   <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{field.label}</p>
-                    <p className="mt-1 text-sm font-bold text-slate-800 break-all">{field.value || "-"}</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {field.label}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-800 break-all">{field.value}</p>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* ── Shop Information ── */}
+            {/* Shop Information */}
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                  <svg className="h-3.5 w-3.5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 100 4 2 2 0 000-4z" /></svg>
+                  <Store className="h-3.5 w-3.5 text-violet-600" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Shop Information</h3>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Shop Information
+                </h3>
               </div>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {shopInfoFields.map((field, idx) => (
-                  <div key={idx} className={`rounded-xl border border-slate-200 bg-slate-50/70 p-4 ${idx === shopInfoFields.length - 1 ? 'sm:col-span-2 lg:col-span-1' : ''}`}>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{field.label}</p>
-                    <p className="mt-1 text-sm font-bold text-slate-800 break-all">{field.value || "-"}</p>
+                  <div
+                    key={idx}
+                    className={`rounded-xl border border-slate-200 bg-slate-50/70 p-4 ${
+                      idx === shopInfoFields.length - 1 ? "sm:col-span-2 lg:col-span-3" : ""
+                    }`}
+                  >
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                      {field.label}
+                    </p>
+                    <p className="mt-1 text-sm font-bold text-slate-800 break-all">{field.value}</p>
                   </div>
                 ))}
               </div>
             </section>
 
-            {/* ── Bank Information ── */}
+            {/* Bank Details */}
             <section>
               <div className="flex items-center gap-2 mb-4">
                 <div className="h-7 w-7 rounded-lg bg-teal-500/10 flex items-center justify-center">
-                  <svg className="h-3.5 w-3.5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
+                  <CreditCard className="h-3.5 w-3.5 text-teal-600" />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Bank Details</h3>
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                  Bank Details ({banksList.length})
+                </h3>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {bankInfoFields.map((field, idx) => (
-                  <div key={idx} className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{field.label}</p>
-                    <p className="mt-1 text-sm font-bold text-slate-800 break-all">{field.value || "-"}</p>
-                  </div>
-                ))}
-              </div>
+
+              {banksList.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {banksList.map((b, idx) => {
+                    const maskedAcc = b.accountNumber
+                      ? b.accountNumber.length > 4
+                        ? `XXXXXXXX${b.accountNumber.slice(-4)}`
+                        : b.accountNumber
+                      : "-";
+                    return (
+                      <div
+                        key={b._id || idx}
+                        className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 relative"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                            {b.isPrimary ? "Primary Account" : `Bank Account #${idx + 1}`}
+                          </span>
+                          {b.isPrimary && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase bg-emerald-100 text-emerald-700">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-slate-800">{b.name || "-"}</p>
+                        <div className="mt-2 text-xs space-y-1 text-slate-600">
+                          <p>
+                            <span className="text-slate-400 font-semibold">A/C:</span>{" "}
+                            <span className="font-mono font-bold text-slate-700">{maskedAcc}</span>
+                          </p>
+                          <p>
+                            <span className="text-slate-400 font-semibold">IFSC:</span>{" "}
+                            <span className="font-mono font-bold text-slate-700">{b.ifscCode || "-"}</span>
+                          </p>
+                          {b.branchName && (
+                            <p>
+                              <span className="text-slate-400 font-semibold">Branch:</span>{" "}
+                              <span>{b.branchName}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-6 text-center text-slate-400 text-xs font-medium rounded-xl border border-dashed border-slate-200">
+                  No bank accounts added by retailer
+                </div>
+              )}
             </section>
 
-            {/* ── Documents & KYC ── */}
+            {/* Documents & KYC Verification */}
             <section>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                 <div className="flex items-center gap-2">
                   <div className="h-7 w-7 rounded-lg bg-orange-500/10 flex items-center justify-center">
                     <FileText className="h-3.5 w-3.5 text-orange-600" />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Documents & KYC Verification</h3>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                      Uploaded Documents ({documents.length})
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Review and verify submitted retailer identity and shop proofs
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-3 text-xs font-semibold">
-                  <span className="flex items-center gap-1.5 text-emerald-600">
-                    <span className="h-2 w-2 rounded-full bg-emerald-500"></span>
-                    {documents.filter(d => d.status === 'approved').length} Approved
-                  </span>
-                  <span className="flex items-center gap-1.5 text-amber-600">
-                    <span className="h-2 w-2 rounded-full bg-amber-500"></span>
-                    {documents.filter(d => d.status === 'pending').length} Pending
-                  </span>
-                  <span className="flex items-center gap-1.5 text-rose-600">
-                    <span className="h-2 w-2 rounded-full bg-rose-500"></span>
-                    {documents.filter(d => d.status === 'rejected').length} Rejected
-                  </span>
+
+                {/* Interactive Status Filter Pills */}
+                <div className="flex items-center gap-1.5 bg-slate-100/80 p-1 rounded-xl self-start sm:self-auto flex-wrap">
+                  <button
+                    onClick={() => setDocFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      docFilter === "all"
+                        ? "bg-white text-slate-800 shadow-sm"
+                        : "text-slate-500 hover:text-slate-800"
+                    }`}
+                  >
+                    All ({docCounts.all})
+                  </button>
+                  <button
+                    onClick={() => setDocFilter("pending")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      docFilter === "pending"
+                        ? "bg-amber-500 text-white shadow-sm"
+                        : "text-amber-700 hover:bg-amber-100/60"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400"></span>
+                    Pending ({docCounts.pending})
+                  </button>
+                  <button
+                    onClick={() => setDocFilter("approved")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      docFilter === "approved"
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "text-emerald-700 hover:bg-emerald-100/60"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                    Approved ({docCounts.approved})
+                  </button>
+                  <button
+                    onClick={() => setDocFilter("rejected")}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      docFilter === "rejected"
+                        ? "bg-rose-600 text-white shadow-sm"
+                        : "text-rose-700 hover:bg-rose-100/60"
+                    }`}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full bg-rose-400"></span>
+                    Rejected ({docCounts.rejected})
+                  </button>
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-1">
-                {documents.map((doc) => {
-                  const statusConfig = getStatusConfig(doc.status);
-                  return (
-                    <div
-                      key={doc.id}
-                      className={`rounded-2xl border-2 ${statusConfig.border} bg-white overflow-hidden transition-all duration-300 hover:shadow-lg`}
-                      style={{ boxShadow: '0 2px 12px -3px rgba(15, 23, 42, 0.06)' }}
-                    >
-                      <div className="flex flex-col sm:flex-row">
-                        {/* Document Image Thumbnail */}
+              {filteredDocuments.length > 0 ? (
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {filteredDocuments.map((doc) => {
+                    const statusConfig = getStatusConfig(doc.status);
+                    return (
+                      <div
+                        key={doc.id}
+                        className={`rounded-2xl border ${statusConfig.border} bg-white shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col`}
+                      >
+                        {/* Card Header: Type, Label & Status Badge */}
+                        <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div className="h-8 w-8 rounded-lg bg-[#315bd1]/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                              <FileText className="h-4 w-4 text-[#315bd1]" />
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="text-xs font-bold text-slate-800 truncate" title={doc.label}>
+                                {doc.label}
+                              </h4>
+                              <p className="text-[11px] font-mono font-semibold text-slate-500 truncate mt-0.5">
+                                {doc.value}
+                              </p>
+                            </div>
+                          </div>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.text} ring-1 ${statusConfig.ring} flex-shrink-0`}
+                          >
+                            {statusConfig.icon}
+                            {statusConfig.label}
+                          </span>
+                        </div>
+
+                        {/* Document Image Preview Area */}
                         <div
-                          className="relative group sm:w-56 h-40 sm:h-auto flex-shrink-0 bg-slate-100 cursor-pointer overflow-hidden"
-                          onClick={() => { setViewingDoc(doc); setZoom(1); setRotation(0); }}
+                          className="relative group aspect-[16/10] bg-slate-900/5 cursor-pointer overflow-hidden flex items-center justify-center p-3 border-b border-slate-100"
+                          onClick={() => {
+                            setViewingDoc(doc);
+                            setZoom(1);
+                            setRotation(0);
+                          }}
                         >
                           <img
                             src={doc.imageUrl}
                             alt={doc.label}
-                            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            className="max-h-full max-w-full object-contain rounded-lg shadow-sm transition-transform duration-300 group-hover:scale-105"
                           />
-                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
-                              <span className="bg-white/90 backdrop-blur-sm rounded-full p-2.5 shadow-lg">
-                                <Eye className="h-4 w-4 text-slate-700" />
-                              </span>
-                            </div>
-                          </div>
-                          {/* Status badge on image */}
-                          <div className={`absolute top-2.5 left-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold ${statusConfig.bg} ${statusConfig.text} ring-1 ${statusConfig.ring} backdrop-blur-sm`}>
-                            {statusConfig.icon}
-                            {statusConfig.label}
+                          {/* Hover overlay with preview indicator */}
+                          <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
+                            <span className="bg-white/95 backdrop-blur-sm text-slate-800 rounded-lg px-3 py-1.5 text-xs font-bold shadow-lg flex items-center gap-1.5 transform translate-y-1 group-hover:translate-y-0 transition-transform duration-200">
+                              <Eye className="h-3.5 w-3.5 text-[#315bd1]" />
+                              Click to Preview
+                            </span>
                           </div>
                         </div>
 
-                        {/* Document Details */}
-                        <div className="flex-1 p-5 flex flex-col justify-between min-w-0">
-                          <div>
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <h4 className="text-sm font-bold text-slate-800">{doc.label}</h4>
-                                <p className="text-xs text-slate-500 mt-0.5">
-                                  Uploaded on {new Date(doc.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Document No:</span>
-                              <span className="text-sm font-bold text-slate-700 font-mono tracking-wide">{doc.value}</span>
-                            </div>
-
-                            {/* Show rejection reason if rejected */}
-                            {doc.status === 'rejected' && doc.rejectionReason && (
-                              <div className="mt-3 rounded-lg bg-rose-50 border border-rose-100 p-3">
-                                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-1">Rejection Reason</p>
-                                <p className="text-xs text-rose-700 leading-relaxed">{doc.rejectionReason}</p>
-                              </div>
-                            )}
+                        {/* Card Details & Rejection reason */}
+                        <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                          <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              Uploaded{" "}
+                              {new Date(doc.uploadedAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </span>
                           </div>
 
-                          {/* Action Buttons */}
-                          <div className="mt-4 flex items-center gap-2 flex-wrap">
-                            {/* View Button */}
-                            <button
-                              onClick={() => { setViewingDoc(doc); setZoom(1); setRotation(0); }}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all duration-200 hover:shadow-sm"
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                              View
-                            </button>
+                          {/* Show rejection reason banner if rejected */}
+                          {doc.status === "rejected" && doc.rejectionReason && (
+                            <div className="rounded-lg bg-rose-50 border border-rose-100 p-2.5 text-xs text-rose-700">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-rose-500 mb-0.5">
+                                Rejection Reason
+                              </p>
+                              <p className="line-clamp-2 text-[11px] leading-relaxed">
+                                {doc.rejectionReason}
+                              </p>
+                            </div>
+                          )}
 
-                            {/* Download Button */}
-                            <button
-                              onClick={() => handleDownload(doc)}
-                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200 hover:shadow-sm"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Download
-                            </button>
-
-                            <div className="flex-1"></div>
-
-                            {/* Approve / Reject Buttons */}
-                            {doc.status !== 'approved' && (
+                          {/* Action Buttons Footer */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-1">
                               <button
-                                onClick={() => handleApprove(doc.id)}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-all duration-200 shadow-sm hover:shadow-md"
+                                onClick={() => {
+                                  setViewingDoc(doc);
+                                  setZoom(1);
+                                  setRotation(0);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                                title="View full image"
                               >
-                                <CheckCircle className="h-3.5 w-3.5" />
-                                Approve
+                                <Eye className="h-4 w-4" />
                               </button>
-                            )}
-                            {doc.status !== 'rejected' && (
                               <button
-                                onClick={() => { setRejectingDoc(doc); setRejectionReason(''); setRejectionReasonError(''); }}
-                                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all duration-200 shadow-sm hover:shadow-md"
+                                onClick={() => handleDownload(doc)}
+                                className="p-1.5 rounded-lg text-[#315bd1] hover:bg-[#315bd1]/10 transition-colors"
+                                title="Download document"
                               >
-                                <XCircle className="h-3.5 w-3.5" />
-                                Reject
+                                <Download className="h-4 w-4" />
                               </button>
-                            )}
-                            {doc.status === 'approved' && (
-                              <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
-                                <CheckCircle className="h-3.5 w-3.5" />
-                                Document Verified
-                              </span>
-                            )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5">
+                              {doc.status !== "approved" && (
+                                <button
+                                  onClick={() => handleApproveDoc(doc.id)}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm"
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Approve
+                                </button>
+                              )}
+                              {doc.status !== "rejected" && (
+                                <button
+                                  onClick={() => {
+                                    setRejectingDoc(doc);
+                                    setIsRejectingRetailer(false);
+                                    setRejectionReason("");
+                                    setRejectionReasonError("");
+                                  }}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm"
+                                >
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  Reject
+                                </button>
+                              )}
+                              {doc.status === "approved" && (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  Verified
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="p-12 text-center text-slate-400 text-xs font-medium rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+                  {docFilter === "all"
+                    ? "No documents uploaded by retailer"
+                    : `No ${docFilter} documents found`}
+                </div>
+              )}
             </section>
           </div>
         )}
 
-        {activeTab === 'transactions' && (
+        {/* Tab 2: Live Transactions */}
+        {activeTab === "transactions" && (
           <div className="mt-6 flex flex-col gap-5">
+            {/* Service Filters */}
             <div className="flex flex-wrap gap-2">
-              {(['AEPS', 'UPI Cashpoint', 'Aadhar pay', 'BBPS', 'DMT', 'CMS', 'Others'] as const).map(tab => (
+              {(
+                ["All", "AEPS", "UPI Cashpoint", "Aadhar pay", "BBPS", "DMT", "CMS", "Others"] as const
+              ).map((tab) => (
                 <button
                   key={tab}
-                  onClick={() => { setTxFilter(tab); setTxPage(1); }}
-                  className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors ${txFilter === tab ? 'bg-[#315bd1] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                  onClick={() => {
+                    setTxFilter(tab);
+                    setTxPage(1);
+                  }}
+                  className={`px-5 py-2 rounded-lg text-xs font-bold transition-colors ${
+                    txFilter === tab
+                      ? "bg-[#315bd1] text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
                 >
                   {tab}
                 </button>
               ))}
             </div>
 
+            {/* Transactions Content */}
             {txLoading ? (
               <div className="space-y-3 p-5">
                 {[1, 2, 3, 4].map((item) => (
@@ -787,26 +1272,43 @@ export default function AdminRetailerDetails() {
                     <tbody>
                       {liveTransactions.map((tx) => (
                         <tr key={tx._id || tx.transactionId}>
-                          <td className="font-mono text-xs font-bold text-slate-700">{tx.transactionId}</td>
+                          <td className="font-mono text-xs font-bold text-slate-700">
+                            {tx.transactionId}
+                          </td>
                           <td>
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700">
                               {tx.service}
                             </span>
                           </td>
                           <td>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                              tx.type === 'credit' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700'
-                            }`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                tx.type === "credit"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : "bg-slate-100 text-slate-700"
+                              }`}
+                            >
                               {tx.type}
                             </span>
                           </td>
                           <td className="font-medium text-slate-700">
-                            {tx.description || tx.payee?.accountHolderName || tx.payee?.bankName || "-"}
+                            {tx.description ||
+                              tx.payee?.accountHolderName ||
+                              tx.payee?.bankName ||
+                              "-"}
                           </td>
-                          <td className="font-bold text-slate-800">₹{tx.amount.toLocaleString("en-IN")}</td>
-                          <td className="font-bold text-emerald-600">₹{(tx.commissionEarned || 0).toFixed(2)}</td>
+                          <td className="font-bold text-slate-800">
+                            ₹{tx.amount.toLocaleString("en-IN")}
+                          </td>
+                          <td className="font-bold text-emerald-600">
+                            ₹{(tx.commissionEarned || 0).toFixed(2)}
+                          </td>
                           <td>
-                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${txStatusBadge[tx.status] || 'bg-slate-100 text-slate-700'}`}>
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${
+                                txStatusBadge[tx.status] || "bg-slate-100 text-slate-700"
+                              }`}
+                            >
                               {tx.status}
                             </span>
                           </td>
@@ -831,200 +1333,25 @@ export default function AdminRetailerDetails() {
                   pageSize={txPagination?.limit || 10}
                 />
               </div>
-            ) : null}
-            
-            <div className="overflow-x-auto rounded-xl border border-slate-100">
-              {txFilter === 'AEPS' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>Customer No</th>
-                      <th>Aadhar</th>
-                      <th>Bank</th>
-                      <th>Transaction Type</th>
-                      <th>Amount</th>
-                      <th>Commission</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={7} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">9876543210</td>
-                        <td>XXXX-XXXX-1234</td>
-                        <td>SBI</td>
-                        <td className="font-medium">Cash Withdraw</td>
-                        <td className="font-medium text-slate-700">₹5,000</td>
-                        <td className="font-bold text-emerald-600">₹15.00</td>
-                        <td><span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-bold">Success</span></td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'DMT' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>Sender Mobile</th>
-                      <th>Receiver Name</th>
-                      <th>Account No</th>
-                      <th>IFSC</th>
-                      <th>Amount</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={6} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">9998887776</td>
-                        <td>John Doe</td>
-                        <td>1234567890</td>
-                        <td>SBIN0001234</td>
-                        <td className="font-medium text-slate-700">₹15,000</td>
-                        <td>2026-09-24</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'CMS' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>Company</th>
-                      <th>Emp Info</th>
-                      <th>Transaction Type</th>
-                      <th>Amount</th>
-                      <th>Trans ID</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">Zomato</td>
-                        <td>EMP-1029</td>
-                        <td className="font-medium">Cash Drop</td>
-                        <td className="font-medium text-slate-700">₹8,500</td>
-                        <td>TXN987654321</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'UPI Cashpoint' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>VPA / UPI ID</th>
-                      <th>Customer Name</th>
-                      <th>Amount</th>
-                      <th>Reference No</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">user@upi</td>
-                        <td>Amit Kumar</td>
-                        <td className="font-medium text-slate-700">₹2,000</td>
-                        <td>REF987654321</td>
-                        <td>2026-09-24</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'Aadhar pay' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>Aadhar</th>
-                      <th>Bank</th>
-                      <th>Amount</th>
-                      <th>Reference No</th>
-                      <th>Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">XXXX-XXXX-4321</td>
-                        <td>HDFC Bank</td>
-                        <td className="font-medium text-slate-700">₹4,500</td>
-                        <td>REF123456789</td>
-                        <td>2026-09-23</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'BBPS' && (
-                <table className="hp-table">
-                  <thead>
-                    <tr>
-                      <th>Biller</th>
-                      <th>Category</th>
-                      <th>Customer ID</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.status === 'pending' ? (
-                      <tr>
-                        <td colSpan={5} className="text-center py-6 text-slate-500 font-medium">No transactions found</td>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <td className="font-medium text-slate-700">BESCOM</td>
-                        <td>Electricity</td>
-                        <td>CUST98765</td>
-                        <td className="font-medium text-slate-700">₹1,200</td>
-                        <td><span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-bold">Success</span></td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-              {txFilter === 'Others' && (
-                <div className="p-8 text-center text-slate-500 font-medium">No other transactions found</div>
-              )}
-            </div>
+            ) : (
+              <div className="p-12 text-center text-slate-400 text-xs font-medium rounded-xl border border-dashed border-slate-200 bg-slate-50/50">
+                {txFilter === "All"
+                  ? "No transactions recorded yet for this retailer"
+                  : `No ${txFilter} transactions found for this retailer`}
+              </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'retailers' && selected.role === 'distributor' && (
+        {/* Tab 3: Sub-Retailers (Distributor only) */}
+        {activeTab === "retailers" && selected.role === "distributor" && (
           <div className="mt-6 space-y-4 animate-slide-in-right">
             {/* Search & Stats Bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Store className="h-4 w-4 text-[#315bd1]" />
                 <span className="text-sm font-bold text-slate-700">
-                  {hasLoadedSubRetailers && liveSubRetailers.length > 0
-                    ? `${subRetailerPagination?.total ?? liveSubRetailers.length} Retailers`
-                    : `${filteredSubRetailers.length} Retailers`}
+                  {subRetailerPagination?.total ?? liveSubRetailers.length} Retailers
                 </span>
                 <span className="text-xs text-slate-400">under this distributor</span>
               </div>
@@ -1032,7 +1359,10 @@ export default function AdminRetailerDetails() {
                 <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   value={subRetailerSearch}
-                  onChange={(e) => { setSubRetailerSearch(e.target.value); setSubRetailerPage(1); }}
+                  onChange={(e) => {
+                    setSubRetailerSearch(e.target.value);
+                    setSubRetailerPage(1);
+                  }}
                   placeholder="Search retailers..."
                   className="h-9 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-3 text-xs outline-none focus:border-[#315bd1] focus:bg-white transition-colors"
                 />
@@ -1062,72 +1392,51 @@ export default function AdminRetailerDetails() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())) ? (
-                      liveSubRetailers.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">No retailers found</td>
-                        </tr>
-                      ) : (
-                        liveSubRetailers.map((sub) => (
-                          <tr key={sub.id}>
-                            <td className="font-bold text-[#315bd1]">{sub.id}</td>
-                            <td className="font-bold text-slate-800">{sub.fullName || "Unnamed Retailer"}</td>
-                            <td className="text-slate-600">{sub.email || "-"}</td>
-                            <td>{sub.mobile || "-"}</td>
-                            <td>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge[sub.status]?.bg || 'bg-slate-100'} ${statusBadge[sub.status]?.text || 'text-slate-600'}`}>
-                                {sub.status}
-                              </span>
-                            </td>
-                            <td>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kycBadge[sub.adminApproved]?.bg || 'bg-slate-100'} ${kycBadge[sub.adminApproved]?.text || 'text-slate-600'}`}>
-                                {sub.adminApproved}
-                              </span>
-                            </td>
-                            <td className="text-slate-500">
-                              {new Date(sub.createdAt).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                              })}
-                            </td>
-                            <td className="text-center">
-                              <button
-                                onClick={() => handleOpenSubRetailer(sub)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200"
-                              >
-                                <Eye className="h-3.5 w-3.5" />
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )
-                    ) : paginatedSubRetailers.length === 0 ? (
+                    {liveSubRetailers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">No retailers found</td>
+                        <td colSpan={8} className="text-center py-8 text-slate-500 font-medium">
+                          No retailers found under this distributor
+                        </td>
                       </tr>
                     ) : (
-                      paginatedSubRetailers.map((sub) => (
+                      liveSubRetailers.map((sub) => (
                         <tr key={sub.id}>
                           <td className="font-bold text-[#315bd1]">{sub.id}</td>
-                          <td className="font-bold text-slate-800">{sub.name}</td>
-                          <td className="text-slate-600">{sub.email}</td>
-                          <td>{sub.mobile}</td>
+                          <td className="font-bold text-slate-800">{sub.fullName || "Unnamed Retailer"}</td>
+                          <td className="text-slate-600">{sub.email || "-"}</td>
+                          <td>{sub.mobile || "-"}</td>
                           <td>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${statusBadge[sub.status]?.bg || 'bg-slate-100'} ${statusBadge[sub.status]?.text || 'text-slate-600'}`}>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                statusBadge[sub.status]?.bg || "bg-slate-100"
+                              } ${statusBadge[sub.status]?.text || "text-slate-600"}`}
+                            >
                               {sub.status}
                             </span>
                           </td>
                           <td>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${kycBadge[sub.kycStatus]?.bg || 'bg-slate-100'} ${kycBadge[sub.kycStatus]?.text || 'text-slate-600'}`}>
-                              {sub.kycStatus}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                                kycBadge[sub.adminApproved]?.bg || "bg-slate-100"
+                              } ${kycBadge[sub.adminApproved]?.text || "text-slate-600"}`}
+                            >
+                              {sub.adminApproved}
                             </span>
                           </td>
-                          <td className="text-slate-500">{sub.createdAt}</td>
+                          <td className="text-slate-500">
+                            {new Date(sub.createdAt).toLocaleDateString("en-IN", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                            })}
+                          </td>
                           <td className="text-center">
                             <button
-                              onClick={() => handleOpenSubRetailer(sub)}
+                              onClick={() => {
+                                setViewingSubRetailer(sub);
+                                setModalTxPage(1);
+                                setModalTxFilter("all");
+                              }}
                               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#315bd1]/10 text-[#315bd1] hover:bg-[#315bd1]/20 transition-all duration-200"
                             >
                               <Eye className="h-3.5 w-3.5" />
@@ -1145,36 +1454,28 @@ export default function AdminRetailerDetails() {
             {/* Pagination */}
             <Pagination
               currentPage={subRetailerPage}
-              totalPages={
-                hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())
-                  ? (subRetailerPagination?.totalPages || 1)
-                  : subRetailerTotalPages
-              }
+              totalPages={subRetailerPagination?.totalPages || 1}
               onPageChange={setSubRetailerPage}
-              totalItems={
-                hasLoadedSubRetailers && (liveSubRetailers.length > 0 || subRetailerSearch.trim())
-                  ? (subRetailerPagination?.total || liveSubRetailers.length)
-                  : filteredSubRetailers.length
-              }
+              totalItems={subRetailerPagination?.total || liveSubRetailers.length}
               pageSize={SUB_RETAILER_PAGE_SIZE}
             />
           </div>
         )}
       </div>
 
-      {/* ── Retailer Profile Modal ── */}
-      {viewingRetailer && (
+      {/* ── Sub-Retailer Profile Modal (Real data only) ── */}
+      {viewingSubRetailer && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ animation: 'fadeIn 200ms ease-out' }}
+          style={{ animation: "fadeIn 200ms ease-out" }}
         >
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={handleCloseViewingRetailer}
+            onClick={() => setViewingSubRetailer(null)}
           />
           <div
             className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col"
-            style={{ animation: 'scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+            style={{ animation: "scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)" }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white flex-shrink-0">
@@ -1183,77 +1484,118 @@ export default function AdminRetailerDetails() {
                   <User className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">{viewingRetailer.name}</h3>
+                  <h3 className="text-base font-bold text-slate-800">
+                    {viewingSubRetailer.fullName || "Sub-Retailer Profile"}
+                  </h3>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-xs text-slate-500 font-mono">{viewingRetailer.id}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${statusBadge[viewingRetailer.status]?.bg} ${statusBadge[viewingRetailer.status]?.text}`}>{viewingRetailer.status}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${kycBadge[viewingRetailer.kycStatus]?.bg} ${kycBadge[viewingRetailer.kycStatus]?.text}`}>KYC: {viewingRetailer.kycStatus}</span>
+                    <span className="text-xs text-slate-500 font-mono">{viewingSubRetailer.id}</span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                        statusBadge[viewingSubRetailer.status]?.bg
+                      } ${statusBadge[viewingSubRetailer.status]?.text}`}
+                    >
+                      {viewingSubRetailer.status}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase ${
+                        kycBadge[viewingSubRetailer.adminApproved]?.bg
+                      } ${kycBadge[viewingSubRetailer.adminApproved]?.text}`}
+                    >
+                      KYC: {viewingSubRetailer.adminApproved}
+                    </span>
                   </div>
                 </div>
               </div>
               <button
-                onClick={handleCloseViewingRetailer}
+                onClick={() => setViewingSubRetailer(null)}
                 className="p-2 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* Body — scrollable */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar px-6 py-5 space-y-6">
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
               {/* Stats Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 border border-blue-200/60 p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <TrendingUp className="h-3.5 w-3.5 text-blue-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">Total Txns</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500">
+                      Total Txns
+                    </span>
                   </div>
-                  <p className="text-lg font-extrabold text-blue-700">{viewingRetailer.totalTransactions}</p>
+                  <p className="text-lg font-extrabold text-blue-700">
+                    {viewingSubRetailer.totalTransactions ?? 0}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 border border-emerald-200/60 p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <IndianRupee className="h-3.5 w-3.5 text-emerald-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">Volume</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-500">
+                      Volume
+                    </span>
                   </div>
-                  <p className="text-lg font-extrabold text-emerald-700">{viewingRetailer.totalVolume}</p>
+                  <p className="text-lg font-extrabold text-emerald-700">
+                    ₹{(viewingSubRetailer.totalVolume ?? 0).toLocaleString("en-IN")}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-gradient-to-br from-violet-50 to-violet-100/50 border border-violet-200/60 p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <Store className="h-3.5 w-3.5 text-violet-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500">Shop</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-violet-500">
+                      Shop
+                    </span>
                   </div>
-                  <p className="text-sm font-bold text-violet-700 truncate">{viewingRetailer.shopName}</p>
+                  <p className="text-sm font-bold text-violet-700 truncate">
+                    {viewingSubRetailer.shopName || "-"}
+                  </p>
                 </div>
                 <div className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 border border-amber-200/60 p-4">
                   <div className="flex items-center gap-2 mb-1.5">
                     <CreditCard className="h-3.5 w-3.5 text-amber-600" />
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Bank</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500">
+                      Bank
+                    </span>
                   </div>
-                  <p className="text-sm font-bold text-amber-700 truncate">{viewingRetailer.bankName}</p>
+                  <p className="text-sm font-bold text-amber-700 truncate">
+                    {viewingSubRetailer.primaryBank?.name || "-"}
+                  </p>
                 </div>
               </div>
 
               {/* Profile Details Grid */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-200">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Profile Details</h4>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    Profile Details
+                  </h4>
                 </div>
                 <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-slate-100">
                   {[
-                    { icon: <User className="h-3.5 w-3.5" />, label: 'Full Name', value: viewingRetailer.name },
-                    { icon: <Mail className="h-3.5 w-3.5" />, label: 'Email', value: viewingRetailer.email },
-                    { icon: <Phone className="h-3.5 w-3.5" />, label: 'Mobile', value: viewingRetailer.mobile },
-                    { icon: <FileText className="h-3.5 w-3.5" />, label: 'PAN Number', value: viewingRetailer.pan },
-                    { icon: <FileText className="h-3.5 w-3.5" />, label: 'Aadhaar', value: viewingRetailer.aadhar },
-                    { icon: <Store className="h-3.5 w-3.5" />, label: 'Shop Name', value: viewingRetailer.shopName },
-                    { icon: <MapPin className="h-3.5 w-3.5" />, label: 'Address', value: viewingRetailer.shopAddress },
-                    { icon: <CreditCard className="h-3.5 w-3.5" />, label: 'Bank', value: `${viewingRetailer.bankName} (${viewingRetailer.ifsc})` },
-                    { icon: <CreditCard className="h-3.5 w-3.5" />, label: 'Account No', value: viewingRetailer.accountNumber },
+                    { icon: <User className="h-3.5 w-3.5" />, label: "Full Name", value: viewingSubRetailer.fullName || "-" },
+                    { icon: <Mail className="h-3.5 w-3.5" />, label: "Email", value: viewingSubRetailer.email || "-" },
+                    { icon: <Phone className="h-3.5 w-3.5" />, label: "Mobile", value: viewingSubRetailer.mobile || "-" },
+                    { icon: <FileText className="h-3.5 w-3.5" />, label: "PAN Number", value: viewingSubRetailer.panNumber || "-" },
+                    { icon: <Store className="h-3.5 w-3.5" />, label: "Shop Name", value: viewingSubRetailer.shopName || "-" },
+                    { icon: <MapPin className="h-3.5 w-3.5" />, label: "Address", value: viewingSubRetailer.shopAddress || "-" },
+                    {
+                      icon: <CreditCard className="h-3.5 w-3.5" />,
+                      label: "Primary Bank",
+                      value: `${viewingSubRetailer.primaryBank?.name || "-"} (${viewingSubRetailer.primaryBank?.ifscCode || "-"})`,
+                    },
+                    {
+                      icon: <CreditCard className="h-3.5 w-3.5" />,
+                      label: "Account No",
+                      value: viewingSubRetailer.primaryBank?.accountNumber || "-",
+                    },
                   ].map((item, idx) => (
                     <div key={idx} className="bg-white p-3.5">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="text-slate-400">{item.icon}</span>
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">{item.label}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          {item.label}
+                        </span>
                       </div>
                       <p className="text-xs font-bold text-slate-800 break-all">{item.value}</p>
                     </div>
@@ -1261,22 +1603,27 @@ export default function AdminRetailerDetails() {
                 </div>
               </div>
 
-              {/* Transactions Section */}
+              {/* Real Transactions Section */}
               <div className="rounded-xl border border-slate-200 overflow-hidden">
                 <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">Transaction History ({filteredRetailerTx.length})</h4>
+                  <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    Transaction History ({modalTxPagination?.total ?? modalLiveTx.length})
+                  </h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {['all', 'AEPS', 'DMT', 'CMS', 'UPI', 'BBPS', 'Aadhaar Pay'].map(f => (
+                    {["all", "AEPS", "DMT", "CMS", "UPI", "BBPS"].map((f) => (
                       <button
                         key={f}
-                        onClick={() => { setRetailerTxFilter(f); setRetailerTxPage(1); }}
+                        onClick={() => {
+                          setModalTxFilter(f);
+                          setModalTxPage(1);
+                        }}
                         className={`px-3 py-1 rounded-md text-[10px] font-bold uppercase transition-colors ${
-                          retailerTxFilter === f
-                            ? 'bg-[#315bd1] text-white'
-                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          modalTxFilter === f
+                            ? "bg-[#315bd1] text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                         }`}
                       >
-                        {f === 'all' ? 'All' : f}
+                        {f === "all" ? "All" : f}
                       </button>
                     ))}
                   </div>
@@ -1287,7 +1634,7 @@ export default function AdminRetailerDetails() {
                     <thead>
                       <tr>
                         <th>Txn ID</th>
-                        <th>Type</th>
+                        <th>Service</th>
                         <th>Description</th>
                         <th>Amount</th>
                         <th>Commission</th>
@@ -1305,57 +1652,64 @@ export default function AdminRetailerDetails() {
                       ) : modalLiveTx.length > 0 ? (
                         modalLiveTx.map((tx) => (
                           <tr key={tx._id || tx.transactionId}>
-                            <td className="font-mono text-xs font-bold text-slate-600">{tx.transactionId}</td>
-                            <td>
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700">{tx.service}</span>
+                            <td className="font-mono text-xs font-bold text-slate-600">
+                              {tx.transactionId}
                             </td>
-                            <td className="font-medium text-slate-700">{tx.description || tx.payee?.accountHolderName || "-"}</td>
-                            <td className="font-bold text-slate-800">₹{tx.amount.toLocaleString("en-IN")}</td>
-                            <td className="font-bold text-emerald-600">₹{(tx.commissionEarned || 0).toFixed(2)}</td>
                             <td>
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${txStatusBadge[tx.status] || "bg-slate-100 text-slate-700"}`}>{tx.status}</span>
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700">
+                                {tx.service}
+                              </span>
+                            </td>
+                            <td className="font-medium text-slate-700">
+                              {tx.description || tx.payee?.accountHolderName || "-"}
+                            </td>
+                            <td className="font-bold text-slate-800">
+                              ₹{tx.amount.toLocaleString("en-IN")}
+                            </td>
+                            <td className="font-bold text-emerald-600">
+                              ₹{(tx.commissionEarned || 0).toFixed(2)}
+                            </td>
+                            <td>
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${
+                                  txStatusBadge[tx.status] || "bg-slate-100 text-slate-700"
+                                }`}
+                              >
+                                {tx.status}
+                              </span>
                             </td>
                             <td className="text-slate-500">
-                              {new Date(tx.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                              {new Date(tx.createdAt).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })}
                             </td>
                           </tr>
                         ))
-                      ) : paginatedRetailerTx.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="text-center py-8 text-slate-500 font-medium">No transactions found</td>
-                        </tr>
                       ) : (
-                        paginatedRetailerTx.map((tx) => (
-                          <tr key={tx.id}>
-                            <td className="font-mono text-xs font-bold text-slate-600">{tx.id}</td>
-                            <td>
-                              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700">{tx.type}</span>
-                            </td>
-                            <td className="font-medium text-slate-700">{tx.description}</td>
-                            <td className="font-bold text-slate-800">{tx.amount}</td>
-                            <td className="font-bold text-emerald-600">{tx.commission}</td>
-                            <td>
-                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold capitalize ${txStatusBadge[tx.status]}`}>{tx.status}</span>
-                            </td>
-                            <td className="text-slate-500">{tx.date}</td>
-                          </tr>
-                        ))
+                        <tr>
+                          <td colSpan={7} className="text-center py-8 text-slate-400 text-xs font-medium">
+                            No transactions found for this sub-retailer
+                          </td>
+                        </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
 
-                {/* Transaction Pagination */}
-                <div className="border-t border-slate-100 px-4 py-3">
-                  <Pagination
-                    currentPage={retailerTxPage}
-                    totalPages={modalLiveTx.length > 0 ? (modalTxPagination?.totalPages || 1) : retailerTxTotalPages}
-                    onPageChange={setRetailerTxPage}
-                    totalItems={modalLiveTx.length > 0 ? (modalTxPagination?.total || modalLiveTx.length) : filteredRetailerTx.length}
-                    pageSize={RETAILER_TX_PAGE_SIZE}
-                    compact
-                  />
-                </div>
+                {modalTxPagination && modalTxPagination.totalPages > 1 && (
+                  <div className="border-t border-slate-100 px-4 py-3">
+                    <Pagination
+                      currentPage={modalTxPage}
+                      totalPages={modalTxPagination.totalPages}
+                      onPageChange={setModalTxPage}
+                      totalItems={modalTxPagination.total}
+                      pageSize={8}
+                      compact
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1366,18 +1720,16 @@ export default function AdminRetailerDetails() {
       {viewingDoc && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ animation: 'fadeIn 200ms ease-out' }}
+          style={{ animation: "fadeIn 200ms ease-out" }}
         >
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
             onClick={() => setViewingDoc(null)}
           />
-          
-          {/* Modal Container */}
+
           <div
             className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col"
-            style={{ animation: 'scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+            style={{ animation: "scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)" }}
           >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/80">
@@ -1387,28 +1739,31 @@ export default function AdminRetailerDetails() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-800">{viewingDoc.label}</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Document No: <span className="font-mono font-bold">{viewingDoc.value}</span></p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Document Ref: <span className="font-mono font-bold">{viewingDoc.value}</span>
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {/* Zoom controls */}
                 <button
-                  onClick={() => setZoom(z => Math.max(0.5, z - 0.25))}
+                  onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
                   className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
                   title="Zoom Out"
                 >
                   <ZoomOut className="h-4 w-4" />
                 </button>
-                <span className="text-xs font-bold text-slate-600 min-w-[3rem] text-center">{Math.round(zoom * 100)}%</span>
+                <span className="text-xs font-bold text-slate-600 min-w-[3rem] text-center">
+                  {Math.round(zoom * 100)}%
+                </span>
                 <button
-                  onClick={() => setZoom(z => Math.min(3, z + 0.25))}
+                  onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
                   className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
                   title="Zoom In"
                 >
                   <ZoomIn className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => setRotation(r => (r + 90) % 360)}
+                  onClick={() => setRotation((r) => (r + 90) % 360)}
                   className="p-2 rounded-lg hover:bg-slate-200 text-slate-500 transition-colors"
                   title="Rotate"
                 >
@@ -1431,57 +1786,68 @@ export default function AdminRetailerDetails() {
               </div>
             </div>
 
-            {/* Image Area */}
-            <div className="flex-1 overflow-auto bg-slate-900/5 p-6 flex items-center justify-center" style={{ minHeight: '400px' }}>
+            {/* Image View Area */}
+            <div
+              className="flex-1 overflow-auto bg-slate-900/5 p-6 flex items-center justify-center"
+              style={{ minHeight: "400px" }}
+            >
               <div
                 className="transition-transform duration-300 ease-out"
                 style={{
                   transform: `scale(${zoom}) rotate(${rotation}deg)`,
-                  transformOrigin: 'center center'
+                  transformOrigin: "center center",
                 }}
               >
                 <img
                   src={viewingDoc.imageUrl}
                   alt={viewingDoc.label}
-                  className="max-w-full max-h-[60vh] rounded-lg shadow-xl object-contain"
-                  style={{ background: 'white' }}
+                  className="max-w-full max-h-[60vh] rounded-lg shadow-xl object-contain bg-white"
                 />
               </div>
             </div>
 
-            {/* Footer with status */}
+            {/* Footer */}
             <div className="px-6 py-3 border-t border-slate-100 bg-slate-50/80 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {(() => {
                   const sc = getStatusConfig(viewingDoc.status);
                   return (
-                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold ${sc.bg} ${sc.text} ring-1 ${sc.ring}`}>
+                    <span
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold ${sc.bg} ${sc.text} ring-1 ${sc.ring}`}
+                    >
                       {sc.icon}
                       {sc.label}
                     </span>
                   );
                 })()}
-                <span className="text-xs text-slate-400">
-                  Uploaded: {new Date(viewingDoc.uploadedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                </span>
               </div>
               <div className="flex items-center gap-2">
-                {viewingDoc.status !== 'approved' && (
+                {viewingDoc.status !== "approved" && (
                   <button
-                    onClick={() => { handleApprove(viewingDoc.id); setViewingDoc(prev => prev ? { ...prev, status: 'approved', rejectionReason: undefined } : null); }}
+                    onClick={() => {
+                      handleApproveDoc(viewingDoc.id);
+                      setViewingDoc((prev) =>
+                        prev ? { ...prev, status: "approved", rejectionReason: undefined } : null
+                      );
+                    }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm"
                   >
                     <CheckCircle className="h-3.5 w-3.5" />
-                    Approve
+                    Approve Document
                   </button>
                 )}
-                {viewingDoc.status !== 'rejected' && (
+                {viewingDoc.status !== "rejected" && (
                   <button
-                    onClick={() => { setRejectingDoc(viewingDoc); setRejectionReason(''); setRejectionReasonError(''); }}
+                    onClick={() => {
+                      setRejectingDoc(viewingDoc);
+                      setIsRejectingRetailer(false);
+                      setRejectionReason("");
+                      setRejectionReasonError("");
+                    }}
                     className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm"
                   >
                     <XCircle className="h-3.5 w-3.5" />
-                    Reject
+                    Reject Document
                   </button>
                 )}
               </div>
@@ -1490,19 +1856,24 @@ export default function AdminRetailerDetails() {
         </div>
       )}
 
-      {/* ── Rejection Reason Modal ── */}
-      {rejectingDoc && (
+      {/* ── Rejection Reason Modal (for Document OR Overall Retailer) ── */}
+      {(rejectingDoc || isRejectingRetailer) && (
         <div
           className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-          style={{ animation: 'fadeIn 200ms ease-out' }}
+          style={{ animation: "fadeIn 200ms ease-out" }}
         >
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => { setRejectingDoc(null); setRejectionReason(''); setRejectionReasonError(''); }}
+            onClick={() => {
+              setRejectingDoc(null);
+              setIsRejectingRetailer(false);
+              setRejectionReason("");
+              setRejectionReasonError("");
+            }}
           />
           <div
             className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-            style={{ animation: 'scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)' }}
+            style={{ animation: "scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)" }}
           >
             {/* Header */}
             <div className="px-6 pt-6 pb-4">
@@ -1511,8 +1882,16 @@ export default function AdminRetailerDetails() {
                   <ShieldAlert className="h-5 w-5 text-rose-600" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">Reject Document</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">{rejectingDoc.label} – {rejectingDoc.value}</p>
+                  <h3 className="text-base font-bold text-slate-800">
+                    {rejectingDoc
+                      ? `Reject ${rejectingDoc.label}`
+                      : `Reject Retailer Application`}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {rejectingDoc
+                      ? `Ref: ${rejectingDoc.value}`
+                      : `${selected.fullName || "Retailer"} (${selected.id})`}
+                  </p>
                 </div>
               </div>
             </div>
@@ -1525,10 +1904,17 @@ export default function AdminRetailerDetails() {
               <textarea
                 ref={rejectionTextareaRef}
                 value={rejectionReason}
-                onChange={(e) => { setRejectionReason(e.target.value); setRejectionReasonError(''); }}
-                placeholder="Please provide a detailed reason for rejecting this document (minimum 10 characters)..."
+                onChange={(e) => {
+                  setRejectionReason(e.target.value);
+                  setRejectionReasonError("");
+                }}
+                placeholder="Please enter a detailed reason for rejection (minimum 10 characters)..."
                 rows={4}
-                className={`w-full rounded-xl border ${rejectionReasonError ? 'border-rose-300 ring-2 ring-rose-500/20' : 'border-slate-200'} bg-slate-50/80 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:bg-white focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20 transition-all resize-none`}
+                className={`w-full rounded-xl border ${
+                  rejectionReasonError
+                    ? "border-rose-300 ring-2 ring-rose-500/20"
+                    : "border-slate-200"
+                } bg-slate-50/80 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:bg-white focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20 transition-all resize-none`}
               />
               {rejectionReasonError && (
                 <p className="mt-1.5 text-xs text-rose-500 font-medium">{rejectionReasonError}</p>
@@ -1536,22 +1922,34 @@ export default function AdminRetailerDetails() {
 
               {/* Quick rejection reasons */}
               <div className="mt-3">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">Quick Select Reason</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Quick Select Reason
+                </p>
                 <div className="flex flex-wrap gap-1.5">
-                  {[
-                    'Document is blurry or unclear',
-                    'Name mismatch',
-                    'Document expired',
-                    'Invalid document format',
-                    'Information not readable',
-                  ].map((reason) => (
+                  {(rejectingDoc
+                    ? [
+                        "Document is blurry or unclear",
+                        "Name mismatch with registered profile",
+                        "Document expired or invalid format",
+                        "Information not legible",
+                      ]
+                    : [
+                        "Incomplete KYC documentation submitted",
+                        "Information provided fails compliance check",
+                        "Bank verification mismatch",
+                        "Business proof invalid or unverifiable",
+                      ]
+                  ).map((reason) => (
                     <button
                       key={reason}
-                      onClick={() => { setRejectionReason(reason); setRejectionReasonError(''); }}
+                      onClick={() => {
+                        setRejectionReason(reason);
+                        setRejectionReasonError("");
+                      }}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
                         rejectionReason === reason
-                          ? 'bg-rose-100 text-rose-700 ring-1 ring-rose-300'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          ? "bg-rose-100 text-rose-700 ring-1 ring-rose-300"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                       }`}
                     >
                       {reason}
@@ -1564,14 +1962,20 @@ export default function AdminRetailerDetails() {
             {/* Footer */}
             <div className="px-6 py-4 mt-2 flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50">
               <button
-                onClick={() => { setRejectingDoc(null); setRejectionReason(''); setRejectionReasonError(''); }}
+                onClick={() => {
+                  setRejectingDoc(null);
+                  setIsRejectingRetailer(false);
+                  setRejectionReason("");
+                  setRejectionReasonError("");
+                }}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleRejectSubmit}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5"
+                disabled={actionLoading}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 disabled:opacity-50"
               >
                 <XCircle className="h-3.5 w-3.5" />
                 Confirm Rejection
@@ -1581,7 +1985,7 @@ export default function AdminRetailerDetails() {
         </div>
       )}
 
-      {/* ── Inline keyframe styles ── */}
+      {/* Inline styles for modal animations */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; }

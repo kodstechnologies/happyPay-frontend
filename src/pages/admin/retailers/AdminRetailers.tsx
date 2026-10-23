@@ -1,4 +1,4 @@
-import { Eye, RefreshCw, Search, Store, MoreVertical, Ban, CheckCircle, XCircle } from "lucide-react";
+import { Eye, RefreshCw, Search, Store, Ban, CheckCircle } from "lucide-react";
 import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,16 +11,25 @@ import {
   updateAdminRetailerAccountStatus,
 } from "../../../services/api/admin/adminRetailerApi";
 
-
-
-const badge: Record<string, string> = {
-  pending: "bg-amber-50 text-amber-700",
-  under_review: "bg-blue-50 text-blue-700",
-  approved: "bg-emerald-50 text-emerald-700",
-  rejected: "bg-rose-50 text-rose-700",
-  active: "bg-emerald-50 text-emerald-700",
-  suspended: "bg-slate-100 text-slate-600",
-  blocked: "bg-rose-50 text-rose-700",
+const kycBadge: Record<string, { bg: string; text: string; border: string; dot: string }> = {
+  approved: {
+    bg: "bg-emerald-50",
+    text: "text-emerald-700",
+    border: "border-emerald-200",
+    dot: "bg-emerald-500",
+  },
+  pending: {
+    bg: "bg-amber-50",
+    text: "text-amber-700",
+    border: "border-amber-200",
+    dot: "bg-amber-500",
+  },
+  rejected: {
+    bg: "bg-rose-50",
+    text: "text-rose-700",
+    border: "border-rose-200",
+    dot: "bg-rose-500",
+  },
 };
 
 export default function AdminRetailers() {
@@ -28,15 +37,33 @@ export default function AdminRetailers() {
 
   const [items, setItems] = useState<AdminRetailer[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [usingMockFallback, setUsingMockFallback] = useState(false);
   const PAGE_SIZE = 10;
+
+  // Debounce search input (400ms delay)
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch((prev) => {
+        if (prev !== search) {
+          setPage(1);
+          return search;
+        }
+        return prev;
+      });
+    }, 400);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [search]);
 
   const handleRequestError = useCallback(
     (caught: unknown) => {
@@ -68,7 +95,7 @@ export default function AdminRetailers() {
       const res = await getAdminRetailers({
         page,
         limit: PAGE_SIZE,
-        search: search.trim() || undefined,
+        search: debouncedSearch.trim() || undefined,
         status: status || undefined,
       });
 
@@ -82,8 +109,8 @@ export default function AdminRetailers() {
       console.warn("Could not fetch retailers from API, falling back to mock:", caught);
       // Fallback to mock data for resilience
       let filteredItems = [...DUMMY_RETAILERS];
-      if (search) {
-        const query = search.toLowerCase();
+      if (debouncedSearch) {
+        const query = debouncedSearch.toLowerCase();
         filteredItems = filteredItems.filter(item => 
           item.fullName?.toLowerCase().includes(query) ||
           item.email?.toLowerCase().includes(query) ||
@@ -109,7 +136,7 @@ export default function AdminRetailers() {
     }
   }, [
     page,
-    search,
+    debouncedSearch,
     status,
     handleRequestError,
   ]);
@@ -125,29 +152,40 @@ export default function AdminRetailers() {
   }, [load]);
 
   const updateStatus = async (id: string, newStatus: AdminRetailer['status']) => {
+    setActionLoadingId(id);
     try {
       if (newStatus) {
         await updateAdminRetailerAccountStatus(id, newStatus);
       }
+      setItems((prevItems) => 
+        prevItems.map((item) => 
+          item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
+        )
+      );
     } catch (err) {
       console.warn("Could not persist status update to backend, updating locally:", err);
       updateDummyRetailerStatus(id, newStatus);
+      setItems((prevItems) => 
+        prevItems.map((item) => 
+          item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
+        )
+      );
+    } finally {
+      setActionLoadingId(null);
     }
-
-    setItems((prevItems) => 
-      prevItems.map((item) => 
-        item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
-      )
-    );
   };
 
   const handleSearch = () => {
-    setPage(1);
-    void load();
+    if (debouncedSearch !== search) {
+      setDebouncedSearch(search);
+      setPage(1);
+    } else {
+      void load();
+    }
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full space-y-6">
       <section>
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#315bd1]">
           Management
@@ -183,7 +221,6 @@ export default function AdminRetailers() {
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
-                  setPage(1);
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") handleSearch();
@@ -241,10 +278,9 @@ export default function AdminRetailers() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="hp-table min-w-[900px]">
+            <table className="hp-table min-w-[850px]">
               <thead>
                 <tr>
-                  <th>Retailer ID</th>
                   <th>Name</th>
                   <th>Email</th>
                   <th>Mobile</th>
@@ -255,87 +291,79 @@ export default function AdminRetailers() {
               </thead>
 
               <tbody>
-                {(usingMockFallback ? items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : items).map((item) => (
-                  <tr key={item.id}>
-                    <td className="px-5 py-4 font-bold text-[#315bd1]">
-                      {item.id}
-                    </td>
-                    <td className="px-5 py-4 font-bold text-slate-800">
-                      {item.fullName || "Unnamed retailer"}
-                      {item.role === 'distributor' && (
-                        <span className="ml-1 text-slate-400 font-medium">(Distributor)</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      {item.email || "-"}
-                    </td>
-                    <td className="px-5 py-4">
-                      {item.mobile || "-"}
-                    </td>
-                    <td className="px-5 py-4 font-medium">
-                      {(item as unknown as { panCard?: string; panNumber?: string }).panCard || (item as unknown as { panNumber?: string }).panNumber || "-"}
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${badge[item.status || "pending"] || badge.pending}`}>
-                        {item.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 relative text-right">
-                      <button
-                        type="button"
-                        onClick={() => setOpenMenuId(openMenuId === item.id ? null : item.id)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors"
-                      >
-                        <MoreVertical className="h-5 w-5" />
-                      </button>
+                {(usingMockFallback ? items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : items).map((item) => {
+                  const kyc = (item.adminApproved || item.kycStatus || "pending").toLowerCase();
+                  const cfg = kycBadge[kyc] || kycBadge.pending;
+                  const isBlocked = item.status === "blocked";
+                  const isUpdating = actionLoadingId === item.id;
 
-                      {openMenuId === item.id && (
-                        <>
-                          <div 
-                            className="fixed inset-0 z-10" 
-                            onClick={() => setOpenMenuId(null)} 
-                          />
-                          <div className="absolute right-10 top-10 z-20 w-36 overflow-hidden rounded-xl bg-white shadow-xl border border-slate-100 text-left">
+                  return (
+                    <tr key={item.id}>
+                      <td className="px-5 py-4 font-bold text-slate-800">
+                        {item.fullName || "Unnamed retailer"}
+                        {item.role === 'distributor' && (
+                          <span className="ml-1 text-slate-400 font-medium">(Distributor)</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4">
+                        {item.email || "-"}
+                      </td>
+                      <td className="px-5 py-4">
+                        {item.mobile || "-"}
+                      </td>
+                      <td className="px-5 py-4 font-medium">
+                        {(item as unknown as { panCard?: string; panNumber?: string }).panCard || (item as unknown as { panNumber?: string }).panNumber || "-"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${cfg.bg} ${cfg.text} ${cfg.border}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                          {kyc}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {/* View Button */}
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/retailers/${item.id}`)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-[#315bd1] bg-[#f0f4ff] hover:bg-[#315bd1] hover:text-white transition-all shadow-sm"
+                            title="View Retailer Details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            <span>View</span>
+                          </button>
+
+                          {/* Block / Unblock Toggle Button */}
+                          {isBlocked ? (
                             <button
                               type="button"
-                              onClick={() => { setOpenMenuId(null); navigate(`/admin/retailers/${item.id}`); }}
-                              className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                              disabled={isUpdating}
+                              onClick={() => updateStatus(item.id, "active")}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white transition-all shadow-sm border border-emerald-200/60 disabled:opacity-50"
+                              title="Unblock Retailer Account"
                             >
-                              <Eye className="h-3.5 w-3.5 text-[#315bd1]" /> View
+                              <CheckCircle className="h-3.5 w-3.5" />
+                              <span>{isUpdating ? "Updating..." : "Unblock"}</span>
                             </button>
-                            {(item.status === 'pending' || item.status === 'blocked' || item.status === 'rejected' || item.status === 'suspended') && (
-                              <button
-                                type="button"
-                                onClick={() => { setOpenMenuId(null); updateStatus(item.id, 'approved'); }}
-                                className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-emerald-50"
-                              >
-                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600" /> Approve
-                              </button>
-                            )}
-                            {(item.status === 'approved' || item.status === 'pending') && (
-                              <button
-                                type="button"
-                                onClick={() => { setOpenMenuId(null); updateStatus(item.id, 'blocked'); }}
-                                className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-amber-50"
-                              >
-                                <Ban className="h-3.5 w-3.5 text-amber-600" /> Block
-                              </button>
-                            )}
-                            {(item.status === 'approved' || item.status === 'pending') && (
-                              <button
-                                type="button"
-                                onClick={() => { setOpenMenuId(null); updateStatus(item.id, 'rejected'); }}
-                                className="flex w-full items-center gap-2 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-rose-50"
-                              >
-                                <XCircle className="h-3.5 w-3.5 text-rose-600" /> Reject
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isUpdating}
+                              onClick={() => updateStatus(item.id, "blocked")}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-600 hover:text-white transition-all shadow-sm border border-rose-200/60 disabled:opacity-50"
+                              title="Block Retailer Account"
+                            >
+                              <Ban className="h-3.5 w-3.5" />
+                              <span>{isUpdating ? "Updating..." : "Block"}</span>
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

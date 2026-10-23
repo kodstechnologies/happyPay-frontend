@@ -533,6 +533,7 @@ export interface UpdateBankDetailsResult {
 export interface UpdateBankDetailsPayload {
   userId: string;
   bankName: string;
+  bank_id?: string | number;
   ifscCode: string;
   accountNumber: string;
   fcmToken?: string | null;

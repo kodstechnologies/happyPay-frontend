@@ -267,7 +267,7 @@ export default function AdminTransactions() {
     dateFilter !== "";
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full space-y-6">
       {/* ── Page Header ── */}
       <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -647,7 +647,7 @@ export default function AdminTransactions() {
       {/* ── Transaction Details Modal ── */}
       {selectedTxn && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-slide-in-right">
+          <div className="relative w-full overflow-y-auto h-[80vh] max-w-2xl rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 animate-slide-in-right">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <span
