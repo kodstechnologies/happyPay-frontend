@@ -655,8 +655,8 @@ export default function AdminRetailerDetails() {
 
   const isDistributor =
     selected.role === "distributor" ||
-    (Array.isArray(selected.roles) &&
-      selected.roles.some((r: unknown) =>
+    (Array.isArray(selected.role) &&
+      selected.role.some((r: unknown) =>
         typeof r === "object" && r !== null
           ? (r as { slug?: string; name?: string }).slug === "distributor" ||
             (r as { slug?: string; name?: string }).name?.toLowerCase() === "distributor"
