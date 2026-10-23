@@ -1,12 +1,12 @@
 import { apiClient } from "../client";
 import { getToken } from "../../../utils/auth";
 
-interface ApiEnvelope<T> {
+interface ApiEnvelope<T, M = unknown> {
   success: boolean;
   statusCode: number;
   message: string;
   data: T;
-  meta: null;
+  meta?: M | null;
 }
 
 export interface RetailerLoginResult {
@@ -707,26 +707,92 @@ export function validatePincodeApi(pincode: string) {
 // DOWNLINE RETAILERS (DISTRIBUTOR NETWORK)
 // ============================================================
 
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 export interface DownlineRetailer {
   id: string;
   name: string;
   mobile: string;
   email: string;
   shopName: string;
+  panNumber?: string;
   status: "Pending" | "Approved" | "Active" | "Blocked" | "Suspended" | "Rejected";
   rawStatus: string;
   adminApproved: string;
   registeredAt: string;
 }
 
-export interface DownlineRetailersResponse {
-  items: DownlineRetailer[];
-  pagination?: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
+export interface RetailerFullProfile {
+  id: string;
+  mobile: string;
+  isMobileVerified?: boolean;
+  email?: string;
+  isEmailVerified?: boolean;
+  registrationStatus?: string;
+  currentRegistrationStep?: string;
+  fullName: string;
+  fatherName?: string;
+  gender?: string;
+  maritalStatus?: string;
+  educationalQualification?: string;
+  dateOfBirth?: string;
+  panNumber?: string;
+  panDocument?: string;
+  aadhaarNumber?: string;
+  aadhaarDocument?: { front?: string; back?: string };
+  selfie?: string;
+  shop?: {
+    name?: string;
+    category?: { _id?: string; name?: string } | string;
+    propertyType?: { _id?: string; name?: string } | string;
+    address?: { addressLine?: string; city?: string; state?: string; pincode?: string } | string;
+    completeAddress?: string;
+    location?: { type?: string; coordinates?: number[] };
   };
+  shopInsidePhoto?: string;
+  shopOutsidePhoto?: string;
+  shopLocationPhoto?: string;
+  businessProofType?: { _id?: string; name?: string } | string;
+  businessProofDocument?: string;
+  banks?: Array<{
+    _id?: string;
+    id?: string;
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    accountHolderName?: string;
+    isPrimary?: boolean;
+    isVerified?: boolean;
+  }>;
+  primaryBank?: {
+    _id?: string;
+    id?: string;
+    bankName?: string;
+    accountNumber?: string;
+    ifscCode?: string;
+    accountHolderName?: string;
+    isPrimary?: boolean;
+    isVerified?: boolean;
+  } | null;
+  outletId?: string | null;
+  eKYCStatus?: string | null;
+  referenceKey?: string | null;
+  kycStatus?: string;
+  kycRejectionReason?: string;
+  adminApproved?: string;
+  reasonOfRejection?: string;
+  status: string;
+  isActive?: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export function getDownlineRetailersApi(params?: {
@@ -747,8 +813,22 @@ export function getDownlineRetailersApi(params?: {
   const effectiveToken = params?.token || getToken() || undefined;
 
   const qs = query.toString();
-  return apiClient<ApiEnvelope<DownlineRetailer[]>>(
+  return apiClient<ApiEnvelope<DownlineRetailer[], PaginationMeta>>(
     `/api/v1/auth/retailer/downline-retailers${qs ? `?${qs}` : ""}`,
+    {
+      method: "GET",
+      token: effectiveToken,
+    }
+  );
+}
+
+export function getDownlineRetailerDetailsApi(
+  retailerId: string,
+  token?: string
+) {
+  const effectiveToken = token || getToken() || undefined;
+  return apiClient<ApiEnvelope<RetailerFullProfile>>(
+    `/api/v1/auth/retailer/downline-retailers/${retailerId}`,
     {
       method: "GET",
       token: effectiveToken,
@@ -773,17 +853,23 @@ export function getDownlineRetailerTransactionsApi(
   params?: {
     page?: number;
     limit?: number;
+    service?: string;
+    status?: string;
+    search?: string;
     token?: string;
   }
 ) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.service && params.service !== "All" && params.service !== "all") query.set("service", params.service);
+  if (params?.status && params.status !== "All" && params.status !== "all") query.set("status", params.status);
+  if (params?.search) query.set("search", params.search);
 
   const effectiveToken = params?.token || getToken() || undefined;
 
   const qs = query.toString();
-  return apiClient<ApiEnvelope<DownlineTransaction[]>>(
+  return apiClient<ApiEnvelope<DownlineTransaction[], PaginationMeta>>(
     `/api/v1/auth/retailer/downline-retailers/${retailerId}/transactions${qs ? `?${qs}` : ""}`,
     {
       method: "GET",

@@ -181,10 +181,6 @@ export function rejectAdminRetailerDocument(
   });
 }
 
-/**
- * GET /api/admin/transactions
- * Fetches paginated & filtered transactions across all retailers from the admin portal.
- */
 export function getAllAdminTransactions(
   filters: AdminTransactionFilters = {}
 ) {
