@@ -305,7 +305,9 @@ export default function DistributorRetailerDetails() {
                   <Phone className="h-3.5 w-3.5 text-slate-400" />
                   <span>+91 {retailer.mobile}</span>
                   {retailer.isMobileVerified && (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" title="Mobile Verified" />
+                    <span title="Mobile Verified" className="inline-flex items-center">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                    </span>
                   )}
                 </div>
                 {retailer.email && (
