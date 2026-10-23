@@ -879,7 +879,8 @@ const BBPS: React.FC = () => {
             <button
               type="button"
               onClick={handleSyncBbps}
-              disabled={isSyncing}
+              // disabled={isSyncing}
+              disabled
               title="Sync BBPS Categories & Billers with Database"
               className="flex items-center gap-2 rounded-xl border border-blue-200/90 bg-gradient-to-r from-blue-50 to-indigo-50/80 px-3.5 py-1.5 text-xs font-bold text-blue-700 shadow-2xs hover:from-blue-100 hover:to-indigo-100 hover:text-blue-900 transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
             >
