@@ -1,6 +1,6 @@
 import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "../../../services/api/admin/adminNotificationsApi";
+import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "../../../apis/adminNotifications.apis";
 
 interface Notification {
   _id: string;
@@ -26,7 +26,7 @@ export default function AdminNotifications() {
     try {
       setLoading(true);
       const response = await getNotifications({ page: 1, limit: 50 });
-      setNotifications(response.data.notifications);
+      setNotifications(response.notifications);
     } catch (error) {
       console.error("Failed to fetch notifications:", error);
     } finally {
@@ -42,7 +42,7 @@ export default function AdminNotifications() {
         setLoading(true);
         const response = await getNotifications({ page: 1, limit: 50 });
         if (isMounted) {
-          setNotifications(response.data.notifications);
+          setNotifications(response.notifications);
         }
       } catch (error) {
         console.error("Failed to fetch notifications:", error);

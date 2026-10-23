@@ -18,7 +18,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import Pagination from "../../../components/common/Pagination";
-import { getAllAdminTransactions } from "../../../services/api/admin/adminRetailerApi";
+import { getAllAdminTransactions } from "../../../apis/adminRetailer.apis";
 import type {
   AdminTransaction,
   PaginationMeta,
@@ -195,10 +195,10 @@ export default function AdminTransactions() {
           endDate: dateFilter || undefined,
         });
 
-        if (response && response.data) {
-          setTransactions(response.data.transactions || []);
+        if (response) {
+          setTransactions(response.transactions || []);
           setPagination(
-            response.data.pagination || {
+            response.pagination || {
               total: 0,
               page: pageToFetch,
               limit: pagination.limit,

@@ -2,14 +2,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Edit, X } from "lucide-react";
-import { 
-  getAdminBanners, 
-  createAdminBanner, 
-  updateAdminBanner, 
+import {
+  getAdminBanners,
+  createAdminBanner,
+  updateAdminBanner,
   deleteAdminBanner,
   type Banner,
   type BannerFormData
-} from "../../../services/api/admin/adminBannerApi";
+} from "../../../apis/adminBanner.apis";
 
 export default function AdminBanners() {
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -34,7 +34,7 @@ export default function AdminBanners() {
     try {
       setLoading(true);
       const res = await getAdminBanners();
-      setBanners(res.data);
+      setBanners(res);
     } catch (err) {
       setError("Failed to load banners");
     } finally {

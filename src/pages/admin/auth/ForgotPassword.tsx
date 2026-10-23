@@ -1,7 +1,7 @@
 import { Mail, ShieldCheck } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { forgotPassword } from "../../../services/api/admin/adminAuthApi";
+import { forgotPassword } from "../../../apis/adminAuth.apis";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
