@@ -20,8 +20,7 @@ import { initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from ".
 import { getRetailerDashboardApi, type DashboardData, type DashboardTransactionItem } from "../../apis/dashboard.apis";
 import { loadRazorpayScript } from "../../utils/razorpay";
 import { useNavigate } from "react-router-dom";
-
-import { apiClient } from "../../services/api/client";
+import api from "../../config/axiosInstance";
 import { getAuthUser } from "../../context/AuthContext";
 import { initDashboardLocation } from "../../utils/geolocation";
 
@@ -202,10 +201,10 @@ const Dashboard = () => {
           order?: number;
           imageUrl?: string;
         }
-        const response = await apiClient<{ success?: boolean; data?: BannerApiResponseItem[] }>("/api/v1/banners", { method: "GET" });
-        if (isMounted && response?.success && Array.isArray(response.data)) {
+        const response = await api.get<{ success?: boolean; data?: BannerApiResponseItem[] }>("/api/v1/banners");
+        if (isMounted && response.data?.success && Array.isArray(response.data.data)) {
           // Sort by order and map to imageUrl
-          const sorted = [...response.data]
+          const sorted = [...response.data.data]
             .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
             .map((b) => b.imageUrl)
             .filter((url): url is string => Boolean(url));

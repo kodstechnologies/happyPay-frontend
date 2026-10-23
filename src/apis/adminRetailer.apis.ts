@@ -7,11 +7,14 @@ import type {
   SubRetailerFilters,
   SubRetailerListResponse,
 } from "../types/admin/retailer";
+import type { AxiosResponse } from "axios";
 
 interface Envelope<T> {
   data: T;
   message?: string;
 }
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
 interface RetailerList {
   items: AdminRetailer[];
@@ -26,11 +29,11 @@ export function getAdminRetailers(filters: RetailerListFilters = {}) {
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== "") params.set(key, String(value));
   });
-  return api.get<Envelope<RetailerList>>(`/api/admin/retailers?${params.toString()}`).then((response) => response.data.data);
+  return api.get<Envelope<RetailerList>>(`/api/admin/retailers?${params.toString()}`).then(unwrap);
 }
 
 export function getAdminRetailer(id: string) {
-  return api.get<Envelope<AdminRetailer>>(`/api/admin/retailers/${id}`).then((response) => response.data.data);
+  return api.get<Envelope<AdminRetailer>>(`/api/admin/retailers/${id}`).then(unwrap);
 }
 
 export function updateAdminRetailerKyc(
@@ -41,7 +44,7 @@ export function updateAdminRetailerKyc(
   return api.put<Envelope<{ id: string; kycStatus: string; kycRejectionReason?: string }>>(
     `/api/admin/retailers/${id}/kyc`,
     { status, reason }
-  ).then((response) => response.data.data);
+  ).then(unwrap);
 }
 
 /**
@@ -62,7 +65,7 @@ export function getAdminRetailerTransactions(
   const endpoint = `/api/admin/retailers/${id}/transactions${
     queryString ? `?${queryString}` : ""
   }`;
-  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then((response) => response.data.data);
+  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then(unwrap);
 }
 
 /**
@@ -83,7 +86,7 @@ export function getAdminDistributorSubRetailers(
   const endpoint = `/api/admin/retailers/${id}/sub-retailers${
     queryString ? `?${queryString}` : ""
   }`;
-  return api.get<Envelope<SubRetailerListResponse>>(endpoint).then((response) => response.data.data);
+  return api.get<Envelope<SubRetailerListResponse>>(endpoint).then(unwrap);
 }
 
 /**
@@ -98,7 +101,7 @@ export function updateAdminRetailerAccountStatus(
   return api.patch<Envelope<{ id: string; status: string; adminApproved: string }>>(
     `/api/admin/retailers/${id}/status`,
     { status, reason }
-  ).then((response) => response.data.data);
+  ).then(unwrap);
 }
 
 export interface ReviewRetailerDocumentParams {
@@ -126,7 +129,7 @@ export function reviewAdminRetailerDocument({
       action,
       reason,
     }
-  ).then((response) => response.data.data);
+  ).then(unwrap);
 }
 
 /**
@@ -172,5 +175,5 @@ export function getAllAdminTransactions(
   const endpoint = `/api/admin/transactions${
     queryString ? `?${queryString}` : ""
   }`;
-  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then((response) => response.data.data);
+  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then(unwrap);
 }

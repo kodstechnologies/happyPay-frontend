@@ -1,5 +1,5 @@
-import { apiClient } from "../client";
-import { getToken } from "../../../utils/auth";
+import api from "../../../config/axiosInstance";
+import type { AxiosResponse } from "axios";
 
 interface ApiEnvelope<T, M = unknown> {
   success: boolean;
@@ -8,6 +8,8 @@ interface ApiEnvelope<T, M = unknown> {
   data: T;
   meta?: M | null;
 }
+
+const unwrap = <T, M = unknown>(response: AxiosResponse<ApiEnvelope<T, M>>) => response.data;
 
 export interface RetailerLoginResult {
   user: {
@@ -66,13 +68,7 @@ export interface VerifyOtpResult {
 
 
 export function sendRetailerRegisterOtp(mobile: string) {
-  return apiClient<ApiEnvelope<SendOtpResult>>(
-    "/api/v1/otp/send",
-    {
-      method: "POST",
-      body: JSON.stringify({ mobile }),
-    },
-  );
+  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/send", { mobile }).then(unwrap);
 }
 
 // ============================================================
@@ -84,14 +80,7 @@ export function verifyRetailerRegisterOtp(payload: {
   otp: string;
   distributorId?: string;
 }) {
-  return apiClient<ApiEnvelope<VerifyOtpResult>>(
-    "/api/v1/otp/verify",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.post<ApiEnvelope<VerifyOtpResult>>("/api/v1/otp/verify", payload).then(unwrap);
 }
 
 
@@ -182,14 +171,7 @@ export function sendRetailerEmailOtp(payload: {
   userId: string;
   email: string;
 }) {
-  return apiClient<ApiEnvelope<SendEmailOtpResult>>(
-    "/api/v1/email-otp/send",
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.patch<ApiEnvelope<SendEmailOtpResult>>("/api/v1/email-otp/send", payload).then(unwrap);
 }
 
 
@@ -199,14 +181,7 @@ export function verifyRetailerEmailOtp(payload: {
   email: string;
   otp: string;
 }) {
-  return apiClient<ApiEnvelope<VerifyEmailOtpResult>>(
-    "/api/v1/email-otp/verify",
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.patch<ApiEnvelope<VerifyEmailOtpResult>>("/api/v1/email-otp/verify", payload).then(unwrap);
 }
 
 // ============================================================
@@ -217,14 +192,7 @@ export function getCurrentRegistrationStep(payload: {
   userId?: string;
   mobile?: string;
 }) {
-  return apiClient<ApiEnvelope<CurrentRegistrationStepResult>>(
-    "/api/v1/auth/registration/current-step",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.post<ApiEnvelope<CurrentRegistrationStepResult>>("/api/v1/auth/registration/current-step", payload).then(unwrap);
 }
 
 // ============================================================
@@ -304,14 +272,7 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   if (payload.panDocument)
     fd.append("panDocument", payload.panDocument);
 
-  return apiClient<ApiEnvelope<UpdateShopDetailsResult>>(
-    "/api/v1/auth/registration/shop-details",
-    {
-      method: "PATCH",
-      body: fd,
-      // NOTE: do NOT set Content-Type — browser sets multipart boundary automatically
-    },
-  );
+  return api.patch<ApiEnvelope<UpdateShopDetailsResult>>("/api/v1/auth/registration/shop-details", fd).then(unwrap);
 }
 
 
@@ -381,14 +342,7 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   fd.append("educationalQualification", payload.educationalQualification);
   fd.append("selfie", payload.selfie);
 
-  return apiClient<ApiEnvelope<UpdateAboutResult>>(
-    "/api/v1/auth/registration/about",
-    {
-      method: "PATCH",
-      body: fd,
-      // do NOT set Content-Type — let the browser set the multipart boundary
-    },
-  );
+  return api.patch<ApiEnvelope<UpdateAboutResult>>("/api/v1/auth/registration/about", fd).then(unwrap);
 }
 
 
@@ -398,13 +352,7 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
 //=======================================================================================
 
 export function sendRetailerLoginOtp(mobile: string) {
-  return apiClient<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>(
-    "/api/v1/auth/retailer/login/send-otp",
-    {
-      method: "POST",
-      body: JSON.stringify({ mobile }),
-    },
-  );
+  return api.post<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>("/api/v1/auth/retailer/login/send-otp", { mobile }).then(unwrap);
 }
 
 // ============================================================
@@ -474,14 +422,7 @@ export function updateRetailerAadhaarDetails(payload: UpdateAadhaarPayload) {
   fd.append("isAdharConsentGiven", String(payload.isAdharConsentGiven));
   fd.append("aadhaarMobileLinked", String(payload.aadhaarMobileLinked));
 
-  return apiClient<ApiEnvelope<UpdateAadhaarResult>>(
-    "/api/v1/auth/registration/adhaar-details",
-    {
-      method: "PATCH",
-      body: fd,
-      // do NOT set Content-Type — let the browser set the multipart boundary
-    },
-  );
+  return api.patch<ApiEnvelope<UpdateAadhaarResult>>("/api/v1/auth/registration/adhaar-details", fd).then(unwrap);
 }
 
 // ============================================================
@@ -544,14 +485,7 @@ export interface UpdateBankDetailsPayload {
 }
 
 export function updateRetailerBankDetails(payload: UpdateBankDetailsPayload) {
-  return apiClient<ApiEnvelope<UpdateBankDetailsResult>>(
-    "/api/v1/auth/registration/bank-details",
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.patch<ApiEnvelope<UpdateBankDetailsResult>>("/api/v1/auth/registration/bank-details", payload).then(unwrap);
 }
 
 // ============================================================
@@ -579,28 +513,20 @@ export interface BankListMeta {
 }
 
 export function getBankList(page?: number, limit?: number) {
-  const params = new URLSearchParams();
-  if (page) params.append('page', page.toString());
-  if (limit) params.append('limit', limit.toString());
+  const params: { page?: number; limit?: number } = {};
+  if (page) params.page = page;
+  if (limit) params.limit = limit;
 
-  return apiClient<ApiEnvelope<Bank[]>>(
-    `/api/v1/auth/banks${params.toString() ? `?${params.toString()}` : ''}`,
-    {
-      method: "GET",
-    },
-  );
+  return api.get<ApiEnvelope<Bank[]>>("/api/v1/auth/banks", { params }).then(unwrap);
 }
 
 export function getRetailerAadhaarAndMobile(userId: string) {
-  return apiClient<
+  return api.post<
     ApiEnvelope<{
       aadhaarNumber: string | null;
       mobile: string | null;
     }>
-  >("/api/v1/auth/retailer/aadhaar-mobile", {
-    method: "POST",
-    body: JSON.stringify({ userId }),
-  });
+  >("/api/v1/auth/retailer/aadhaar-mobile", { userId }).then(unwrap);
 }
 
 export function verifyRetailerLoginOtp(payload: {
@@ -611,13 +537,7 @@ export function verifyRetailerLoginOtp(payload: {
   platform?: string;
   deviceName?: string;
 }) {
-  return apiClient<ApiEnvelope<RetailerLoginResult>>(
-    "/api/v1/auth/retailer/login/verify-otp",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    },
-  );
+  return api.post<ApiEnvelope<RetailerLoginResult>>("/api/v1/auth/retailer/login/verify-otp", payload).then(unwrap);
 }
 
 export interface AepsEkycData {
@@ -650,34 +570,15 @@ export interface RetailerUser {
   isActive: boolean;
 }
 
-export function getAuthenticatedRetailer(token?: string) {
-  const effectiveToken =
-    token ||
-    (typeof window !== "undefined"
-      ? localStorage.getItem("accessToken") || localStorage.getItem("token")
-      : null) ||
-    undefined;
-
-  return apiClient<ApiEnvelope<RetailerUser>>(
-    "/api/v1/auth/retailer/auth/me",
-    {
-      method: "GET",
-      token: effectiveToken,
-    }
-  );
+export function getAuthenticatedRetailer() {
+  return api.get<ApiEnvelope<RetailerUser>>("/api/v1/auth/retailer/auth/me").then(unwrap);
 }
 
 export function logoutRetailerApi(payload: {
   refreshToken?: string | null;
   deviceId?: string | null;
 }) {
-  return apiClient<ApiEnvelope<null>>(
-    "/api/v1/auth/retailer/logout",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }
-  );
+  return api.post<ApiEnvelope<null>>("/api/v1/auth/retailer/logout", payload).then(unwrap);
 }
 
 // ============================================================
@@ -695,12 +596,7 @@ export interface PincodeValidationData {
 }
 
 export function validatePincodeApi(pincode: string) {
-  return apiClient<ApiEnvelope<PincodeValidationData>>(
-    `/api/v1/auth/pincode/validate/${encodeURIComponent(pincode)}`,
-    {
-      method: "GET",
-    }
-  );
+  return api.get<ApiEnvelope<PincodeValidationData>>(`/api/v1/auth/pincode/validate/${encodeURIComponent(pincode)}`).then(unwrap);
 }
 
 // ============================================================
@@ -801,39 +697,21 @@ export function getDownlineRetailersApi(params?: {
   search?: string;
   status?: string;
   adminApproved?: string;
-  token?: string;
 }) {
-  const query = new URLSearchParams();
-  if (params?.page) query.set("page", String(params.page));
-  if (params?.limit) query.set("limit", String(params.limit));
-  if (params?.search) query.set("search", params.search);
-  if (params?.status) query.set("status", params.status);
-  if (params?.adminApproved) query.set("adminApproved", params.adminApproved);
+  const queryParams: { page?: number; limit?: number; search?: string; status?: string; adminApproved?: string } = {};
+  if (params?.page) queryParams.page = params.page;
+  if (params?.limit) queryParams.limit = params.limit;
+  if (params?.search) queryParams.search = params.search;
+  if (params?.status) queryParams.status = params.status;
+  if (params?.adminApproved) queryParams.adminApproved = params.adminApproved;
 
-  const effectiveToken = params?.token || getToken() || undefined;
-
-  const qs = query.toString();
-  return apiClient<ApiEnvelope<DownlineRetailer[], PaginationMeta>>(
-    `/api/v1/auth/retailer/downline-retailers${qs ? `?${qs}` : ""}`,
-    {
-      method: "GET",
-      token: effectiveToken,
-    }
-  );
+  return api.get<ApiEnvelope<DownlineRetailer[], PaginationMeta>>("/api/v1/auth/retailer/downline-retailers", { params: queryParams }).then(unwrap);
 }
 
 export function getDownlineRetailerDetailsApi(
-  retailerId: string,
-  token?: string
+  retailerId: string
 ) {
-  const effectiveToken = token || getToken() || undefined;
-  return apiClient<ApiEnvelope<RetailerFullProfile>>(
-    `/api/v1/auth/retailer/downline-retailers/${retailerId}`,
-    {
-      method: "GET",
-      token: effectiveToken,
-    }
-  );
+  return api.get<ApiEnvelope<RetailerFullProfile>>(`/api/v1/auth/retailer/downline-retailers/${retailerId}`).then(unwrap);
 }
 
 export interface DownlineTransaction {
@@ -856,26 +734,16 @@ export function getDownlineRetailerTransactionsApi(
     service?: string;
     status?: string;
     search?: string;
-    token?: string;
   }
 ) {
-  const query = new URLSearchParams();
-  if (params?.page) query.set("page", String(params.page));
-  if (params?.limit) query.set("limit", String(params.limit));
-  if (params?.service && params.service !== "All" && params.service !== "all") query.set("service", params.service);
-  if (params?.status && params.status !== "All" && params.status !== "all") query.set("status", params.status);
-  if (params?.search) query.set("search", params.search);
+  const queryParams: { page?: number; limit?: number; service?: string; status?: string; search?: string } = {};
+  if (params?.page) queryParams.page = params.page;
+  if (params?.limit) queryParams.limit = params.limit;
+  if (params?.service && params.service !== "All" && params.service !== "all") queryParams.service = params.service;
+  if (params?.status && params.status !== "All" && params.status !== "all") queryParams.status = params.status;
+  if (params?.search) queryParams.search = params.search;
 
-  const effectiveToken = params?.token || getToken() || undefined;
-
-  const qs = query.toString();
-  return apiClient<ApiEnvelope<DownlineTransaction[], PaginationMeta>>(
-    `/api/v1/auth/retailer/downline-retailers/${retailerId}/transactions${qs ? `?${qs}` : ""}`,
-    {
-      method: "GET",
-      token: effectiveToken,
-    }
-  );
+  return api.get<ApiEnvelope<DownlineTransaction[], PaginationMeta>>(`/api/v1/auth/retailer/downline-retailers/${retailerId}/transactions`, { params: queryParams }).then(unwrap);
 }
 
 

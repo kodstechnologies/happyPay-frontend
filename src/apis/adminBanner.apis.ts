@@ -1,4 +1,5 @@
 import api from "../config/adminAxiosInstance";
+import type { AxiosResponse } from "axios";
 
 export interface Banner {
   _id: string;
@@ -19,8 +20,10 @@ interface Envelope<T> {
   message?: string;
 }
 
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
+
 export function getAdminBanners() {
-  return api.get<Envelope<Banner[]>>(`/api/v1/banners`).then((response) => response.data.data);
+  return api.get<Envelope<Banner[]>>(`/api/v1/banners`).then(unwrap);
 }
 
 function bannerFormData(data: BannerFormData, image?: File | null) {
@@ -37,13 +40,13 @@ function bannerFormData(data: BannerFormData, image?: File | null) {
 }
 
 export function createAdminBanner(data: BannerFormData, image: File) {
-  return api.post<Envelope<Banner>>(`/api/v1/banners`, bannerFormData(data, image)).then((response) => response.data.data);
+  return api.post<Envelope<Banner>>(`/api/v1/banners`, bannerFormData(data, image)).then(unwrap);
 }
 
 export function updateAdminBanner(id: string, data: BannerFormData, image?: File | null) {
-  return api.put<Envelope<Banner>>(`/api/v1/banners/${id}`, bannerFormData(data, image)).then((response) => response.data.data);
+  return api.put<Envelope<Banner>>(`/api/v1/banners/${id}`, bannerFormData(data, image)).then(unwrap);
 }
 
 export function deleteAdminBanner(id: string) {
-  return api.delete<Envelope<null>>(`/api/v1/banners/${id}`).then((response) => response.data.data);
+  return api.delete<Envelope<null>>(`/api/v1/banners/${id}`).then(unwrap);
 }

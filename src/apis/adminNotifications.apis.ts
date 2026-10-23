@@ -1,10 +1,13 @@
 import api from "../config/adminAxiosInstance";
+import type { AxiosResponse } from "axios";
 
 interface Envelope<T> {
   success?: boolean;
   message?: string;
   data: T;
 }
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
 interface Notification {
   _id: string;
@@ -34,13 +37,13 @@ export function getNotifications(params?: {
   limit?: number;
   unread?: boolean;
 }) {
-  return api.get<Envelope<NotificationsResponse>>("/api/admin/notifications", { params }).then((response) => response.data.data);
+  return api.get<Envelope<NotificationsResponse>>("/api/v1/auth/admin/notifications", { params }).then(unwrap);
 }
 
 export function markNotificationAsRead(notificationId: string) {
-  return api.patch<Envelope<Notification>>(`/api/admin/notifications/${notificationId}/read`).then((response) => response.data.data);
+  return api.patch<Envelope<Notification>>(`/api/v1/auth/admin/notifications/${notificationId}/read`).then(unwrap);
 }
 
 export function markAllNotificationsAsRead() {
-  return api.patch<Envelope<{ modifiedCount: number }>>("/api/admin/notifications/read-all").then((response) => response.data.data);
+  return api.patch<Envelope<{ modifiedCount: number }>>("/api/v1/auth/admin/notifications/read-all").then(unwrap);
 }

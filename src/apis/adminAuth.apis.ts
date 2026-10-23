@@ -6,13 +6,14 @@ import type {
   ResetPasswordRequest,
 } from "../types/admin/auth";
 import { clearAdminSession } from "../utils/adminAuth";
+import type { AxiosResponse } from "axios";
 
 interface ApiEnvelope<T> {
   data: T;
   message?: string;
 }
 
-const unwrap = <T,>(response: { data: ApiEnvelope<T> }) => response.data.data;
+const unwrap = <T,>(response: AxiosResponse<ApiEnvelope<T>>) => response.data.data;
 
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:7000";
 
@@ -31,13 +32,13 @@ export function forgotPassword(payload: ForgotPasswordRequest) {
       `${baseURL}/api/admin/auth/forgot-password`,
       payload
     )
-    .then((response) => unwrap(response));
+    .then(unwrap);
 }
 
 export function resetPassword(payload: ResetPasswordRequest) {
   return axios
     .post<ApiEnvelope<{ message?: string }>>(`${baseURL}/api/admin/auth/reset-password`, payload)
-    .then((response) => unwrap(response));
+    .then(unwrap);
 }
 
 export function logoutAdmin() {

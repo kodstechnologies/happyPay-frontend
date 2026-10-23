@@ -131,8 +131,8 @@ export default function AdminCustomers() {
             No customers found.
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="hp-table min-w-[900px]">
+          <div className="w-full overflow-x-auto">
+            <table className="hp-table w-full">
               <thead>
                 <tr>
                   <th>Name</th>

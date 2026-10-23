@@ -74,8 +74,8 @@ export default function DistributorRetailerDetails() {
     setProfileError("");
     try {
       const res = await getDownlineRetailerDetailsApi(id);
-      if (res?.data) {
-        setRetailer(res.data);
+      if (res) {
+        setRetailer(res);
       } else {
         setProfileError("Retailer details not found");
       }

@@ -65,8 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       setIsLoading(true);
-      const res = await getAuthenticatedRetailer(token);
-      if (res && res.data) {
+      const res = await getAuthenticatedRetailer();
+      if (res?.data) {
         setUser(res.data);
         setIsAuthenticated(true);
         return res.data;
@@ -113,10 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     let isMounted = true;
-    getAuthenticatedRetailer(token)
+    getAuthenticatedRetailer()
       .then((res) => {
         if (!isMounted) return;
-        if (res && res.data) {
+        if (res?.data) {
           inMemoryAuthUser = res.data;
           setUserState(res.data);
           setIsAuthenticated(true);

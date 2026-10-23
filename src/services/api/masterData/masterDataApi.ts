@@ -1,4 +1,5 @@
-import { apiClient } from "../client";
+import api from "../../../config/axiosInstance";
+import type { AxiosResponse } from "axios";
 
 interface ApiEnvelope<T> {
   success: boolean;
@@ -7,6 +8,8 @@ interface ApiEnvelope<T> {
   data: T;
   meta: null;
 }
+
+const unwrap = <T,>(response: AxiosResponse<ApiEnvelope<T>>) => response.data.data;
 
 export interface MasterDataItem {
   _id: string;
@@ -24,12 +27,9 @@ export type MasterDataListResult = MasterDataItem[];
 // ============================================================
 
 export function getCategories() {
-  return apiClient<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/categories",
-    {
-      method: "GET",
-    },
-  );
+  return api.get<ApiEnvelope<MasterDataListResult>>(
+    "/api/v1/master-data/categories"
+  ).then(unwrap);
 }
 
 // ============================================================
@@ -37,12 +37,9 @@ export function getCategories() {
 // ============================================================
 
 export function getPropertyTypes() {
-  return apiClient<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/property-types",
-    {
-      method: "GET",
-    },
-  );
+  return api.get<ApiEnvelope<MasterDataListResult>>(
+    "/api/v1/master-data/property-types"
+  ).then(unwrap);
 }
 
 // ============================================================
@@ -50,12 +47,9 @@ export function getPropertyTypes() {
 // ============================================================
 
 export function getProofTypes() {
-  return apiClient<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/proof-types",
-    {
-      method: "GET",
-    },
-  );
+  return api.get<ApiEnvelope<MasterDataListResult>>(
+    "/api/v1/master-data/proof-types"
+  ).then(unwrap);
 }
 
 // ============================================================
@@ -63,10 +57,7 @@ export function getProofTypes() {
 // ============================================================
 
 export function getEducationalQualifications() {
-  return apiClient<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/educational-qualifications",
-    {
-      method: "GET",
-    },
-  );
+  return api.get<ApiEnvelope<MasterDataListResult>>(
+    "/api/v1/master-data/educational-qualifications"
+  ).then(unwrap);
 }
