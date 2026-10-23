@@ -60,6 +60,7 @@ export interface RetailerListFilters {
   search?: string;
   status?: string;
   kycStatus?: string;
+  role?: "all" | "distributor" | "retailer" | string;
 }
 
 // ---------------------------------------------------------------------------

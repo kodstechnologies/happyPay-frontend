@@ -16,6 +16,7 @@ import Cms from "../pages/retailer/cms/Cms";
 import UpiCashPoint from "../pages/retailer/upi-cash-point/UpiCashPoint";
 import BBPS from "../pages/retailer/bbps/Bbps";
 import DistributorDashboard from "../pages/distributor/DistributorDashboard";
+import DistributorRetailerDetails from "../pages/distributor/DistributorRetailerDetails";
 import SettlementToBank from "../pages/retailer/settlement/SettlementToBank";
 import SettlementToRetailer from "../pages/retailer/settlement/SettlementToRetailer";
 import SettlementToDistributor from "../pages/retailer/settlement/SettlementToDistributor";
@@ -182,6 +183,10 @@ const Router: RouteObject[] = [
           {
             path: "distributor",
             element: <DistributorDashboard />,
+          },
+          {
+            path: "distributor/retailers/:id",
+            element: <DistributorRetailerDetails />,
           },
 
           // PROFILE

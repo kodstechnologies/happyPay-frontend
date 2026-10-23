@@ -888,7 +888,7 @@ const BBPS: React.FC = () => {
                 size={14}
                 className={isSyncing ? "animate-spin text-blue-600" : "text-blue-600"}
               />
-              <span>{isSyncing ? "Syncing..." : "Sync BBPS Data"}</span>
+              {/* <span>{isSyncing ? "Syncing..." : "Sync BBPS Data"}</span> */}
             </button>
 
             <div className="flex items-center gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/80 px-3.5 py-1.5 shadow-2xs">

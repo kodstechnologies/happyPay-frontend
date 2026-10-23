@@ -23,7 +23,8 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { DUMMY_RETAILERS, DUMMY_SUB_RETAILERS } from "./mockRetailers";
 import Pagination from "../../../components/common/Pagination";
 import {
   getAdminRetailer,
@@ -59,13 +60,46 @@ interface DocumentItem {
 export default function AdminRetailerDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<Tab>("registration");
+  const tabParam = searchParams.get("tab");
+  const [activeTab, setActiveTab] = useState<Tab>(
+    tabParam === "retailers" || tabParam === "sub-retailers"
+      ? "retailers"
+      : tabParam === "transactions"
+      ? "transactions"
+      : "registration"
+  );
   const [txFilter, setTxFilter] = useState<TxFilter>("All");
   const [docFilter, setDocFilter] = useState<DocFilter>("all");
 
   // Retailer data state
   const [liveRetailer, setLiveRetailer] = useState<AdminRetailer | null>(null);
+
+  // Compute robust distributor role status
+  const isDistributor = useMemo(() => {
+    if (!liveRetailer) return false;
+    if (liveRetailer.role === "distributor") return true;
+    const anyRoles = (liveRetailer as unknown as { roles?: unknown[] }).roles;
+    if (Array.isArray(anyRoles)) {
+      return anyRoles.some((r: unknown) =>
+        typeof r === "object" && r !== null
+          ? (r as { slug?: string; name?: string; code?: string }).slug === "distributor" ||
+            (r as { slug?: string; name?: string; code?: string }).code === "distributor" ||
+            (r as { slug?: string; name?: string; code?: string }).name?.toLowerCase() === "distributor"
+          : String(r) === "distributor"
+      );
+    }
+    if (Array.isArray(liveRetailer.role)) {
+      return (liveRetailer.role as unknown[]).some((r: unknown) =>
+        typeof r === "object" && r !== null
+          ? (r as { slug?: string; name?: string }).slug === "distributor" ||
+            (r as { slug?: string; name?: string }).name?.toLowerCase() === "distributor"
+          : String(r) === "distributor"
+      );
+    }
+    return false;
+  }, [liveRetailer]);
   const [retailerLoading, setRetailerLoading] = useState(true);
   const [retailerError, setRetailerError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -116,12 +150,22 @@ export default function AdminRetailerDetails() {
         if (res) {
           setLiveRetailer(res);
         } else {
-          setRetailerError("Retailer not found.");
+          const dummy = DUMMY_RETAILERS.find((r) => r.id === id);
+          if (dummy) {
+            setLiveRetailer(dummy);
+          } else {
+            setRetailerError("Retailer not found.");
+          }
         }
       })
       .catch((err) => {
-        console.error("Could not fetch retailer profile:", err);
-        setRetailerError(err?.message || "Failed to load retailer details.");
+        console.warn("Could not fetch retailer profile from API, checking mock fallback:", err);
+        const dummy = DUMMY_RETAILERS.find((r) => r.id === id);
+        if (dummy) {
+          setLiveRetailer(dummy);
+        } else {
+          setRetailerError(err?.message || "Failed to load retailer details.");
+        }
       })
       .finally(() => {
         setRetailerLoading(false);
@@ -300,7 +344,7 @@ export default function AdminRetailerDetails() {
 
   // Fetch Live Sub-Retailers for Distributor
   useEffect(() => {
-    if (activeTab !== "retailers" || liveRetailer?.role !== "distributor" || !id) return;
+    if (activeTab !== "retailers" || !isDistributor || !id) return;
     let isMounted = true;
 
     const timer = setTimeout(() => {
@@ -317,10 +361,49 @@ export default function AdminRetailerDetails() {
           }
         })
         .catch((err) => {
-          console.warn("Could not load sub-retailers from API:", err);
+          console.warn("Could not load sub-retailers from API, using fallback:", err);
           if (isMounted) {
-            setLiveSubRetailers([]);
-            setSubRetailerPagination(null);
+            let filtered = [...DUMMY_SUB_RETAILERS];
+            if (subRetailerSearch.trim()) {
+              const q = subRetailerSearch.trim().toLowerCase();
+              filtered = filtered.filter(
+                (s) =>
+                  s.name.toLowerCase().includes(q) ||
+                  s.mobile.includes(q) ||
+                  s.email.toLowerCase().includes(q) ||
+                  s.id.toLowerCase().includes(q)
+              );
+            }
+            const mapped: AdminSubRetailer[] = filtered.map((d) => ({
+              id: d.id,
+              fullName: d.name,
+              email: d.email,
+              mobile: d.mobile,
+              panNumber: d.pan,
+              status: d.status as "active" | "suspended" | "blocked",
+              adminApproved: (d.kycStatus === "pending" || d.kycStatus === "approved" || d.kycStatus === "rejected" ? d.kycStatus : "pending"),
+              registrationStatus: "COMPLETED",
+              shopName: d.shopName,
+              shopAddress: d.shopAddress,
+              primaryBank: {
+                name: d.bankName,
+                accountNumber: d.accountNumber,
+                ifscCode: d.ifsc,
+              },
+              createdAt: d.createdAt,
+              totalTransactions: d.totalTransactions,
+              totalVolume: parseInt(d.totalVolume.replace(/[^\d]/g, ""), 10) || 0,
+            }));
+            const start = (subRetailerPage - 1) * SUB_RETAILER_PAGE_SIZE;
+            setLiveSubRetailers(mapped.slice(start, start + SUB_RETAILER_PAGE_SIZE));
+            setSubRetailerPagination({
+              total: mapped.length,
+              page: subRetailerPage,
+              limit: SUB_RETAILER_PAGE_SIZE,
+              totalPages: Math.ceil(mapped.length / SUB_RETAILER_PAGE_SIZE) || 1,
+              hasNextPage: start + SUB_RETAILER_PAGE_SIZE < mapped.length,
+              hasPrevPage: subRetailerPage > 1,
+            });
           }
         })
         .finally(() => {
@@ -332,7 +415,7 @@ export default function AdminRetailerDetails() {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [activeTab, liveRetailer?.role, id, subRetailerSearch, subRetailerPage]);
+  }, [activeTab, isDistributor, id, subRetailerSearch, subRetailerPage]);
 
   // Fetch Sub-Retailer Modal live transactions
   useEffect(() => {
@@ -653,16 +736,6 @@ export default function AdminRetailerDetails() {
 
   const selected = liveRetailer;
 
-  const isDistributor =
-    selected.role === "distributor" ||
-    (Array.isArray(selected.role) &&
-      selected.role.some((r: unknown) =>
-        typeof r === "object" && r !== null
-          ? (r as { slug?: string; name?: string }).slug === "distributor" ||
-            (r as { slug?: string; name?: string }).name?.toLowerCase() === "distributor"
-          : String(r) === "distributor"
-      ));
-
   const roleDisplay = isDistributor ? "distributor" : selected.role || "retailer";
 
   // Clean helper to extract human readable display names from populated objects or IDs
@@ -864,14 +937,18 @@ export default function AdminRetailerDetails() {
           </button>
           {isDistributor && (
             <button
+              id="tab-added-retailers"
               onClick={() => setActiveTab("retailers")}
-              className={`text-sm font-bold pb-3 px-1 transition-colors ${
+              className={`flex items-center gap-2 text-sm font-bold pb-3 px-1 transition-colors ${
                 activeTab === "retailers"
                   ? "text-[#315bd1] border-b-2 border-[#315bd1]"
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              Sub-Retailers
+              <span>Retailers Added</span>
+              <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                {subRetailerPagination?.total ?? liveSubRetailers.length}
+              </span>
             </button>
           )}
         </div>
@@ -1344,7 +1421,7 @@ export default function AdminRetailerDetails() {
         )}
 
         {/* Tab 3: Sub-Retailers (Distributor only) */}
-        {activeTab === "retailers" && selected.role === "distributor" && (
+        {activeTab === "retailers" && isDistributor && (
           <div className="mt-6 space-y-4 animate-slide-in-right">
             {/* Search & Stats Bar */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

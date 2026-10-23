@@ -154,33 +154,51 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
     pidOptionWadh: "",
   };
 
+  const seen = new Set<unknown>();
+
   const walk = (current: unknown) => {
-    if (!current || typeof current !== "object") return;
+    if (!current || typeof current !== "object" || seen.has(current)) return;
+    seen.add(current);
+
     const record = current as Record<string, unknown>;
 
-    if (typeof record.msg === "string" && record.msg.trim()) {
-      prompt.message = record.msg;
+    const msgCandidate =
+      typeof record.msg === "string" && record.msg.trim()
+        ? record.msg.trim()
+        : typeof record.message === "string" && record.message.trim()
+        ? record.message.trim()
+        : "";
+    if (msgCandidate && (prompt.message === "Biometric authentication required" || !prompt.message)) {
+      prompt.message = msgCandidate;
     }
+
     if (
       typeof record.outletId === "string" &&
-      record.outletId &&
+      record.outletId.trim() &&
       !prompt.outletId
     ) {
-      prompt.outletId = record.outletId;
+      prompt.outletId = record.outletId.trim();
     }
-    if (typeof record.referenceKey === "string") {
-      prompt.referenceKey = record.referenceKey;
+
+    const refCandidate = record.referenceKey || record.reference_key;
+    if (typeof refCandidate === "string" && refCandidate.trim()) {
+      prompt.referenceKey = refCandidate.trim();
     }
-    if (typeof record.pidOptionWadh === "string") {
-      prompt.pidOptionWadh = record.pidOptionWadh;
-    } else if (typeof record.wadh === "string") {
-      prompt.pidOptionWadh = record.wadh;
+
+    const wadhCandidate = record.pidOptionWadh || record.wadh;
+    if (typeof wadhCandidate === "string" && wadhCandidate.trim()) {
+      prompt.pidOptionWadh = wadhCandidate.trim();
     }
 
     Object.values(record).forEach(walk);
   };
 
   walk(value);
+
+  if (value && typeof value === "object" && "data" in (value as Record<string, unknown>)) {
+    walk((value as Record<string, unknown>).data);
+  }
+
   return prompt;
 }
 
