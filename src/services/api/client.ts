@@ -8,17 +8,33 @@ export interface ApiError extends Error {
 
 interface ApiOptions extends RequestInit {
   token?: string;
+  params?: Record<string, string | number | boolean | undefined>;
 }
 
 export async function apiClient<T>(
   endpoint: string,
   options: ApiOptions = {}
 ): Promise<T> {
-  const { token, ...fetchOptions } = options;
+  const { token, params, ...fetchOptions } = options;
 
   const isFormData = fetchOptions.body instanceof FormData;
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  // Build URL with query parameters
+  let url = `${API_URL}${endpoint}`;
+  if (params && Object.keys(params).length > 0) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+    const queryString = searchParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
+
+  const response = await fetch(url, {
     ...fetchOptions,
 
     headers: {
