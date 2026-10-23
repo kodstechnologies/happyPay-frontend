@@ -35,7 +35,7 @@ export function getNotifications(params?: {
   limit?: number;
   unread?: boolean;
 }) {
-  return apiClient<Envelope<NotificationsResponse>>("/api/admin/notifications", {
+  return apiClient<Envelope<NotificationsResponse>>("/api/v1/auth/admin/notifications", {
     token: getAdminToken() || undefined,
     method: "GET",
     params,
@@ -43,14 +43,14 @@ export function getNotifications(params?: {
 }
 
 export function markNotificationAsRead(notificationId: string) {
-  return apiClient<Envelope<Notification>>(`/api/admin/notifications/${notificationId}/read`, {
+  return apiClient<Envelope<Notification>>(`/api/v1/auth/admin/notifications/${notificationId}/read`, {
     token: getAdminToken() || undefined,
     method: "PATCH",
   });
 }
 
 export function markAllNotificationsAsRead() {
-  return apiClient<Envelope<{ modifiedCount: number }>>("/api/admin/notifications/read-all", {
+  return apiClient<Envelope<{ modifiedCount: number }>>("/api/v1/auth/admin/notifications/read-all", {
     token: getAdminToken() || undefined,
     method: "PATCH",
   });
