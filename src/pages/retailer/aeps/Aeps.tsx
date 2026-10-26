@@ -2091,6 +2091,9 @@ const Aeps = () => {
       void fetchLoginStatus();
     } catch (err: unknown) {
       console.error("Biometric eKYC failed:", err);
+      // Clear ephemeral session key on failure so next attempt gets a fresh key from gateway
+      setBioKycReferenceKey("");
+      setEkycPrompt(null);
       setBioKycError(getErrorMessage(err, "Biometric eKYC verification failed. Please check scanner and retry."));
     } finally {
       setIsDoingBioKyc(false);
