@@ -98,6 +98,15 @@ const STEPS = [
   { id: 5, title: "Payout", label: "Bank Account", icon: Building2 },
 ];
 
+const extractMasterDataList = (data: unknown): MasterDataItem[] => {
+  if (Array.isArray(data)) return data as MasterDataItem[];
+  if (data && typeof data === "object" && "data" in data) {
+    const inner = (data as { data: unknown }).data;
+    if (Array.isArray(inner)) return inner as MasterDataItem[];
+  }
+  return [];
+};
+
 export default function AddRetailerForm({
   distributorId,
   distributorName,
@@ -221,14 +230,18 @@ export default function AddRetailerForm({
     const fetchMasters = async () => {
       try {
         const [catRes, propRes, proofRes, bankRes] = await Promise.all([
-          getCategories().catch(() => ({ data: [] })),
-          getPropertyTypes().catch(() => ({ data: [] })),
-          getProofTypes().catch(() => ({ data: [] })),
-          getBankList(1, 100).catch(() => ({ success: false, data: [] })),
+          getCategories().catch(() => [] as MasterDataItem[]),
+          getPropertyTypes().catch(() => [] as MasterDataItem[]),
+          getProofTypes().catch(() => [] as MasterDataItem[]),
+          getBankList(1, 100).catch(() => ({ success: false, data: [] as Bank[] })),
         ]);
-        if (catRes?.data) setCategories(catRes.data.filter((c) => c.isActive));
-        if (propRes?.data) setPropertyTypes(propRes.data.filter((p) => p.isActive));
-        if (proofRes?.data) setProofTypes(proofRes.data.filter((p) => p.isActive));
+        const catList = extractMasterDataList(catRes);
+        const propList = extractMasterDataList(propRes);
+        const proofList = extractMasterDataList(proofRes);
+
+        setCategories(catList.filter((c) => c.isActive));
+        setPropertyTypes(propList.filter((p) => p.isActive));
+        setProofTypes(proofList.filter((p) => p.isActive));
         if (bankRes?.data) setBankList(bankRes.data);
       } catch (err) {
         console.error("Failed to load registration master data:", err);

@@ -72,13 +72,7 @@ export function sendRetailerRegisterOtp(mobile: string) {
 }
 
 export function resendRetailerRegisterOtp(mobile: string) {
-  return apiClient<ApiEnvelope<SendOtpResult>>(
-    "/api/v1/otp/resend",
-    {
-      method: "POST",
-      body: JSON.stringify({ mobile }),
-    },
-  );
+  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/resend", { mobile }).then(unwrap);
 }
 
 // ============================================================
@@ -383,13 +377,10 @@ export function sendRetailerLoginOtp(mobile: string) {
 }
 
 export function resendRetailerLoginOtp(mobile: string) {
-  return apiClient<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>(
+  return api.post<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>(
     "/api/v1/auth/retailer/login/resend-otp",
-    {
-      method: "POST",
-      body: JSON.stringify({ mobile }),
-    },
-  );
+    { mobile }
+  ).then(unwrap);
 }
 
 // ============================================================

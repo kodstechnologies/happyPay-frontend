@@ -36,6 +36,15 @@ const POSITION_LABELS: Record<Banner["position"], { label: string; badge: string
   bottom: { label: "Bottom Showcase", badge: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
+const extractBannerList = (data: unknown): Banner[] => {
+  if (Array.isArray(data)) return data as Banner[];
+  if (data && typeof data === "object" && "data" in data) {
+    const inner = (data as { data: unknown }).data;
+    if (Array.isArray(inner)) return inner as Banner[];
+  }
+  return [];
+};
+
 export default function AdminBanners() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,7 +86,7 @@ export default function AdminBanners() {
       else setLoading(true);
       setError("");
       const res = await getAdminBanners();
-      setBanners(res.data || []);
+      setBanners(extractBannerList(res));
       if (isManualRefresh) {
         toast.success("Banners refreshed");
       }
@@ -97,7 +106,7 @@ export default function AdminBanners() {
       try {
         const res = await getAdminBanners();
         if (!ignore) {
-          setBanners(res.data || []);
+          setBanners(extractBannerList(res));
         }
       } catch (err: unknown) {
         if (!ignore) {
