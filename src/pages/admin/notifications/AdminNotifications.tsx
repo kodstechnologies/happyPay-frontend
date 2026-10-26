@@ -1,21 +1,11 @@
 import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw } from "lucide-react";
 import { useState, useEffect } from "react";
-import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from "../../../apis/adminNotifications.apis";
-
-interface Notification {
-  _id: string;
-  recipientId: string;
-  recipientType: "admin" | "retailer";
-  type: string;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-  isRead: boolean;
-  readAt?: Date;
-  createdAt: Date;
-  fcmSent?: boolean;
-  fcmFailureReason?: string;
-}
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  type Notification,
+} from "../../../apis/adminNotifications.apis";
 
 export default function AdminNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -78,7 +68,7 @@ export default function AdminNotifications() {
     }
   };
 
-  const formatTime = (date: Date) => {
+  const formatTime = (date: Date | string) => {
     const now = new Date();
     const notificationDate = new Date(date);
     const diffMs = now.getTime() - notificationDate.getTime();

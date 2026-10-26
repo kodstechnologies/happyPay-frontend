@@ -1,31 +1,10 @@
 import React from "react";
 
 export interface HappyPayLoaderProps {
-  /**
-   * Optional custom title or message.
-   * If omitted, only the pure animated logo is displayed.
-   */
   message?: string;
-  /**
-   * Optional contextual note or subtitle
-   */
   subtitle?: string;
-  /**
-   * Display mode:
-   * - "fullscreen": Fixed full viewport overlay (default, always dead-center of the screen)
-   * - "page": Occupies full page content area with flex centering
-   * - "inline": Centered presentation inside a section or container
-   * @default "fullscreen"
-   */
   variant?: "fullscreen" | "page" | "inline";
-  /**
-   * Scale size of the loader
-   * @default "md"
-   */
   size?: "sm" | "md" | "lg";
-  /**
-   * Additional container CSS classes
-   */
   className?: string;
 }
 
@@ -60,7 +39,6 @@ export const HappyPayLoader: React.FC<HappyPayLoaderProps> = ({
     },
   }[size];
 
-  // Container styling tailored per variant without conflicting position classes
   const containerClasses = {
     fullscreen:
       "fixed inset-0 z-[99999] flex flex-col items-center justify-center bg-white/95 backdrop-blur-md",

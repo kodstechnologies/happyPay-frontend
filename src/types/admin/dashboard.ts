@@ -21,8 +21,36 @@ export interface RecentRetailer {
 export interface RecentTransaction {
   id: string;
   retailer: string;
-  service: "AEPS" | "DMT" | "CMS";
+  service: "AEPS" | "DMT" | "CMS" | string;
   amount: number;
   status: "Success" | "Pending" | "Failed";
   date: string;
+}
+
+export interface EarningsOverview {
+  aeps: number;
+  dmt: number;
+  cms: number;
+  total: number;
+}
+
+export interface KycOverviewItem {
+  label: string;
+  value: number;
+  color: string;
+}
+
+export interface AdminDashboardData {
+  stats: DashboardStats;
+  earningsOverview: EarningsOverview;
+  kycOverview: KycOverviewItem[];
+  transactionTrend: number[];
+  recentTransactions: RecentTransaction[];
+}
+
+export interface AdminDashboardApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message: string;
+  data: AdminDashboardData;
 }

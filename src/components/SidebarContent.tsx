@@ -20,6 +20,7 @@ import {
   Users,
   ArrowRightLeft,
   ChevronDown,
+  Bell,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -225,6 +226,13 @@ const SidebarContent = ({
               "/retailer/profile",
             )}
             onClick={() => goTo("/retailer/profile")}
+          />
+
+          <SidebarItem
+            label="Notifications"
+            icon={<Bell />}
+            active={isActive("/retailer/notifications")}
+            onClick={() => goTo("/retailer/notifications")}
           />
         </SidebarSection>
 

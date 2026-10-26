@@ -1,8 +1,7 @@
 import { Bell, ChevronDown, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { getAdminUser } from "../../utils/adminAuth";
-import { logoutAdmin } from "../../apis/adminAuth.apis";
+import { useAdminAuth } from "../../context/AdminAuthContext";
 import { getNotifications } from "../../apis/adminNotifications.apis";
 
 const titles: Record<string, string> = {
@@ -15,7 +14,7 @@ export default function AdminNavbar({ onOpenMobile }: { onOpenMobile: () => void
   const location = useLocation();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const user = getAdminUser();
+  const { admin, logout: authLogout } = useAdminAuth();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
@@ -40,7 +39,7 @@ export default function AdminNavbar({ onOpenMobile }: { onOpenMobile: () => void
   }, []);
 
   const logout = async () => {
-    await logoutAdmin();
+    await authLogout();
     navigate("/admin/login", { replace: true });
   };
 
@@ -85,14 +84,14 @@ export default function AdminNavbar({ onOpenMobile }: { onOpenMobile: () => void
             className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-left hover:bg-white"
           >
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#dbe4ff] text-xs font-bold text-[#315bd1]">
-              {user?.name?.slice(0, 2).toUpperCase() ?? "SA"}
+              {admin?.name?.slice(0, 2).toUpperCase() ?? "SA"}
             </span>
             <span className="hidden leading-tight sm:block">
               <span className="block text-xs font-bold text-slate-900">
-                {user?.name ?? "Super Admin"}
+                {admin?.name ?? "Super Admin"}
               </span>
               <span className="block text-[10px] text-slate-500">
-                {user?.role ?? "Administrator"}
+                {admin?.role ?? "Administrator"}
               </span>
             </span>
             <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />

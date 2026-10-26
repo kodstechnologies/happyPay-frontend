@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import AdminNavbar from "../../components/admin/AdminNavbar";
 import AdminSidebar from "../../components/admin/AdminSidebar";
-import { logoutAdmin, updateAdminDeviceToken } from "../../apis/adminAuth.apis";
+import { updateAdminDeviceToken } from "../../apis/adminAuth.apis";
 import { getFCMToken } from "../../config/firebase";
+import { useAdminAuth } from "../../context/AdminAuthContext";
 
 export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
+  const { logout: authLogout } = useAdminAuth();
 
   useEffect(() => {
     // Ensure active admin device has FCM token synchronized to DB
@@ -45,7 +47,7 @@ export default function AdminLayout() {
   }, []);
 
   const logout = async () => {
-    await logoutAdmin();
+    await authLogout();
     navigate("/admin/login", { replace: true });
   };
 

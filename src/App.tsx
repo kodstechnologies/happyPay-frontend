@@ -5,6 +5,7 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { registerForegroundNotificationHandler } from "./config/firebase";
 import { AuthProvider } from "./context/AuthContext";
+import { AdminAuthProvider } from "./context/AdminAuthContext";
 import HappyPayLoader from "./components/common/HappyPayLoader";
 
 function App() {
@@ -27,6 +28,9 @@ function App() {
       const body = payload?.notification?.body || "";
       const data = payload?.data || {};
 
+      // Notify in-app components (Navbar, Notification pages) of new incoming alert
+      window.dispatchEvent(new Event("hp:notification:update"));
+
       // Show toast notification
       toast.info(`${title}: ${body}`, {
         onClick: () => {
@@ -39,8 +43,12 @@ function App() {
             navigate("/retailer/profile");
           } else if (notificationType === "KYC_REJECTED" && screen === "KYC") {
             navigate("/retailer/profile");
-          } else if (notificationType === "REGISTRATION_SUCCESS" && screen === "DASHBOARD") {
-            navigate("/retailer/dashboard");
+          } else if (notificationType === "REGISTRATION_SUCCESS") {
+            navigate("/retailer");
+          } else if (window.location.pathname.startsWith("/retailer")) {
+            navigate("/retailer/notifications");
+          } else if (window.location.pathname.startsWith("/admin")) {
+            navigate("/admin/notifications");
           }
         },
       });
@@ -55,19 +63,20 @@ function App() {
 
   return (
     <AuthProvider>
-      <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
-      <Suspense
-        fallback={
-          <HappyPayLoader
-            variant="fullscreen"
-            message="Loading ..."
-            subtitle="Preparing your HappyPay workspace"
-          />
-        }
-      >
-        {routing}
-
-      </Suspense>
+      <AdminAuthProvider>
+        <ToastContainer position="top-right" autoClose={5000} hideProgressBar={false} />
+        <Suspense
+          fallback={
+            <HappyPayLoader
+              variant="fullscreen"
+              message="Loading ..."
+              subtitle="Preparing your HappyPay workspace"
+            />
+          }
+        >
+          {routing}
+        </Suspense>
+      </AdminAuthProvider>
     </AuthProvider>
   );
 }

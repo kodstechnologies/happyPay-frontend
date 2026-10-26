@@ -9,28 +9,8 @@ interface Envelope<T> {
 
 const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
-interface Notification {
-  _id: string;
-  recipientId: string;
-  recipientType: "admin" | "retailer";
-  type: string;
-  title: string;
-  body: string;
-  data: Record<string, unknown>;
-  isRead: boolean;
-  readAt?: Date;
-  createdAt: Date;
-  fcmSent?: boolean;
-  fcmFailureReason?: string;
-}
-
-interface NotificationsResponse {
-  notifications: Notification[];
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
+import type { NotificationItem as Notification, NotificationsResponse } from "../types/notification";
+export type { Notification, NotificationsResponse };
 
 export function getNotifications(params?: {
   page?: number;

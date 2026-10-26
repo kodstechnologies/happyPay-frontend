@@ -4,9 +4,11 @@ import { Link, useNavigate } from "react-router-dom";
 import { saveAdminSession } from "../../../utils/adminAuth";
 import { loginAdmin } from "../../../apis/adminAuth.apis";
 import { getFCMToken } from "../../../config/firebase";
+import { useAdminAuth } from "../../../context/AdminAuthContext";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const { login } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
@@ -56,7 +58,11 @@ export default function AdminLogin() {
       });
 
       if (data?.accessToken) {
-        saveAdminSession(data.accessToken, data.admin || data.user);
+        saveAdminSession(data.accessToken);
+        const adminUser = data.admin || data.user;
+        if (adminUser) {
+          login(adminUser);
+        }
         navigate("/admin/dashboard", { replace: true });
         return;
       }

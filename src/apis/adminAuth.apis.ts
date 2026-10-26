@@ -5,6 +5,7 @@ import type {
   AdminLoginResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
+  AdminUser,
 } from "../types/admin/auth";
 import { clearAdminSession, getAdminToken } from "../utils/adminAuth";
 import type { AxiosResponse } from "axios";
@@ -25,6 +26,10 @@ export async function loginAdmin(payload: AdminLoginRequest): Promise<AdminLogin
     payload
   );
   return unwrap(response);
+}
+
+export function getAuthenticatedAdmin(): Promise<AdminUser> {
+  return api.get<ApiEnvelope<AdminUser>>("/api/admin/auth/me").then(unwrap);
 }
 
 export function forgotPassword(payload: ForgotPasswordRequest) {

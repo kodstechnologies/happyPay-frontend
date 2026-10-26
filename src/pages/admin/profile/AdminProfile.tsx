@@ -1,10 +1,10 @@
 import { Mail, Phone, ShieldCheck, UserRound } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getAdminUser } from "../../../utils/adminAuth";
+import { useAdminAuth } from "../../../context/AdminAuthContext";
 
 export default function AdminProfile() {
   const navigate = useNavigate();
-  const admin = getAdminUser();
+  const { admin } = useAdminAuth();
   const initials = admin?.name?.slice(0, 2).toUpperCase() ?? "SA";
 
   const details = [

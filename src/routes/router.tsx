@@ -32,6 +32,7 @@ import Settlements from "../pages/retailer/profile/Settlements";
 import SecuritySettings from "../pages/retailer/profile/SecuritySettings";
 import HelpSupport from "../pages/retailer/profile/HelpSupport";
 import Wallet from "../pages/retailer/wallet/Wallet";
+import RetailerNotifications from "../pages/retailer/notifications/RetailerNotifications";
 import AdminLogin from "../pages/admin/auth/AdminLogin";
 import ForgotPassword from "../pages/admin/auth/ForgotPassword";
 import ResetPassword from "../pages/admin/auth/ResetPassword";
@@ -223,6 +224,12 @@ const Router: RouteObject[] = [
           {
             path: "profile/support",
             element: <HelpSupport />,
+          },
+
+          // NOTIFICATIONS
+          {
+            path: "notifications",
+            element: <RetailerNotifications />,
           },
         ],
       },

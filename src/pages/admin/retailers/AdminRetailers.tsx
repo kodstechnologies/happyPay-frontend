@@ -2,9 +2,9 @@ import { Eye, RefreshCw, Search, Store, Ban, CheckCircle, Users, Layers } from "
 import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { clearAdminSession } from "../../../utils/adminAuth";
 
 import type { AdminRetailer } from "../../../types/admin/retailer";
-import { clearAdminSession } from "../../../utils/adminAuth";
 import { DUMMY_RETAILERS, updateDummyRetailerStatus } from "./mockRetailers";
 import {
   getAdminRetailers,
