@@ -33,7 +33,7 @@ import {
   updateAdminRetailerKyc,
   updateAdminRetailerAccountStatus,
   reviewAdminRetailerDocument,
-} from "../../../services/api/admin/adminRetailerApi";
+} from "../../../apis/adminRetailer.apis";
 import type {
   AdminRetailer,
   AdminTransaction,
@@ -147,8 +147,8 @@ export default function AdminRetailerDetails() {
 
     getAdminRetailer(id)
       .then((res) => {
-        if (res?.data) {
-          setLiveRetailer(res.data);
+        if (res) {
+          setLiveRetailer(res);
         } else {
           const dummy = DUMMY_RETAILERS.find((r) => r.id === id);
           if (dummy) {
@@ -332,9 +332,9 @@ export default function AdminRetailerDetails() {
         limit: 10,
       })
         .then((res) => {
-          if (isMounted && res?.data) {
-            setLiveTransactions(res.data.transactions || []);
-            setTxPagination(res.data.pagination || null);
+          if (isMounted && res) {
+            setLiveTransactions(res.transactions || []);
+            setTxPagination(res.pagination || null);
           }
         })
         .catch((err) => {
@@ -368,9 +368,9 @@ export default function AdminRetailerDetails() {
         limit: SUB_RETAILER_PAGE_SIZE,
       })
         .then((res) => {
-          if (isMounted && res?.data) {
-            setLiveSubRetailers(res.data.items || []);
-            setSubRetailerPagination(res.data.pagination || null);
+          if (isMounted && res) {
+            setLiveSubRetailers(res.items || []);
+            setSubRetailerPagination(res.pagination || null);
           }
         })
         .catch((err) => {
@@ -454,9 +454,9 @@ export default function AdminRetailerDetails() {
         limit: 8,
       })
         .then((res) => {
-          if (isMounted && res?.data?.transactions) {
-            setModalLiveTx(res.data.transactions);
-            setModalTxPagination(res.data.pagination || null);
+          if (isMounted && res?.transactions) {
+            setModalLiveTx(res.transactions);
+            setModalTxPagination(res.pagination || null);
           } else if (isMounted) {
             setModalLiveTx([]);
             setModalTxPagination(null);

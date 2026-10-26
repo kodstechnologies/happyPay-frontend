@@ -2,7 +2,7 @@ import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { saveAdminSession } from "../../../utils/adminAuth";
-import { loginAdmin } from "../../../services/api/admin/adminAuthApi";
+import { loginAdmin } from "../../../apis/adminAuth.apis";
 import { getFCMToken } from "../../../config/firebase";
 
 export default function AdminLogin() {

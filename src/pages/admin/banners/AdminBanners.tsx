@@ -28,7 +28,7 @@ import {
   deleteAdminBanner,
   type Banner,
   type BannerFormData
-} from "../../../services/api/admin/adminBannerApi";
+} from "../../../apis/adminBanner.apis";
 
 const POSITION_LABELS: Record<Banner["position"], { label: string; badge: string }> = {
   top: { label: "Top Hero", badge: "bg-blue-50 text-blue-700 border-blue-200" },

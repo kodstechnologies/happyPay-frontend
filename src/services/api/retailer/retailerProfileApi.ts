@@ -1,5 +1,5 @@
-import { apiClient } from "../client";
-import { getToken } from "../../../utils/auth";
+import api from "../../../config/axiosInstance";
+import type { AxiosResponse } from "axios";
 import type { RetailerFullProfile } from "../../../types/retailer/profile";
 
 interface ApiEnvelope<T> {
@@ -10,11 +10,10 @@ interface ApiEnvelope<T> {
   meta: null;
 }
 
+const unwrap = <T,>(response: AxiosResponse<ApiEnvelope<T>>) => response.data;
+
 export function getRetailerProfile() {
-  return apiClient<ApiEnvelope<RetailerFullProfile>>("/api/v1/auth/retailer/profile", {
-    method: "GET",
-    token: getToken() || undefined,
-  });
+  return api.get<ApiEnvelope<RetailerFullProfile>>("/api/v1/auth/retailer/profile").then(unwrap);
 }
 
 export interface RetailerUpdateResponse extends Partial<RetailerFullProfile> {
@@ -29,10 +28,7 @@ export interface RetailerUpdateResponse extends Partial<RetailerFullProfile> {
 export function updateRetailerProfile<T = RetailerFullProfile>(payload: FormData | Record<string, unknown>) {
   const isFormData = payload instanceof FormData;
 
-  return apiClient<ApiEnvelope<T>>("/api/v1/auth/retailer/profile", {
-    method: "PATCH",
-    token: getToken() || undefined,
-    body: isFormData ? payload : JSON.stringify(payload),
+  return api.patch<ApiEnvelope<T>>("/api/v1/auth/retailer/profile", payload, {
     headers: isFormData ? undefined : { "Content-Type": "application/json" },
-  });
+  }).then(unwrap);
 }

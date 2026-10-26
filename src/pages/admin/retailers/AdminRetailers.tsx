@@ -9,7 +9,7 @@ import { DUMMY_RETAILERS, updateDummyRetailerStatus } from "./mockRetailers";
 import {
   getAdminRetailers,
   updateAdminRetailerAccountStatus,
-} from "../../../services/api/admin/adminRetailerApi";
+} from "../../../apis/adminRetailer.apis";
 
 const kycBadge: Record<string, { bg: string; text: string; border: string; dot: string }> = {
   approved: {
@@ -101,10 +101,10 @@ export default function AdminRetailers() {
         role: roleTab !== "all" ? roleTab : undefined,
       });
 
-      if (res?.data) {
-        setItems(res.data.items || []);
-        setTotal(res.data.total ?? 0);
-        setTotalPages(res.data.totalPages || 1);
+      if (res) {
+        setItems(res.items || []);
+        setTotal(res.total ?? 0);
+        setTotalPages(res.totalPages || 1);
         setUsingMockFallback(false);
       }
     } catch (caught) {

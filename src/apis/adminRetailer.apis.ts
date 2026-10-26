@@ -1,5 +1,4 @@
-import { apiClient } from "../client";
-import { getAdminToken } from "../../../utils/adminAuth";
+import api from "../config/adminAxiosInstance";
 import type {
   AdminRetailer,
   RetailerListFilters,
@@ -7,12 +6,15 @@ import type {
   AdminTransactionListResponse,
   SubRetailerFilters,
   SubRetailerListResponse,
-} from "../../../types/admin/retailer";
+} from "../types/admin/retailer";
+import type { AxiosResponse } from "axios";
 
 interface Envelope<T> {
   data: T;
   message?: string;
 }
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
 interface RetailerList {
   items: AdminRetailer[];
@@ -27,16 +29,11 @@ export function getAdminRetailers(filters: RetailerListFilters = {}) {
   Object.entries(filters).forEach(([key, value]) => {
     if (value !== undefined && value !== "") params.set(key, String(value));
   });
-  return apiClient<Envelope<RetailerList>>(
-    `/api/admin/retailers?${params.toString()}`,
-    { token: getAdminToken() ?? undefined }
-  );
+  return api.get<Envelope<RetailerList>>(`/api/admin/retailers?${params.toString()}`).then(unwrap);
 }
 
 export function getAdminRetailer(id: string) {
-  return apiClient<Envelope<AdminRetailer>>(`/api/admin/retailers/${id}`, {
-    token: getAdminToken() ?? undefined,
-  });
+  return api.get<Envelope<AdminRetailer>>(`/api/admin/retailers/${id}`).then(unwrap);
 }
 
 export function updateAdminRetailerKyc(
@@ -44,14 +41,10 @@ export function updateAdminRetailerKyc(
   status: "approved" | "rejected",
   reason?: string
 ) {
-  return apiClient<Envelope<{ id: string; kycStatus: string; kycRejectionReason?: string }>>(
+  return api.put<Envelope<{ id: string; kycStatus: string; kycRejectionReason?: string }>>(
     `/api/admin/retailers/${id}/kyc`,
-    {
-      method: "PUT",
-      body: JSON.stringify({ status, reason }),
-      token: getAdminToken() ?? undefined,
-    }
-  );
+    { status, reason }
+  ).then(unwrap);
 }
 
 /**
@@ -72,9 +65,7 @@ export function getAdminRetailerTransactions(
   const endpoint = `/api/admin/retailers/${id}/transactions${
     queryString ? `?${queryString}` : ""
   }`;
-  return apiClient<Envelope<AdminTransactionListResponse>>(endpoint, {
-    token: getAdminToken() ?? undefined,
-  });
+  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then(unwrap);
 }
 
 /**
@@ -95,9 +86,7 @@ export function getAdminDistributorSubRetailers(
   const endpoint = `/api/admin/retailers/${id}/sub-retailers${
     queryString ? `?${queryString}` : ""
   }`;
-  return apiClient<Envelope<SubRetailerListResponse>>(endpoint, {
-    token: getAdminToken() ?? undefined,
-  });
+  return api.get<Envelope<SubRetailerListResponse>>(endpoint).then(unwrap);
 }
 
 /**
@@ -109,14 +98,10 @@ export function updateAdminRetailerAccountStatus(
   status: "active" | "suspended" | "blocked" | "approved" | "rejected" | "pending",
   reason?: string
 ) {
-  return apiClient<Envelope<{ id: string; status: string; adminApproved: string }>>(
+  return api.patch<Envelope<{ id: string; status: string; adminApproved: string }>>(
     `/api/admin/retailers/${id}/status`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ status, reason }),
-      token: getAdminToken() ?? undefined,
-    }
-  );
+    { status, reason }
+  ).then(unwrap);
 }
 
 export interface ReviewRetailerDocumentParams {
@@ -137,18 +122,14 @@ export function reviewAdminRetailerDocument({
   action,
   reason,
 }: ReviewRetailerDocumentParams) {
-  return apiClient<Envelope<unknown>>(
+  return api.patch<Envelope<unknown>>(
     `/api/v1/auth/admin/retailers/${retailerId}/documents/review`,
     {
-      method: "PATCH",
-      body: JSON.stringify({
-        documentField,
-        action,
-        reason,
-      }),
-      token: getAdminToken() ?? undefined,
+      documentField,
+      action,
+      reason,
     }
-  );
+  ).then(unwrap);
 }
 
 /**
@@ -194,8 +175,5 @@ export function getAllAdminTransactions(
   const endpoint = `/api/admin/transactions${
     queryString ? `?${queryString}` : ""
   }`;
-  return apiClient<Envelope<AdminTransactionListResponse>>(endpoint, {
-    token: getAdminToken() ?? undefined,
-  });
+  return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then(unwrap);
 }
-

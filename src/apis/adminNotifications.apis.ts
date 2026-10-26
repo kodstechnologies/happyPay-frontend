@@ -1,11 +1,13 @@
-import { apiClient } from "../client";
-import { getAdminToken } from "../../../utils/adminAuth";
+import api from "../config/adminAxiosInstance";
+import type { AxiosResponse } from "axios";
 
 interface Envelope<T> {
   success?: boolean;
   message?: string;
   data: T;
 }
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
 interface Notification {
   _id: string;
@@ -35,23 +37,13 @@ export function getNotifications(params?: {
   limit?: number;
   unread?: boolean;
 }) {
-  return apiClient<Envelope<NotificationsResponse>>("/api/v1/auth/admin/notifications", {
-    token: getAdminToken() || undefined,
-    method: "GET",
-    params,
-  });
+  return api.get<Envelope<NotificationsResponse>>("/api/v1/auth/admin/notifications", { params }).then(unwrap);
 }
 
 export function markNotificationAsRead(notificationId: string) {
-  return apiClient<Envelope<Notification>>(`/api/v1/auth/admin/notifications/${notificationId}/read`, {
-    token: getAdminToken() || undefined,
-    method: "PATCH",
-  });
+  return api.patch<Envelope<Notification>>(`/api/v1/auth/admin/notifications/${notificationId}/read`).then(unwrap);
 }
 
 export function markAllNotificationsAsRead() {
-  return apiClient<Envelope<{ modifiedCount: number }>>("/api/v1/auth/admin/notifications/read-all", {
-    token: getAdminToken() || undefined,
-    method: "PATCH",
-  });
+  return api.patch<Envelope<{ modifiedCount: number }>>("/api/v1/auth/admin/notifications/read-all").then(unwrap);
 }

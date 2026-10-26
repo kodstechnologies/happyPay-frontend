@@ -195,10 +195,10 @@ const ShopDetailsStep = ({
           getPropertyTypes(),
           getProofTypes(),
         ]);
-        console.log("================",categories,propertyType,proofTypes)
-        setCategories(categoriesRes.data.filter(item => item.isActive));
-        setPropertyTypes(propertyTypesRes.data.filter(item => item.isActive));
-        setProofTypes(proofTypesRes.data.filter(item => item.isActive));
+        console.log("================", categories, propertyType, proofTypes)
+        setCategories(categoriesRes.filter(item => item.isActive));
+        setPropertyTypes(propertyTypesRes.filter(item => item.isActive));
+        setProofTypes(proofTypesRes.filter(item => item.isActive));
       } catch (err) {
         console.error("Error fetching master data:", err);
         setError("Failed to load form options. Please refresh the page.");
@@ -731,15 +731,14 @@ const ShopDetailsStep = ({
                 placeholder="Enter 6-digit pincode"
                 maxLength={6}
                 inputMode="numeric"
-                className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-12 text-[14px] font-medium outline-none transition-all focus:bg-white ${
-                  pincodeError
-                    ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
-                    : pincodeValid
-                      ? "border-[#08ae82] focus:border-[#08ae82] focus:ring-4 focus:ring-[#08ae82]/10"
-                      : pincode
-                        ? "border-[#7c3aed] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
-                        : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
-                }`}
+                className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-12 text-[14px] font-medium outline-none transition-all focus:bg-white ${pincodeError
+                  ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
+                  : pincodeValid
+                    ? "border-[#08ae82] focus:border-[#08ae82] focus:ring-4 focus:ring-[#08ae82]/10"
+                    : pincode
+                      ? "border-[#7c3aed] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+                      : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+                  }`}
               />
               <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
                 {pincodeLoading ? (
@@ -797,13 +796,12 @@ const ShopDetailsStep = ({
                     const val = e.target.value;
                     setLatitude(val === "" ? null : parseFloat(val));
                   }}
-                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${
-                    latitude != null && (latitude < -90 || latitude > 90)
-                      ? "border-[#d85b5b]"
-                      : latitude != null
-                        ? "border-[#08ae82]"
-                        : "border-[#dfe3e9]"
-                  }`}
+                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${latitude != null && (latitude < -90 || latitude > 90)
+                    ? "border-[#d85b5b]"
+                    : latitude != null
+                      ? "border-[#08ae82]"
+                      : "border-[#dfe3e9]"
+                    }`}
                 />
                 <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                   <MapPin className="h-4 w-4" />
@@ -829,13 +827,12 @@ const ShopDetailsStep = ({
                     const val = e.target.value;
                     setLongitude(val === "" ? null : parseFloat(val));
                   }}
-                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${
-                    longitude != null && (longitude < -180 || longitude > 180)
-                      ? "border-[#d85b5b]"
-                      : longitude != null
-                        ? "border-[#08ae82]"
-                        : "border-[#dfe3e9]"
-                  }`}
+                  className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 pr-10 text-[14px] font-medium outline-none transition focus:bg-white focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10 ${longitude != null && (longitude < -180 || longitude > 180)
+                    ? "border-[#d85b5b]"
+                    : longitude != null
+                      ? "border-[#08ae82]"
+                      : "border-[#dfe3e9]"
+                    }`}
                 />
                 <div className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                   <MapPin className="h-4 w-4" />

@@ -292,8 +292,8 @@ export default function DistributorRetailerDetails() {
                   {retailer.adminApproved === "approved"
                     ? "Approved"
                     : retailer.adminApproved === "rejected"
-                    ? "Rejected"
-                    : retailer.status || "Pending"}
+                      ? "Rejected"
+                      : retailer.status || "Pending"}
                 </span>
               </div>
               <p className="mt-1 text-sm font-semibold text-[#7c3aed]">
@@ -343,22 +343,20 @@ export default function DistributorRetailerDetails() {
         <div className="mt-6 flex border-b border-slate-200">
           <button
             onClick={() => setActiveTab("profile")}
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${
-              activeTab === "profile"
-                ? "border-[#7c3aed] text-[#7c3aed]"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${activeTab === "profile"
+              ? "border-[#7c3aed] text-[#7c3aed]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
           >
             <User className="h-4 w-4" />
             Complete Profile
           </button>
           <button
             onClick={() => setActiveTab("transactions")}
-            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${
-              activeTab === "transactions"
-                ? "border-[#7c3aed] text-[#7c3aed]"
-                : "border-transparent text-slate-500 hover:text-slate-800"
-            }`}
+            className={`flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-bold transition ${activeTab === "transactions"
+              ? "border-[#7c3aed] text-[#7c3aed]"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+              }`}
           >
             <Activity className="h-4 w-4" />
             Transaction History
@@ -402,7 +400,7 @@ export default function DistributorRetailerDetails() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-400">Date of Birth</p>
-                  <p className="font-semibold text-slate-800">{retailer.dateOfBirth?formatDate(retailer.dateOfBirth)?.split(',')[0]: "-"}</p>
+                  <p className="font-semibold text-slate-800">{retailer.dateOfBirth ? formatDate(retailer.dateOfBirth)?.split(',')[0] : "-"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-medium text-slate-400">Marital Status</p>
@@ -490,11 +488,10 @@ export default function DistributorRetailerDetails() {
                   {retailer.banks.map((bank, idx) => (
                     <div
                       key={bank._id || bank.id || idx}
-                      className={`relative rounded-xl border p-4 transition ${
-                        bank.isPrimary
-                          ? "border-[#7c3aed]/40 bg-[#faf7ff]"
-                          : "border-slate-200 bg-slate-50/50"
-                      }`}
+                      className={`relative rounded-xl border p-4 transition ${bank.isPrimary
+                        ? "border-[#7c3aed]/40 bg-[#faf7ff]"
+                        : "border-slate-200 bg-slate-50/50"
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <span className="font-bold text-slate-900">{bank.name || "Bank"}</span>

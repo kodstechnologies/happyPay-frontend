@@ -127,31 +127,137 @@ interface ReceiptData {
 //   data?: AepsLoginStatusData;
 // }
 
-interface ApiErrorLike {
+
+interface ApiDataPayload {
   message?: string;
-  response?: {
-    data?: {
+  msg?: string;
+  error?: string;
+  status?: string;
+  success?: boolean;
+  details?: {
+    msg?: string;
+    message?: string;
+    status?: string;
+  };
+  data?: {
+    message?: string;
+    msg?: string;
+    status?: string;
+    details?: {
+      msg?: string;
       message?: string;
+      status?: string;
     };
   };
 }
+
+interface ApiErrorResponse {
+  response?: {
+    data?: string | ApiDataPayload;
+  };
+  data?: ApiDataPayload;
+  details?: {
+    msg?: string;
+    message?: string;
+  };
+  message?: string;
+}
+
+const extractApiErrorMessage = (
+  result: unknown,
+  fallback: string
+): string => {
+  if (typeof result !== "object" || result === null) {
+    return fallback;
+  }
+  const obj = result as ApiDataPayload;
+  const msg =
+    obj.message ||
+    obj.data?.message ||
+    obj.details?.msg ||
+    obj.details?.message ||
+    obj.data?.details?.msg ||
+    obj.data?.details?.message ||
+    obj.msg ||
+    obj.error;
+
+  return typeof msg === "string" && msg.trim() ? msg : fallback;
+};
+
+const isApiFailed = (result: unknown, resultData: unknown): boolean => {
+  if (typeof result === "object" && result !== null) {
+    const r = result as ApiDataPayload;
+    if (r.success === false || r.status === "FAILED") return true;
+  }
+  if (typeof resultData === "object" && resultData !== null) {
+    const rd = resultData as ApiDataPayload;
+    if (rd.status === "FAILED") return true;
+  }
+  return false;
+};
+
+const getResultErrorMessage = (
+  result: unknown,
+  resultData: unknown,
+  fallback: string
+): string => {
+  const fromResult = extractApiErrorMessage(result, "");
+  if (fromResult) return fromResult;
+  const fromData = extractApiErrorMessage(resultData, "");
+  if (fromData) return fromData;
+  return fallback;
+};
 
 const getErrorMessage = (
   error: unknown,
   fallback: string
 ): string => {
-  if (error instanceof Error && error.message) {
-    return error.message;
+  if (typeof error === "object" && error !== null) {
+    const apiError = error as ApiErrorResponse;
+    const resData = apiError.response?.data;
+
+    if (resData) {
+      if (typeof resData === "string" && resData.trim()) {
+        return resData;
+      }
+      if (typeof resData === "object") {
+        const msg =
+          resData.message ||
+          resData.data?.message ||
+          resData.details?.msg ||
+          resData.details?.message ||
+          resData.data?.details?.msg ||
+          resData.data?.details?.message ||
+          resData.msg ||
+          resData.error;
+
+        if (typeof msg === "string" && msg.trim()) {
+          return msg;
+        }
+      }
+    }
+
+    const directMsg =
+      apiError.data?.message ||
+      apiError.data?.details?.msg ||
+      apiError.details?.msg ||
+      apiError.message;
+
+    if (
+      typeof directMsg === "string" &&
+      directMsg.trim() &&
+      !directMsg.toLowerCase().startsWith("request failed with status code")
+    ) {
+      return directMsg;
+    }
   }
 
-  if (typeof error === "object" && error !== null) {
-    const apiError = error as ApiErrorLike;
-
-    return (
-      apiError.response?.data?.message ||
-      apiError.message ||
-      fallback
-    );
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.toLowerCase().startsWith("request failed with status code")
+  ) {
+    return error.message;
   }
 
   return fallback;
@@ -408,11 +514,11 @@ const Aeps = () => {
   const handleScanDevices = async () => {
     setIsScanningDevices(true);
     setWithdrawalDeviceName("Scanning...");
-    
+
     try {
       console.log("=== Starting Manual Device Scan ===");
       const devices = await rdService.scanAllDevices();
-      
+
       // Enhanced device info gathering using getDeviceInfo
       const enhancedDevices = await Promise.all(
         devices.map(async (device) => {
@@ -420,12 +526,12 @@ const Aeps = () => {
             console.log(`Getting detailed info for device on port ${device.port}...`);
             const deviceInfoResponse = await getDeviceInfo(device.port);
             const deviceInfo = deviceInfoResponse.data;
-            
+
             // Extract more detailed device information
             let enhancedName = device.name;
             let deviceModel = "";
             let serialNumber = "";
-            
+
             if (typeof deviceInfo === "string") {
               // Extract device model from info attribute
               const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
@@ -433,16 +539,16 @@ const Aeps = () => {
                 deviceModel = modelMatch[1];
                 enhancedName = `${deviceModel}`;
               }
-              
+
               // Extract serial number
               const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
               if (serialMatch) {
                 serialNumber = serialMatch[1];
               }
-              
+
               console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
             }
-            
+
             return {
               ...device,
               name: enhancedName || device.name,
@@ -456,7 +562,7 @@ const Aeps = () => {
           }
         })
       );
-      
+
       setAvailableDevices(enhancedDevices);
 
       if (enhancedDevices.length > 0) {
@@ -475,19 +581,19 @@ const Aeps = () => {
       setWithdrawalDeviceName("Scan failed");
       alert(`Device scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-    
+
     setIsScanningDevices(false);
   };
 
   useEffect(() => {
     let isMounted = true;
-    
+
     const scanAndEnhanceDevices = async () => {
       try {
         const devices = await rdService.scanAllDevices();
-        
+
         if (!isMounted) return;
-        
+
         // Enhanced device info gathering using getDeviceInfo
         const enhancedDevices = await Promise.all(
           devices.map(async (device) => {
@@ -495,12 +601,12 @@ const Aeps = () => {
               console.log(`Getting detailed info for device on port ${device.port}...`);
               const deviceInfoResponse = await getDeviceInfo(device.port);
               const deviceInfo = deviceInfoResponse.data;
-              
+
               // Extract more detailed device information
               let enhancedName = device.name;
               let deviceModel = "";
               let serialNumber = "";
-              
+
               if (typeof deviceInfo === "string") {
                 // Extract device model from mi attribute
                 const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
@@ -508,16 +614,16 @@ const Aeps = () => {
                   deviceModel = modelMatch[1];
                   enhancedName = `${deviceModel}`;
                 }
-                
+
                 // Extract serial number from ci attribute
                 const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
                 if (serialMatch) {
                   serialNumber = serialMatch[1];
                 }
-                
+
                 console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
               }
-              
+
               return {
                 ...device,
                 name: enhancedName || device.name,
@@ -531,11 +637,11 @@ const Aeps = () => {
             }
           })
         );
-        
+
         if (!isMounted) return;
-        
+
         setAvailableDevices(enhancedDevices);
-        
+
         if (enhancedDevices.length > 0) {
           setSelectedDevicePort(enhancedDevices[0].port);
           setWithdrawalDeviceName(enhancedDevices[0].name);
@@ -557,7 +663,7 @@ const Aeps = () => {
     };
 
     scanAndEnhanceDevices();
-    
+
     return () => {
       isMounted = false;
     };
@@ -748,7 +854,7 @@ const Aeps = () => {
     } else {
       setLoadingBanks(true);
     }
-    
+
     try {
       const response = await getBankList(page, BANKS_PER_PAGE);
       if (response.success && response.data) {
@@ -885,21 +991,21 @@ const Aeps = () => {
       if (targetPort === null || availableDevices.length === 0) {
         setIsScanningDevices(true);
         setWithdrawalDeviceName("Scanning devices...");
-        
+
         try {
           console.log("=== Auto-scanning for biometric devices ===");
           const devices = await rdService.scanAllDevices();
-          
+
           // Enhanced device info gathering
           const enhancedDevices = await Promise.all(
             devices.map(async (device) => {
               try {
                 const deviceInfoResponse = await getDeviceInfo(device.port);
                 const deviceInfo = deviceInfoResponse.data;
-                
+
                 let enhancedName = device.name;
                 let deviceModel = "";
-                
+
                 if (typeof deviceInfo === "string") {
                   const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
                   if (modelMatch) {
@@ -907,7 +1013,7 @@ const Aeps = () => {
                     enhancedName = `${deviceModel}`;
                   }
                 }
-                
+
                 return {
                   ...device,
                   name: enhancedName || device.name,
@@ -920,7 +1026,7 @@ const Aeps = () => {
               }
             })
           );
-          
+
           setAvailableDevices(enhancedDevices);
           setIsScanningDevices(false);
 
@@ -945,9 +1051,9 @@ const Aeps = () => {
       // Call RD Service API to capture fingerprint
       console.log(`=== Starting fingerprint capture on port ${targetPort} ===`);
       setTfaStatusMessage(`Capturing fingerprint from ${withdrawalDeviceName}...`);
-      
+
       const captureResult = await rdService.captureFingerprint(targetPort);
-      
+
       console.log("=== Capture Result ===", captureResult);
 
       if (!captureResult.success || !captureResult.data) {
@@ -1276,7 +1382,7 @@ const Aeps = () => {
       // Pass OTP to RD Service PidOptions if withdrawal amount > 5000 (UIDAI / AEPS 2FA standard)
       const otpForCapture =
         (serviceId === "cash-withdrawal" || serviceId === "balance-withdrawal") &&
-        withdrawalAmount > 5000
+          withdrawalAmount > 5000
           ? (verifiedOtp || otp || undefined)
           : undefined;
 
@@ -1317,7 +1423,13 @@ const Aeps = () => {
           const result = await balanceEnquiry(payload);
           console.log("Balance enquiry result:", result);
 
-          const resultData = (result.data || {}) as Record<string, unknown>;
+          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+          if (isApiFailed(result, resultData)) {
+            alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
+            return;
+          }
+
           setReceiptData(createReceipt("balance", 0, resultData));
           setShowReceipt(true);
         } catch (error) {
@@ -1340,7 +1452,13 @@ const Aeps = () => {
           const result = await miniStatement(payload);
           console.log("Mini statement result:", result);
 
-          const resultData = (result.data || {}) as Record<string, unknown>;
+          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+          if (isApiFailed(result, resultData)) {
+            alert(getResultErrorMessage(result, resultData, "Failed to fetch mini statement"));
+            return;
+          }
+
           setMiniStatementResult(resultData as MiniStatementData);
           setShowMiniStatement(true);
         } catch (error) {
@@ -1362,7 +1480,7 @@ const Aeps = () => {
             withdrawalAmount > 5000
               ? (otpReferenceKey || null)
               : null;
-              // (authUser?.AepsEkyc?.referenceKey || undefined)
+          // (authUser?.AepsEkyc?.referenceKey || undefined)
           const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
           const payload: CashWithdrawalPayload = {
             ...basePayload,
@@ -1374,7 +1492,13 @@ const Aeps = () => {
           const result = await cashWithdrawal(payload);
           console.log("Cash withdrawal result:", result);
 
-          const resultData = (result.data || {}) as Record<string, unknown>;
+          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+          if (isApiFailed(result, resultData)) {
+            alert(getResultErrorMessage(result, resultData, "Failed to complete cash withdrawal"));
+            return;
+          }
+
           setReceiptData(createReceipt("withdrawal", withdrawalAmount, resultData));
           setModalType("");
           setOtp("");
@@ -1398,7 +1522,13 @@ const Aeps = () => {
           try {
             const payload = await prepareAepsPayload(pidData);
             const result = await balanceEnquiry(payload);
-            const resultData = (result.data || {}) as Record<string, unknown>;
+            const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+            if (isApiFailed(result, resultData)) {
+              alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
+              return;
+            }
+
             const rawBalance =
               resultData.balance ??
               resultData.balanceamount ??
@@ -1435,7 +1565,13 @@ const Aeps = () => {
             };
 
             const result = await cashWithdrawal(payload);
-            const resultData = (result.data || {}) as Record<string, unknown>;
+            const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+            if (isApiFailed(result, resultData)) {
+              alert(getResultErrorMessage(result, resultData, "Failed to complete withdrawal"));
+              return;
+            }
+
             setReceiptData(createReceipt("balance-withdrawal", withdrawalAmount, resultData));
             setModalType("");
             setOtp("");
@@ -1503,7 +1639,13 @@ const Aeps = () => {
           const result = await cashDeposit(payload);
           console.log("Cash deposit result:", result);
 
-          const resultData = (result.data || {}) as Record<string, unknown>;
+          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+          if (isApiFailed(result, resultData)) {
+            alert(getResultErrorMessage(result, resultData, "Failed to complete cash deposit"));
+            return;
+          }
+
           setReceiptData(createReceipt("cash-deposit", withdrawalAmount, resultData));
           setModalType("");
           setShowReceipt(true);
@@ -2257,16 +2399,16 @@ const Aeps = () => {
               </div>
             </div>
 
-           <div className="w-full flex justify-end pt-2">
-             <button
-              type="button"
-              onClick={handleStartTransaction}
-              className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700"
-            >
-              <Play className="h-4 w-4 fill-current" />
-              START TRANSACTION
-            </button>
-           </div>
+            <div className="w-full flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={handleStartTransaction}
+                className="inline-flex w-auto items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:-translate-y-0.5 hover:bg-purple-700"
+              >
+                <Play className="h-4 w-4 fill-current" />
+                START TRANSACTION
+              </button>
+            </div>
           </>
         )}
 
@@ -2284,10 +2426,10 @@ const Aeps = () => {
                   {!isOnboarded
                     ? "ONBOARDING REQUIRED"
                     : !isBioKycDone
-                    ? "BIOMETRIC EKYC REQUIRED FIRST"
-                    : isScanningDevices
-                    ? "SCANNING BIOMETRIC DEVICES..."
-                    : "SCAN DEVICE & CAPTURE BIOMETRIC"}
+                      ? "BIOMETRIC EKYC REQUIRED FIRST"
+                      : isScanningDevices
+                        ? "SCANNING BIOMETRIC DEVICES..."
+                        : "SCAN DEVICE & CAPTURE BIOMETRIC"}
                 </button>
               </div>
             ) : (
@@ -2376,8 +2518,8 @@ const Aeps = () => {
 
   const filteredBanks = bankSearchTerm
     ? availableBanks.filter((b) =>
-        b.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
-      )
+      b.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
+    )
     : availableBanks;
 
   const isCustomerFormValid =
@@ -2407,33 +2549,30 @@ const Aeps = () => {
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
-                customerMobile.length === 10
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-slate-100 text-slate-500"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${customerMobile.length === 10
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-slate-100 text-slate-500"
+                }`}
             >
               <Phone className="h-3 w-3" />
               {customerMobile.length === 10 ? "Mobile ✓" : "Mobile"}
             </span>
 
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
-                customerAadhaar.length === 12
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-slate-100 text-slate-500"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${customerAadhaar.length === 12
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-slate-100 text-slate-500"
+                }`}
             >
               <IdCard className="h-3 w-3" />
               {customerAadhaar.length === 12 ? "Aadhaar ✓" : "Aadhaar"}
             </span>
 
             <span
-              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${
-                selectedBank
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                  : "bg-slate-100 text-slate-500"
-              }`}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold transition ${selectedBank
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-slate-100 text-slate-500"
+                }`}
             >
               <Building2 className="h-3 w-3" />
               {selectedBank ? "Bank ✓" : "Bank"}
@@ -2565,18 +2704,17 @@ const Aeps = () => {
                 const isSelected =
                   selectedBank &&
                   (selectedBank.name.toLowerCase().includes(pop.fullName.toLowerCase()) ||
-                   selectedBank.name.toLowerCase().includes(pop.name.toLowerCase()));
+                    selectedBank.name.toLowerCase().includes(pop.name.toLowerCase()));
 
                 return (
                   <button
                     key={pop.name}
                     type="button"
                     onClick={() => handleSelectPopularBank(pop.fullName)}
-                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all border ${
-                      isSelected
-                        ? "border-purple-600 bg-purple-600 text-white shadow-sm ring-2 ring-purple-600/20"
-                        : "border-slate-200 bg-slate-50/70 text-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
-                    }`}
+                    className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all border ${isSelected
+                      ? "border-purple-600 bg-purple-600 text-white shadow-sm ring-2 ring-purple-600/20"
+                      : "border-slate-200 bg-slate-50/70 text-slate-700 hover:border-purple-300 hover:bg-purple-50/50"
+                      }`}
                   >
                     {pop.name}
                   </button>
@@ -2719,42 +2857,42 @@ const Aeps = () => {
     icon: React.ElementType;
     badge?: string;
   }[] = [
-    {
-      id: "cash-withdrawal",
-      title: "Cash Withdrawal",
-      description: "Instant cash withdrawal from customer's bank account",
-      icon: WalletCards,
-      badge: "Instant Cash",
-    },
-    {
-      id: "balance-check",
-      title: "Balance Enquiry",
-      description: "Fetch live account balance directly from bank CBS",
-      icon: Banknote,
-      badge: "Live CBS",
-    },
-    {
-      id: "mini-statement",
-      title: "Mini Statement",
-      description: "View and print recent bank account transactions",
-      icon: ReceiptText,
-      badge: "Passbook",
-    },
-    {
-      id: "balance-withdrawal",
-      title: "Bal + Withdrawal",
-      description: "Verify live balance first, then proceed to withdraw",
-      icon: ArrowRight,
-      badge: "2-in-1",
-    },
-    {
-      id: "cash-deposit",
-      title: "Cash Deposit",
-      description: "Deposit cash directly into customer's bank account",
-      icon: ArrowDown,
-      badge: "Deposit",
-    },
-  ];
+      {
+        id: "cash-withdrawal",
+        title: "Cash Withdrawal",
+        description: "Instant cash withdrawal from customer's bank account",
+        icon: WalletCards,
+        badge: "Instant Cash",
+      },
+      {
+        id: "balance-check",
+        title: "Balance Enquiry",
+        description: "Fetch live account balance directly from bank CBS",
+        icon: Banknote,
+        badge: "Live CBS",
+      },
+      {
+        id: "mini-statement",
+        title: "Mini Statement",
+        description: "View and print recent bank account transactions",
+        icon: ReceiptText,
+        badge: "Passbook",
+      },
+      {
+        id: "balance-withdrawal",
+        title: "Bal + Withdrawal",
+        description: "Verify live balance first, then proceed to withdraw",
+        icon: ArrowRight,
+        badge: "2-in-1",
+      },
+      {
+        id: "cash-deposit",
+        title: "Cash Deposit",
+        description: "Deposit cash directly into customer's bank account",
+        icon: ArrowDown,
+        badge: "Deposit",
+      },
+    ];
 
   const renderServices = () => {
     return (
@@ -2823,11 +2961,10 @@ const Aeps = () => {
                 type="button"
                 key={service.id}
                 onClick={() => handleServiceClick(service.id)}
-                className={`group relative rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${
-                  selected
-                    ? "border-purple-600 bg-purple-50/40 shadow-sm ring-2 ring-purple-600/20"
-                    : "border-slate-200/90 bg-white hover:border-purple-300"
-                }`}
+                className={`group relative rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${selected
+                  ? "border-purple-600 bg-purple-50/40 shadow-sm ring-2 ring-purple-600/20"
+                  : "border-slate-200/90 bg-white hover:border-purple-300"
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors duration-200">
@@ -2992,8 +3129,8 @@ const Aeps = () => {
             {isDeposit
               ? "Enter Deposit Amount"
               : isBalanceWithdrawal
-              ? "Select Withdrawal Amount"
-              : "Enter Withdrawal Amount"}
+                ? "Select Withdrawal Amount"
+                : "Enter Withdrawal Amount"}
           </h2>
 
           <p className="mt-2 text-base text-slate-600 sm:text-lg">
@@ -3004,11 +3141,10 @@ const Aeps = () => {
 
           {hasFetchedBalance && (
             <div
-              className={`mt-5 rounded-xl border p-4 text-center ${
-                isZeroBalance
-                  ? "border-red-200 bg-red-50 text-red-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700"
-              }`}
+              className={`mt-5 rounded-xl border p-4 text-center ${isZeroBalance
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                }`}
             >
               <p className="text-xs font-semibold uppercase tracking-wider">
                 Live Available Balance
@@ -3068,13 +3204,12 @@ const Aeps = () => {
                       )
                     }
                     disabled={optionExceeds || isZeroBalance}
-                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold transition sm:text-base ${
-                      active
-                        ? "border-[#7c3aed] bg-purple-50 text-purple-600"
-                        : optionExceeds || isZeroBalance
+                    className={`min-h-[48px] rounded-xl border px-2 text-sm font-semibold transition sm:text-base ${active
+                      ? "border-[#7c3aed] bg-purple-50 text-purple-600"
+                      : optionExceeds || isZeroBalance
                         ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
                         : "border-slate-200 bg-white text-slate-800 hover:bg-slate-50"
-                    }`}
+                      }`}
                   >
                     {active && (
                       <Check className="mr-1 inline h-4 w-4" />
@@ -3280,9 +3415,9 @@ const Aeps = () => {
     const formattedBal = isNaN(numericBal)
       ? "0.00"
       : numericBal.toLocaleString("en-IN", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        });
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
 
     const formattedAmount = (receiptData.amount || 0).toLocaleString("en-IN", {
       minimumFractionDigits: 2,

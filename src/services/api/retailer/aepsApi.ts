@@ -1,5 +1,13 @@
-import { apiClient } from "../client";
-import { getToken } from "../../../utils/auth";
+import api from "../../../config/axiosInstance";
+import type { AxiosResponse } from "axios";
+
+interface Envelope<T> {
+  success?: boolean;
+  message?: string;
+  data: T;
+}
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data;
 
 export interface BiometricPayload {
   userId?: string;
@@ -48,10 +56,6 @@ interface Envelope<T> {
   msg?: string;
   data: T;
 }
-
-const authOptions = () => ({
-  token: getToken() ?? undefined,
-});
 
 function attr(element: Element | null, name: string) {
   return element?.getAttribute(name) || "";
@@ -107,7 +111,6 @@ export function parsePidXml(
     qScore: attr(resp, "qScore"),
     nmPoints: attr(resp, "nmPoints"),
     sysid: sysid,
-    // attr(device, "sysid"),
     ts: ts,
   };
 }
@@ -169,8 +172,8 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
       typeof record.msg === "string" && record.msg.trim()
         ? record.msg.trim()
         : typeof record.message === "string" && record.message.trim()
-        ? record.message.trim()
-        : "";
+          ? record.message.trim()
+          : "";
     if (msgCandidate && (prompt.message === "Biometric authentication required" || !prompt.message)) {
       prompt.message = msgCandidate;
     }
@@ -207,42 +210,25 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
 }
 
 export function doEkyc(payload: BiometricPayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/aeps/do-ekyc", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<unknown>>("/api/v1/aeps/do-ekyc", payload).then(unwrap);
 }
 
 export function doBioEkyc(payload: BiometricPayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/auth/do-bio-ekyc", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<unknown>>("/api/v1/auth/do-bio-ekyc", payload).then(unwrap);
 }
 
-
 export function checkAepsLoginStatus(outletId?: string) {
-  return apiClient<
+  return api.post<
     Envelope<{
       outletId: string;
       kycRequired: boolean;
       provider: unknown;
     }>
-  >("/api/v1/aeps/login-status", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify({ outlet_id: outletId || "" }),
-  });
+  >("/api/v1/aeps/login-status", { outlet_id: outletId || "" }).then(unwrap);
 }
 
 export function verifyTfa(payload: TfaPayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/aeps/verify-tfa", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<unknown>>("/api/v1/aeps/verify-tfa", payload).then(unwrap);
 }
 
 export interface OnboardMerchantResult {
@@ -279,45 +265,30 @@ export interface OnboardMerchantResult {
 }
 
 export function onboardAepsMerchant() {
-  return apiClient<Envelope<OnboardMerchantResult>>("/api/v1/aeps/onboard", {
-    ...authOptions(),
-    method: "POST",
-  });
+  return api.post<Envelope<OnboardMerchantResult>>("/api/v1/aeps/onboard").then(unwrap);
 }
 
 export function checkDoEkyc(outletId?: string, userId?: string) {
-  return apiClient<
-    Envelope<{
-      provider: unknown;
-      ekyc: unknown;
-      kycRequired: boolean;
-      status?: string;
-      eKYCStatus?: string;
-      referenceKey?: string;
-      pidOptionWadh?: string;
-      message?: string;
-    }>
-  >("/api/v1/auth/check-ekyc", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify({
-      outlet_id: outletId || "",
-      userId: userId || "",
-    }),
-  });
+  return api.post<Envelope<{
+    provider: unknown;
+    ekyc: unknown;
+    kycRequired: boolean;
+    status?: string;
+    eKYCStatus?: string;
+    referenceKey?: string;
+    pidOptionWadh?: string;
+    message?: string;
+  }>>("/api/v1/auth/check-ekyc", {
+    outlet_id: outletId || "",
+    userId: userId || "",
+  }).then(unwrap);
 }
 
-
 export function getRetailerKyc(retailerId: string) {
-  return apiClient<
-    Envelope<{
-      outletId?: string | null;
-      aadhaarNumber?: string | null;
-    }>
-  >(`/api/v1/aeps/retailer/${retailerId}/kyc-details`, {
-    ...authOptions(),
-    method: "GET",
-  });
+  return api.get<Envelope<{
+    outletId?: string | null;
+    aadhaarNumber?: string | null;
+  }>>(`/api/v1/aeps/retailer/${retailerId}/kyc-details`).then(unwrap);
 }
 
 export interface AepsServicePayload extends Partial<Omit<BiometricPayload, "referenceKey">> {
@@ -347,27 +318,15 @@ export interface SendAepsOtpPayload {
 }
 
 export function balanceEnquiry(payload: AepsServicePayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/aeps/balance-enquiry", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<unknown>>("/api/v1/aeps/balance-enquiry", payload).then(unwrap);
 }
 
 export function miniStatement(payload: AepsServicePayload) {
-  return apiClient<Envelope<unknown>>("/api/v1/aeps/mini-statement", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<unknown>>("/api/v1/aeps/mini-statement", payload).then(unwrap);
 }
 
 export function cashWithdrawal(payload: CashWithdrawalPayload) {
-  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-withdraw", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-withdraw", payload).then(unwrap);
 }
 
 export interface CashDepositPayload extends AepsServicePayload {
@@ -401,18 +360,9 @@ export interface CashDepositPayload extends AepsServicePayload {
 }
 
 export function cashDeposit(payload: CashDepositPayload) {
-  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-deposit", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<Record<string, unknown>>>("/api/v1/aeps/cash-deposit", payload).then(unwrap);
 }
 
 export function sendAepsOtp(payload: SendAepsOtpPayload) {
-  return apiClient<Envelope<Record<string, unknown>>>("/api/v1/aeps/send-otp", {
-    ...authOptions(),
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
+  return api.post<Envelope<Record<string, unknown>>>("/api/v1/aeps/send-otp", payload).then(unwrap);
 }
-

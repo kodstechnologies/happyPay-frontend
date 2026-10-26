@@ -1,7 +1,7 @@
 import { Eye, EyeOff, LockKeyhole, ShieldCheck } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { resetPassword } from "../../../services/api/admin/adminAuthApi";
+import { resetPassword } from "../../../apis/adminAuth.apis";
 
 export default function ResetPassword() {
   const navigate = useNavigate();

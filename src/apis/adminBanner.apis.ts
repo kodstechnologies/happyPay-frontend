@@ -1,5 +1,5 @@
-import { apiClient } from "../client";
-import { getAdminToken } from "../../../utils/adminAuth";
+import api from "../config/adminAxiosInstance";
+import type { AxiosResponse } from "axios";
 
 export interface Banner {
   _id: string;
@@ -15,10 +15,15 @@ export interface Banner {
 
 export type BannerFormData = Omit<Banner, "_id" | "createdAt" | "updatedAt">;
 
-interface Envelope<T> { data: T; message?: string }
+interface Envelope<T> {
+  data: T;
+  message?: string;
+}
+
+const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
 
 export function getAdminBanners() {
-  return apiClient<Envelope<Banner[]>>(`/api/v1/banners`, { token: getAdminToken() ?? undefined, method: "GET" });
+  return api.get<Envelope<Banner[]>>(`/api/v1/banners`).then(unwrap);
 }
 
 function bannerFormData(data: BannerFormData, image?: File | null) {
@@ -35,24 +40,13 @@ function bannerFormData(data: BannerFormData, image?: File | null) {
 }
 
 export function createAdminBanner(data: BannerFormData, image: File) {
-  return apiClient<Envelope<Banner>>(`/api/v1/banners`, { 
-    token: getAdminToken() ?? undefined, 
-    method: "POST",
-    body: bannerFormData(data, image),
-  });
+  return api.post<Envelope<Banner>>(`/api/v1/banners`, bannerFormData(data, image)).then(unwrap);
 }
 
 export function updateAdminBanner(id: string, data: BannerFormData, image?: File | null) {
-  return apiClient<Envelope<Banner>>(`/api/v1/banners/${id}`, { 
-    token: getAdminToken() ?? undefined, 
-    method: "PUT",
-    body: bannerFormData(data, image),
-  });
+  return api.put<Envelope<Banner>>(`/api/v1/banners/${id}`, bannerFormData(data, image)).then(unwrap);
 }
 
 export function deleteAdminBanner(id: string) {
-  return apiClient<Envelope<null>>(`/api/v1/banners/${id}`, { 
-    token: getAdminToken() ?? undefined, 
-    method: "DELETE" 
-  });
+  return api.delete<Envelope<null>>(`/api/v1/banners/${id}`).then(unwrap);
 }
