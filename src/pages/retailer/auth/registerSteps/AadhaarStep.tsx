@@ -103,7 +103,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
         await updateRetailerAadhaarDetails({
           userId,
           aadhaarNumber,
-          aadhaarDocument: aadhaarFile,
+          aadhaarDocument: aadhaarFile || existingAadhaarFile,
           aadhaarConsent: consent,
           isAdharConsentGiven: consent,
           aadhaarMobileLinked: linkedMobile === "yes",

@@ -21,6 +21,7 @@ import {
   Mail,
   IndianRupee,
   TrendingUp,
+  Loader2,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -103,6 +104,7 @@ export default function AdminRetailerDetails() {
   const [retailerLoading, setRetailerLoading] = useState(true);
   const [retailerError, setRetailerError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [processingDocId, setProcessingDocId] = useState<string | null>(null);
   const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Document viewer modal
@@ -140,21 +142,27 @@ export default function AdminRetailerDetails() {
   const [modalTxLoading, setModalTxLoading] = useState(false);
 
   // Fetch Retailer Profile from backend API
-  const loadRetailer = useCallback(() => {
+  // showSkeleton: true on initial load/explicit full reload; false on silent background sync
+  const loadRetailer = useCallback((showSkeleton: boolean = false) => {
     if (!id) return;
-    setRetailerLoading(true);
+    if (showSkeleton) {
+      setRetailerLoading(true);
+    }
     setRetailerError("");
 
-    getAdminRetailer(id)
+    return getAdminRetailer(id)
       .then((res) => {
         if (res) {
           setLiveRetailer(res);
+          return res;
         } else {
           const dummy = DUMMY_RETAILERS.find((r) => r.id === id);
           if (dummy) {
             setLiveRetailer(dummy);
+            return dummy;
           } else {
             setRetailerError("Retailer not found.");
+            return null;
           }
         }
       })
@@ -163,18 +171,22 @@ export default function AdminRetailerDetails() {
         const dummy = DUMMY_RETAILERS.find((r) => r.id === id);
         if (dummy) {
           setLiveRetailer(dummy);
+          return dummy;
         } else {
           setRetailerError(err?.message || "Failed to load retailer details.");
+          return null;
         }
       })
       .finally(() => {
-        setRetailerLoading(false);
+        if (showSkeleton) {
+          setRetailerLoading(false);
+        }
       });
   }, [id]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadRetailer();
+      void loadRetailer(true);
     }, 0);
 
     return () => {
@@ -539,12 +551,12 @@ export default function AdminRetailerDetails() {
           documentReviews: updatedReviews,
         };
       });
-      loadRetailer();
+      void loadRetailer(false);
       setActionFeedback({ type: "success", message: "Retailer approved successfully!" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to approve retailer.";
       setActionFeedback({ type: "error", message: msg });
-      loadRetailer();
+      void loadRetailer(false);
     } finally {
       setActionLoading(false);
     }
@@ -552,6 +564,9 @@ export default function AdminRetailerDetails() {
 
   // Approve Individual Document
   const handleApproveDoc = async (docId: string) => {
+    if (processingDocId) return;
+    setProcessingDocId(docId);
+
     // Optimistically update document review on liveRetailer
     setLiveRetailer((prev) => {
       if (!prev) return prev;
@@ -568,6 +583,13 @@ export default function AdminRetailerDetails() {
       };
     });
 
+    // Also update viewingDoc if it's currently open
+    setViewingDoc((prev) =>
+      prev && prev.id === docId
+        ? { ...prev, status: "approved", rejectionReason: undefined }
+        : prev
+    );
+
     if (id) {
       try {
         await reviewAdminRetailerDocument({
@@ -576,13 +598,17 @@ export default function AdminRetailerDetails() {
           action: "approve",
         });
         setActionFeedback({ type: "success", message: "Document verified and approved." });
-        loadRetailer();
+        await loadRetailer(false);
       } catch (e: unknown) {
         const errMessage = e instanceof Error ? e.message : (e as { message?: string })?.message || "Could not approve document.";
         console.warn("Could not sync document approval to backend:", e);
         setActionFeedback({ type: "error", message: errMessage });
-        loadRetailer();
+        await loadRetailer(false);
+      } finally {
+        setProcessingDocId(null);
       }
+    } else {
+      setProcessingDocId(null);
     }
   };
 
@@ -599,6 +625,10 @@ export default function AdminRetailerDetails() {
     }
 
     setActionLoading(true);
+    const targetDocId = rejectingDoc?.id;
+    if (targetDocId) {
+      setProcessingDocId(targetDocId);
+    }
 
     try {
       if (rejectingDoc) {
@@ -618,6 +648,13 @@ export default function AdminRetailerDetails() {
           };
         });
 
+        // Also update viewingDoc if currently open
+        setViewingDoc((prev) =>
+          prev && prev.id === rejectingDoc.id
+            ? { ...prev, status: "rejected", rejectionReason: reason }
+            : prev
+        );
+
         if (id) {
           await reviewAdminRetailerDocument({
             retailerId: id,
@@ -625,7 +662,7 @@ export default function AdminRetailerDetails() {
             action: "reject",
             reason,
           });
-          loadRetailer();
+          await loadRetailer(false);
         }
         setActionFeedback({ type: "success", message: `Document '${rejectingDoc.label}' rejected.` });
       } else if (isRejectingRetailer) {
@@ -633,7 +670,7 @@ export default function AdminRetailerDetails() {
         if (id) {
           await updateAdminRetailerAccountStatus(id, "rejected", reason);
           await updateAdminRetailerKyc(id, "rejected", reason);
-          loadRetailer();
+          await loadRetailer(false);
           setLiveRetailer((prev) =>
             prev
               ? {
@@ -659,6 +696,7 @@ export default function AdminRetailerDetails() {
       setActionFeedback({ type: "error", message: msg });
     } finally {
       setActionLoading(false);
+      setProcessingDocId(null);
     }
   };
 
@@ -1303,22 +1341,30 @@ export default function AdminRetailerDetails() {
                             <div className="flex items-center gap-1.5">
                               {doc.status !== "approved" && (
                                 <button
+                                  type="button"
                                   onClick={() => handleApproveDoc(doc.id)}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm"
+                                  disabled={processingDocId === doc.id}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                  <CheckCircle className="h-3.5 w-3.5" />
+                                  {processingDocId === doc.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="h-3.5 w-3.5" />
+                                  )}
                                   Approve
                                 </button>
                               )}
                               {doc.status !== "rejected" && (
                                 <button
+                                  type="button"
                                   onClick={() => {
                                     setRejectingDoc(doc);
                                     setIsRejectingRetailer(false);
                                     setRejectionReason("");
                                     setRejectionReasonError("");
                                   }}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm"
+                                  disabled={processingDocId === doc.id}
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                   <XCircle className="h-3.5 w-3.5" />
                                   Reject
@@ -1951,27 +1997,30 @@ export default function AdminRetailerDetails() {
               <div className="flex items-center gap-2">
                 {viewingDoc.status !== "approved" && (
                   <button
-                    onClick={() => {
-                      handleApproveDoc(viewingDoc.id);
-                      setViewingDoc((prev) =>
-                        prev ? { ...prev, status: "approved", rejectionReason: undefined } : null
-                      );
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm"
+                    type="button"
+                    onClick={() => handleApproveDoc(viewingDoc.id)}
+                    disabled={processingDocId === viewingDoc.id}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <CheckCircle className="h-3.5 w-3.5" />
+                    {processingDocId === viewingDoc.id ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-3.5 w-3.5" />
+                    )}
                     Approve Document
                   </button>
                 )}
                 {viewingDoc.status !== "rejected" && (
                   <button
+                    type="button"
                     onClick={() => {
                       setRejectingDoc(viewingDoc);
                       setIsRejectingRetailer(false);
                       setRejectionReason("");
                       setRejectionReasonError("");
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm"
+                    disabled={processingDocId === viewingDoc.id}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <XCircle className="h-3.5 w-3.5" />
                     Reject Document
@@ -2089,6 +2138,7 @@ export default function AdminRetailerDetails() {
             {/* Footer */}
             <div className="px-6 py-4 mt-2 flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50">
               <button
+                type="button"
                 onClick={() => {
                   setRejectingDoc(null);
                   setIsRejectingRetailer(false);
@@ -2100,10 +2150,12 @@ export default function AdminRetailerDetails() {
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleRejectSubmit}
                 disabled={actionLoading}
                 className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 disabled:opacity-50"
               >
+                {actionLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 <XCircle className="h-3.5 w-3.5" />
                 Confirm Rejection
               </button>

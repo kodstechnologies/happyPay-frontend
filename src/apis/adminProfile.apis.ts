@@ -1,4 +1,4 @@
-import api from "../config/adminAxiosInstance";
+import api from "../config/axiosInstance";
 import type { AdminUser } from "../types/admin/auth";
 import type { AxiosResponse } from "axios";
 

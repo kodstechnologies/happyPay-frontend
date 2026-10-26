@@ -173,7 +173,7 @@ const AboutRetailerStep = forwardRef<
         gender: genderCode,
         maritalStatus,
         educationalQualification: education.trim(),
-        selfie,
+        selfie: selfie || existingSelfie,
       });
 
       return true;

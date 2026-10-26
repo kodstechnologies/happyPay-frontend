@@ -393,11 +393,11 @@ const ShopDetailsStep = ({
         latitude,
         longitude,
         businessProofType: businessProof, // This is now an ID from the API
-        shopInsidePhoto: insideShopFile,
-        shopOutsidePhoto: outsideShopFile,
-        shopLocationPhoto: shopLocationFile,
-        businessProofDocument: businessProofFile,
-        panDocument: panFile,
+        shopInsidePhoto: insideShopFile || existingInsideShop,
+        shopOutsidePhoto: outsideShopFile || existingOutsideShop,
+        shopLocationPhoto: shopLocationFile || existingShopLocation,
+        businessProofDocument: businessProofFile || existingBusinessProof,
+        panDocument: panFile || existingPanDoc,
         distributorId,
       });
 

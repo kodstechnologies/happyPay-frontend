@@ -1,4 +1,4 @@
-import api from "../config/adminAxiosInstance";
+import api from "../config/axiosInstance";
 import type { AuditLog, AuditLogFilters } from "../types/admin/audit";
 import type { AxiosResponse } from "axios";
 

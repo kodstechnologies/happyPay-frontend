@@ -258,11 +258,11 @@ export interface UpdateShopDetailsPayload {
   latitude?: number | null;
   longitude?: number | null;
   businessProofType: string;
-  shopInsidePhoto?: File | null;
-  shopOutsidePhoto?: File | null;
-  shopLocationPhoto?: File | null;
-  businessProofDocument?: File | null;
-  panDocument?: File | null;
+  shopInsidePhoto?: File | string | null;
+  shopOutsidePhoto?: File | string | null;
+  shopLocationPhoto?: File | string | null;
+  businessProofDocument?: File | string | null;
+  panDocument?: File | string | null;
   distributorId?: string;
 }
 
@@ -350,7 +350,7 @@ export interface UpdateAboutPayload {
   gender: "M" | "F" | "T";   // ← narrowed
   maritalStatus: string;
   educationalQualification: string;
-  selfie?: File | null;
+  selfie?: File | string | null;
 }
 
 export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
@@ -435,7 +435,7 @@ export interface UpdateAadhaarResult {
 export interface UpdateAadhaarPayload {
   userId: string;
   aadhaarNumber: string;
-  aadhaarDocument?: File | null;
+  aadhaarDocument?: File | string | null;
   aadhaarConsent: boolean;
   isAdharConsentGiven: boolean;
   aadhaarMobileLinked: boolean;
