@@ -11,7 +11,7 @@ import {
   RefreshCw,
   Mail,
 } from "lucide-react";
-import RetailerRegister from "../retailer/auth/Register";
+import AddRetailerForm from "./AddRetailerForm";
 import { useAuth } from "../../context/AuthContext";
 import {
   getDownlineRetailersApi,
@@ -144,10 +144,11 @@ export default function DistributorDashboard() {
 
   if (isRegisterOpen) {
     return (
-      <RetailerRegister
+      <AddRetailerForm
         distributorId={user?._id || user?.id}
+        distributorName={user?.fullName || "Distributor"}
         onExit={() => setIsRegisterOpen(false)}
-        onRegistrationComplete={handleRegistrationComplete}
+        onSuccess={handleRegistrationComplete}
       />
     );
   }

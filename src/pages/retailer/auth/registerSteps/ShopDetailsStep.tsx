@@ -22,6 +22,7 @@ import {
   verifyRetailerEmailOtp,
   updateRetailerShopDetails,
   validatePincodeApi,
+  type CurrentRegistrationStepResult,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
 import {
@@ -35,12 +36,14 @@ type ShopDetailsStepProps = {
   userId?: string;
   distributorId?: string;
   onShopDetailsSaved?: () => void;
+  initialData?: CurrentRegistrationStepResult | null;
 };
 
 const ShopDetailsStep = ({
   userId: userIdProp,
   distributorId,
   onShopDetailsSaved,
+  initialData,
 }: ShopDetailsStepProps) => {
   // Fall back to localStorage so the step works even if the prop wasn't passed
   const userId = userIdProp || localStorage.getItem("retailerUserId") || undefined;
@@ -84,6 +87,13 @@ const ShopDetailsStep = ({
   const [pan, setPan] = useState("");
   const [panFile, setPanFile] = useState<File | null>(null);
 
+  // -------- Existing uploaded files from previous step/session --------
+  const [existingPanDoc, setExistingPanDoc] = useState<string | null>(null);
+  const [existingInsideShop, setExistingInsideShop] = useState<string | null>(null);
+  const [existingOutsideShop, setExistingOutsideShop] = useState<string | null>(null);
+  const [existingShopLocation, setExistingShopLocation] = useState<string | null>(null);
+  const [existingBusinessProof, setExistingBusinessProof] = useState<string | null>(null);
+
   // -------- Master data --------
   const [categories, setCategories] = useState<MasterDataItem[]>([]);
   const [propertyTypes, setPropertyTypes] = useState<MasterDataItem[]>([]);
@@ -92,6 +102,87 @@ const ShopDetailsStep = ({
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // ========================================
+  // POPULATE FROM INITIAL DATA
+  // ========================================
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
+    if (initialData) {
+      if (initialData.email) {
+        setEmail(initialData.email);
+      }
+      if (initialData.isEmailVerified) {
+        setEmailVerified(true);
+      }
+
+      const fd = initialData.filledData;
+      if (fd) {
+        if (fd.panNumber) setPan(fd.panNumber);
+        if (fd.panDocument) setExistingPanDoc(fd.panDocument);
+
+        if (fd.shop) {
+          if (fd.shop.name) setShopName(fd.shop.name);
+
+          const catVal = fd.shop.category;
+          if (catVal) {
+            setCategory(typeof catVal === "object" ? catVal._id : catVal);
+          }
+
+          const propVal = fd.shop.propertyType;
+          if (propVal) {
+            setPropertyType(typeof propVal === "object" ? propVal._id : propVal);
+          }
+
+          const addr = fd.shop.completeAddress || fd.shop.address?.addressLine;
+          if (addr) setAddress(addr);
+
+          if (fd.shop.address?.city) setCity(fd.shop.address.city);
+          if (fd.shop.address?.pincode) {
+            setPincode(fd.shop.address.pincode);
+          }
+
+          if (fd.shop.location?.latitude != null) setLatitude(fd.shop.location.latitude);
+          if (fd.shop.location?.longitude != null) setLongitude(fd.shop.location.longitude);
+        }
+
+        if (fd.shopInsidePhoto) setExistingInsideShop(fd.shopInsidePhoto);
+        if (fd.shopOutsidePhoto) setExistingOutsideShop(fd.shopOutsidePhoto);
+        if (fd.shopLocationPhoto) setExistingShopLocation(fd.shopLocationPhoto);
+
+        const proofVal = fd.businessProofType;
+        if (proofVal) {
+          setBusinessProof(typeof proofVal === "object" ? proofVal._id : proofVal);
+        }
+        if (fd.businessProofDocument) setExistingBusinessProof(fd.businessProofDocument);
+      }
+    }
+  }
+
+  // Validate initial pincode asynchronously
+  useEffect(() => {
+    const pin = initialData?.filledData?.shop?.address?.pincode;
+    if (pin && pin.length === 6) {
+      let isMounted = true;
+      validatePincodeApi(pin)
+        .then((res) => {
+          if (isMounted && res.data?.isValid) {
+            setPincodeValid(true);
+            setPincodeInfo({
+              city: res.data.city || res.data.district || null,
+              district: res.data.district || null,
+              state: res.data.state || null,
+            });
+          }
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }
+  }, [initialData?.filledData?.shop?.address?.pincode]);
 
   // ========================================
   // FETCH MASTER DATA ON COMPONENT MOUNT
@@ -269,7 +360,7 @@ const ShopDetailsStep = ({
     if (!userId) return setError("User not registered.");
     if (!emailVerified) return setError("Please verify your email first.");
     if (!pan) return setError("PAN number is required.");
-    if (!panFile) return setError("PAN document is required.");
+    if (!panFile && !existingPanDoc) return setError("PAN document is required.");
     if (!shopName.trim()) return setError("Shop name is required.");
     if (!category) return setError("Shop category is required.");
     if (!propertyType) return setError("Property type is required.");
@@ -279,6 +370,10 @@ const ShopDetailsStep = ({
     if (pincode.length !== 6) return setError("Pincode must be exactly 6 digits.");
     if (pincodeError) return setError(pincodeError);
     if (!businessProof) return setError("Business proof type is required.");
+    if (!businessProofFile && !existingBusinessProof) return setError("Business proof document is required.");
+    if (!insideShopFile && !existingInsideShop) return setError("Inside shop photo is required.");
+    if (!outsideShopFile && !existingOutsideShop) return setError("Outside shop photo is required.");
+    if (!shopLocationFile && !existingShopLocation) return setError("Shop location photo is required.");
     if (latitude == null || isNaN(latitude)) return setError("Latitude is required.");
     if (longitude == null || isNaN(longitude)) return setError("Longitude is required.");
     if (latitude < -90 || latitude > 90) return setError("Latitude must be between -90 and 90.");
@@ -502,7 +597,7 @@ const ShopDetailsStep = ({
               className="group flex h-[54px] w-full items-center justify-between gap-3 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
             >
               <div className="flex min-w-0 items-center gap-3">
-                {panFile ? (
+                {panFile || existingPanDoc ? (
                   <CheckCircle2
                     className="h-5 w-5 shrink-0 text-[#08ae82]"
                     strokeWidth={2}
@@ -514,7 +609,7 @@ const ShopDetailsStep = ({
                   />
                 )}
                 <p className="truncate text-[14px] font-medium text-[#172033]">
-                  {panFile ? panFile.name : "Upload PAN Document"}
+                  {panFile ? panFile.name : existingPanDoc ? "PAN Document uploaded (Click to replace)" : "Upload PAN Document"}
                 </p>
               </div>
               <Upload
@@ -762,6 +857,7 @@ const ShopDetailsStep = ({
           label="Inside Shop Photo"
           description="Take a photo of yourself inside the shop."
           file={insideShopFile}
+          existingUrl={existingInsideShop}
           inputRef={insideShopInputRef}
           onChange={handleInsideShopUpload}
         />
@@ -769,6 +865,7 @@ const ShopDetailsStep = ({
           label="Outside Shop Photo"
           description="Take a clear photo of the shop exterior."
           file={outsideShopFile}
+          existingUrl={existingOutsideShop}
           inputRef={outsideShopInputRef}
           onChange={handleOutsideShopUpload}
         />
@@ -776,6 +873,7 @@ const ShopDetailsStep = ({
           label="Shop Location Photo"
           description="Capture a photo showing the shop location."
           file={shopLocationFile}
+          existingUrl={existingShopLocation}
           inputRef={shopLocationInputRef}
           onChange={handleShopLocationUpload}
         />
@@ -820,6 +918,7 @@ const ShopDetailsStep = ({
           label="Business Proof Document"
           description="Upload the selected business/address proof."
           file={businessProofFile}
+          existingUrl={existingBusinessProof}
           inputRef={businessProofInputRef}
           onChange={handleBusinessProofUpload}
           accept="image/*,.pdf"
@@ -913,6 +1012,7 @@ const PhotoUpload = ({
   label,
   description,
   file,
+  existingUrl,
   inputRef,
   onChange,
   accept = "image/*",
@@ -920,47 +1020,53 @@ const PhotoUpload = ({
   label: string;
   description: string;
   file: File | null;
+  existingUrl?: string | null;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   accept?: string;
-}) => (
-  <>
-    <button
-      type="button"
-      onClick={() => inputRef.current?.click()}
-      className={`group mt-5 flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${file
-        ? "border-[#b9e8da] bg-[#f4fcf9]"
-        : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
-        }`}
-    >
-      <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
-        {file ? (
-          <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
-        ) : (
-          <Camera className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <h3 className="text-sm font-bold text-[#172033]">{label}</h3>
-        <p
-          className={`mt-1 truncate text-sm ${file ? "font-medium text-[#08ae82]" : "text-[#8992a3]"
-            }`}
-        >
-          {file ? file.name : description}
-        </p>
-      </div>
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3]">
-        <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
-      </div>
-    </button>
-    <input
-      ref={inputRef}
-      type="file"
-      accept={accept}
-      onChange={onChange}
-      className="hidden"
-    />
-  </>
-);
+}) => {
+  const isUploaded = !!file || !!existingUrl;
+  const displayText = file ? file.name : existingUrl ? "Document uploaded (Click to replace)" : description;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className={`group mt-5 flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${isUploaded
+          ? "border-[#b9e8da] bg-[#f4fcf9]"
+          : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+          }`}
+      >
+        <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
+          {isUploaded ? (
+            <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
+          ) : (
+            <Camera className="h-5 w-5 text-[#08ae82]" strokeWidth={2.2} />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-bold text-[#172033]">{label}</h3>
+          <p
+            className={`mt-1 truncate text-sm ${isUploaded ? "font-medium text-[#08ae82]" : "text-[#8992a3]"
+              }`}
+          >
+            {displayText}
+          </p>
+        </div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3]">
+          <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
+        </div>
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        onChange={onChange}
+        className="hidden"
+      />
+    </>
+  );
+};
 
 export default ShopDetailsStep;

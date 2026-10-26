@@ -21,6 +21,10 @@ import AboutRetailerStep, { type AboutRetailerStepHandle } from "./registerSteps
 import AadhaarStep, { type AadhaarStepHandle } from "./registerSteps/AadhaarStep";
 // import DobStep from "./registerSteps/DobStep"; // Removed - DOB field moved to AboutRetailerStep
 import BankDetailsStep, { type BankDetailsStepHandle } from "./registerSteps/BankDetailsStep";
+import {
+  getCurrentRegistrationStep,
+  type CurrentRegistrationStepResult,
+} from "../../../services/api/retailer/retailerAuthApi";
 
 const steps = [
   {
@@ -146,12 +150,57 @@ const RetailerRegister = ({
   const aadhaarStepRef = useRef<AadhaarStepHandle>(null);
   const bankStepRef = useRef<BankDetailsStepHandle>(null);
 
-  // Sync userId to localStorage if provided in query
+  // Registration data from API
+  const [registrationData, setRegistrationData] = useState<CurrentRegistrationStepResult | null>(null);
+  const [loadingInitialData, setLoadingInitialData] = useState<boolean>(() => Boolean(retailerUserId));
+
+  const loadRegistrationData = async (id: string) => {
+    if (!id) return;
+    setLoadingInitialData(true);
+    try {
+      const res = await getCurrentRegistrationStep({ userId: id });
+      if (res?.data) {
+        setRegistrationData(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load registration data:", err);
+    } finally {
+      setLoadingInitialData(false);
+    }
+  };
+
+  // Sync userId to localStorage if provided in query and fetch existing data
   useEffect(() => {
     if (queryUserId) {
       localStorage.setItem("retailerUserId", queryUserId);
     }
   }, [queryUserId]);
+
+  useEffect(() => {
+    if (!retailerUserId) return;
+    let ignore = false;
+
+    async function fetchRegistrationData() {
+      try {
+        const res = await getCurrentRegistrationStep({ userId: retailerUserId });
+        if (!ignore && res?.data) {
+          setRegistrationData(res.data);
+        }
+      } catch (err) {
+        console.error("Failed to load registration data:", err);
+      } finally {
+        if (!ignore) {
+          setLoadingInitialData(false);
+        }
+      }
+    }
+
+    fetchRegistrationData();
+
+    return () => {
+      ignore = true;
+    };
+  }, [retailerUserId]);
 
   /*
    * ==========================================================
@@ -375,98 +424,118 @@ const RetailerRegister = ({
 
 
 
-                <form id="retailer-register-form" className="flex-1">
-
-                  <div
-                    className={
-                      safeStep === 0
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <AccountStep
-                      distributorId={distributorId}
-                      onAccountCreated={(id) => {
-                        setRetailerUserId(id);
-                        if (!distributorId) {
-                          localStorage.setItem("retailerUserId", id);
-                        } else {
-                          localStorage.setItem("subRetailerUserId", id);
-                        }
-                        nextStep();
-                      }}
-                    />
+                {loadingInitialData && !registrationData ? (
+                  <div className="flex flex-col items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-[#7c3aed]" />
+                    <p className="mt-3 text-sm text-[#737c8c]">Loading existing registration details...</p>
                   </div>
+                ) : (
+                  <form id="retailer-register-form" className="flex-1">
 
-                  <div
-                    className={
-                      safeStep === 1
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <ShopDetailsStep
-                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
-                      distributorId={distributorId}
-                      onShopDetailsSaved={nextStep}
-                    />
-                  </div>
+                    <div
+                      className={
+                        safeStep === 0
+                          ? "block"
+                          : "hidden"
+                      }
+                    >
+                      <AccountStep
+                        distributorId={distributorId}
+                        initialMobile={registrationData?.mobile}
+                        initialVerified={registrationData?.isMobileVerified}
+                        userId={retailerUserId}
+                        onAccountCreated={(id) => {
+                          setRetailerUserId(id);
+                          if (!distributorId) {
+                            localStorage.setItem("retailerUserId", id);
+                          } else {
+                            localStorage.setItem("subRetailerUserId", id);
+                          }
+                          loadRegistrationData(id);
+                          nextStep();
+                        }}
+                      />
+                    </div>
 
-                  <div
-                    className={
-                      safeStep === 2
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <AboutRetailerStep
-                      ref={aboutStepRef}
-                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
-                    />
-                  </div>
+                    <div
+                      className={
+                        safeStep === 1
+                          ? "block"
+                          : "hidden"
+                      }
+                    >
+                      <ShopDetailsStep
+                        userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                        distributorId={distributorId}
+                        initialData={registrationData}
+                        onShopDetailsSaved={() => {
+                          if (retailerUserId) {
+                            loadRegistrationData(retailerUserId);
+                          }
+                          nextStep();
+                        }}
+                      />
+                    </div>
 
-                  <div
-                    className={
-                      safeStep === 3
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <AadhaarStep
-                      ref={aadhaarStepRef}
-                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
-                    />
-                  </div>
+                    <div
+                      className={
+                        safeStep === 2
+                          ? "block"
+                          : "hidden"
+                      }
+                    >
+                      <AboutRetailerStep
+                        ref={aboutStepRef}
+                        userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                        initialData={registrationData?.filledData}
+                      />
+                    </div>
 
-                  <div
-                    className={
-                      safeStep === 4
-                        ? "block"
-                        : "hidden"
-                    }
-                  >
-                    <BankDetailsStep
-                      ref={bankStepRef}
-                      userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
-                      distributorId={distributorId}
-                      onRegistrationComplete={() => {
-                        if (distributorId) {
-                          localStorage.removeItem("subRetailerUserId");
-                        }
-                        if (onRegistrationCompleteProp) {
-                          onRegistrationCompleteProp();
-                          return;
-                        }
-                        if (onExit) {
-                          onExit();
-                          return;
-                        }
-                        navigate("/retailer/kyc-pending", { replace: true });
-                      }}
-                    />
-                  </div>
+                    <div
+                      className={
+                        safeStep === 3
+                          ? "block"
+                          : "hidden"
+                      }
+                    >
+                      <AadhaarStep
+                        ref={aadhaarStepRef}
+                        userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                        initialData={registrationData?.filledData}
+                      />
+                    </div>
 
-                </form>
+                    <div
+                      className={
+                        safeStep === 4
+                          ? "block"
+                          : "hidden"
+                      }
+                    >
+                      <BankDetailsStep
+                        ref={bankStepRef}
+                        userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
+                        distributorId={distributorId}
+                        initialData={registrationData?.filledData}
+                        onRegistrationComplete={() => {
+                          if (distributorId) {
+                            localStorage.removeItem("subRetailerUserId");
+                          }
+                          if (onRegistrationCompleteProp) {
+                            onRegistrationCompleteProp();
+                            return;
+                          }
+                          if (onExit) {
+                            onExit();
+                            return;
+                          }
+                          navigate("/retailer/kyc-pending", { replace: true });
+                        }}
+                      />
+                    </div>
+
+                  </form>
+                )}
 
                 {/* ACTIONS */}
                 <div className="mt-7 border-t border-[#edf0f4] pt-5">

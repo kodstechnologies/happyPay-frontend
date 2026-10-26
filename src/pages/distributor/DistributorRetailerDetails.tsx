@@ -497,7 +497,7 @@ export default function DistributorRetailerDetails() {
                       }`}
                     >
                       <div className="flex items-start justify-between">
-                        <span className="font-bold text-slate-900">{bank.bankName || "Bank"}</span>
+                        <span className="font-bold text-slate-900">{bank.name || "Bank"}</span>
                         {bank.isPrimary && (
                           <span className="inline-flex items-center rounded-md bg-[#7c3aed] px-2 py-0.5 text-[10px] font-bold text-white">
                             Primary

@@ -291,6 +291,22 @@ const Aeps = () => {
     tokenOutletId
   );
 
+  // Helper to resolve effective outletId across state, props, token, and prompt
+  const getEffectiveOutletId = useCallback(
+    (forcedOutletId?: string): string => {
+      const candidate =
+        forcedOutletId ||
+        onboardedOutletId ||
+        authUser?.outletId ||
+        authUser?.AepsEkyc?.outletId ||
+        tokenOutletId ||
+        ekycPrompt?.outletId ||
+        "";
+      return candidate ? String(candidate).trim() : "";
+    },
+    [onboardedOutletId, authUser, tokenOutletId, ekycPrompt?.outletId]
+  );
+
   // Check eKYC status from server ONLY if onboarded and NOT yet completed in DB
   const checkKycStatus = useCallback(async (forcedOutletId?: string) => {
     // If already completed in database or session, do NOT call check API
@@ -298,13 +314,7 @@ const Aeps = () => {
       return;
     }
 
-    const effectiveOutletId =
-      forcedOutletId ||
-      onboardedOutletId ||
-      authUser?.outletId ||
-      authUser?.AepsEkyc?.outletId ||
-      tokenOutletId ||
-      "";
+    const effectiveOutletId = getEffectiveOutletId(forcedOutletId);
 
     const userId = authUser?.id || authUser?._id;
     if (!effectiveOutletId || !userId) return;
@@ -347,7 +357,7 @@ const Aeps = () => {
     } finally {
       setIsCheckingKyc(false);
     }
-  }, [isBioKycDone, authUser, onboardedOutletId, tokenOutletId, refreshUser]);
+  }, [isBioKycDone, authUser, getEffectiveOutletId, refreshUser]);
 
   useEffect(() => {
     // Wait for auth context to load from DB first
@@ -594,14 +604,7 @@ const Aeps = () => {
       }
 
       // Decode JWT token or use authUser / newly onboarded outletId
-      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      const outletId =
-        onboardedOutletId ||
-        authUser?.outletId ||
-        authUser?.AepsEkyc?.outletId ||
-        tokenPayload.outletId ||
-        tokenPayload.outletid ||
-        "";
+      const outletId = getEffectiveOutletId();
 
       if (!outletId) {
         setRetailerAuthenticated(false);
@@ -658,7 +661,7 @@ const Aeps = () => {
     } finally {
       setIsCheckingLoginStatus(false);
     }
-  }, [onboardedOutletId, authUser]);
+  }, [getEffectiveOutletId]);
 
   const handleRefreshLoginStatus = (): void => {
     setIsCheckingLoginStatus(true);
@@ -1003,8 +1006,13 @@ const Aeps = () => {
 
       // Decode JWT token to get outletId and referenceKey
       const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-      const referenceKey = tokenPayload.referenceKey || "";
+      const outletId = getEffectiveOutletId();
+      const referenceKey =
+        authUser?.AepsEkyc?.referenceKey ||
+        authUser?.referenceKey ||
+        tokenPayload.referenceKey ||
+        bioKycReferenceKey ||
+        "";
 
       if (!outletId) {
         throw new Error(
@@ -1166,28 +1174,23 @@ const Aeps = () => {
     overrideReferenceKey?: string | null
   ): Promise<AepsServicePayload> => {
     const token = getToken();
-    let tokenOutletId = "";
     let tokenRefKey = "";
     if (token) {
       try {
         const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-        tokenOutletId = tokenPayload.outletId || tokenPayload.outletid || "";
         tokenRefKey = tokenPayload.referenceKey || "";
       } catch (e) {
         console.warn("Failed to parse token payload", e);
       }
     }
 
-    const outletId =
-      authUser?.AepsEkyc?.outletId ||
-      authUser?.outletId ||
-      tokenOutletId ||
-      "";
+    const outletId = getEffectiveOutletId();
 
     const retailerRefKey =
       authUser?.AepsEkyc?.referenceKey ||
       authUser?.referenceKey ||
       tokenRefKey ||
+      bioKycReferenceKey ||
       "";
 
     const referenceKey =
@@ -1580,16 +1583,12 @@ const Aeps = () => {
         }
 
         const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-        const outletId =
-          authUser?.AepsEkyc?.outletId ||
-          authUser?.outletId ||
-          tokenPayload.outletId ||
-          tokenPayload.outletid ||
-          "";
+        const outletId = getEffectiveOutletId();
         const referenceKey =
           authUser?.AepsEkyc?.referenceKey ||
           authUser?.referenceKey ||
           tokenPayload.referenceKey ||
+          bioKycReferenceKey ||
           "";
         if (!outletId || !referenceKey) {
           throw new Error(
@@ -1770,24 +1769,76 @@ const Aeps = () => {
 
     try {
       const res = await onboardAepsMerchant();
-      if (res.success && res.data) {
-        setOnboardSuccess("Merchant onboarded successfully to AEPS!");
-        if (res.data.outletId) {
-          setOnboardedOutletId(res.data.outletId);
+      const resAny = res as unknown as Record<string, unknown> | undefined;
+
+      // Check success across API formats (Envelope, raw provider, or custom ApiResponse)
+      const isSuccess =
+        res?.success === true ||
+        String(res?.status || resAny?.status || "").toUpperCase() === "SUCCESS" ||
+        res?.statusCode === 200 ||
+        resAny?.statusCode === 200;
+
+      // Extract outletId safely across all possible response structures (string or number)
+      const dataObj = res?.data as Record<string, unknown> | undefined;
+      const innerData = (dataObj?.data || dataObj?.onboarding) as Record<string, unknown> | undefined;
+      const innerInnerData = innerData?.data as Record<string, unknown> | undefined;
+
+      const rawOutletId =
+        dataObj?.outletId ??
+        dataObj?.outlet_id ??
+        innerData?.outletId ??
+        innerData?.outlet_id ??
+        innerInnerData?.outletId ??
+        innerInnerData?.outlet_id ??
+        resAny?.outletId ??
+        resAny?.outlet_id;
+
+      const extractedOutletId =
+        rawOutletId !== undefined && rawOutletId !== null && String(rawOutletId).trim() !== ""
+          ? String(rawOutletId).trim()
+          : "";
+
+      if (isSuccess || extractedOutletId) {
+        const successMsg =
+          res?.message ||
+          (typeof resAny?.msg === "string" ? resAny.msg : "") ||
+          (typeof resAny?.message === "string" ? resAny.message : "") ||
+          "Merchant onboarded successfully to AEPS!";
+        setOnboardSuccess(successMsg);
+
+        if (extractedOutletId) {
+          setOnboardedOutletId(extractedOutletId);
         }
+
         if (refreshUser) {
-          await refreshUser();
+          try {
+            await refreshUser();
+          } catch (refreshErr) {
+            console.warn("Failed to refresh user after onboarding:", refreshErr);
+          }
         }
-        if (res.data.eKYCStatus === "COMPLETED") {
+
+        const isEkycCompleted =
+          dataObj?.eKYCStatus === "COMPLETED" ||
+          resAny?.eKYCStatus === "COMPLETED" ||
+          (typeof innerData?.eKYCStatus === "string" && innerData.eKYCStatus === "COMPLETED");
+
+        if (isEkycCompleted) {
           setBioKycCompletedLocally(true);
           setIsCheckingLoginStatus(true);
           setTfaError("");
           void fetchLoginStatus();
         } else {
-          void checkKycStatus(res.data.outletId);
+          // Immediately pass the extracted outletId into check bio kyc so it doesn't wait on async state updates
+          void checkKycStatus(extractedOutletId);
         }
       } else {
-        setOnboardError(res.message || "Failed to onboard to AEPS.");
+        const errorMsg =
+          res?.message ||
+          (typeof resAny?.msg === "string" ? resAny.msg : "") ||
+          (typeof resAny?.message === "string" ? resAny.message : "") ||
+          "Failed to onboard to AEPS.";
+        setOnboardError(errorMsg);
       }
     } catch (err: unknown) {
       setOnboardError(getErrorMessage(err, "Failed to onboard to AEPS gateway."));
@@ -1797,14 +1848,7 @@ const Aeps = () => {
   };
 
   const handleDoBioKyc = async () => {
-    const effectiveOutletId =
-      onboardedOutletId ||
-      authUser?.outletId ||
-      authUser?.AepsEkyc?.outletId ||
-      tokenOutletId ||
-      ekycPrompt?.outletId ||
-      "";
-
+    const effectiveOutletId = getEffectiveOutletId();
     const userId = authUser?.id || authUser?._id;
 
     if (!effectiveOutletId || !userId) {
@@ -1895,7 +1939,6 @@ const Aeps = () => {
 
       setBioKycSuccess("Biometric eKYC completed successfully!");
       setBioKycCompletedLocally(true);
-      localStorage.setItem("outletId", effectiveOutletId);
 
       if (refreshUser) {
         await refreshUser();

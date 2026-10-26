@@ -12,7 +12,12 @@ import {
   X,
 } from "lucide-react";
 
-import { updateRetailerBankDetails, getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
+import {
+  updateRetailerBankDetails,
+  getBankList,
+  type Bank,
+  type CurrentRegistrationStepResult,
+} from "../../../../services/api/retailer/retailerAuthApi";
 
 export type BankDetailsStepHandle = {
   submit: () => Promise<boolean>;
@@ -22,10 +27,11 @@ type BankDetailsStepProps = {
   userId?: string;
   distributorId?: string;
   onRegistrationComplete?: () => void;
+  initialData?: CurrentRegistrationStepResult["filledData"] | null;
 };
 
 const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
-  ({ userId: userIdProp, distributorId, onRegistrationComplete }, ref) => {
+  ({ userId: userIdProp, distributorId, onRegistrationComplete, initialData }, ref) => {
     const userId =
       userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
@@ -36,6 +42,30 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+      if (!initialData) return;
+      const bankInfo =
+        initialData.primaryBank ||
+        (initialData.banks && initialData.banks.length > 0
+          ? (initialData.banks[0] as {
+              bankName?: string;
+              bank_id?: string | number;
+              ifscCode?: string;
+              accountNumber?: string;
+            })
+          : null);
+
+      if (bankInfo) {
+        if (bankInfo.bankName) setBankName(bankInfo.bankName);
+        if (bankInfo.bank_id !== undefined) setBankId(bankInfo.bank_id);
+        if (bankInfo.ifscCode) setIfscCode(bankInfo.ifscCode);
+        if (bankInfo.accountNumber) {
+          setAccountNumber(bankInfo.accountNumber);
+          setConfirmAccountNumber(bankInfo.accountNumber);
+        }
+      }
+    }, [initialData]);
 
     // Bank list state & pagination
     const [banks, setBanks] = useState<Bank[]>([]);

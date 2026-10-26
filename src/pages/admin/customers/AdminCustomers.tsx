@@ -53,7 +53,7 @@ export default function AdminCustomers() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
+    <div className="mx-auto w-full space-y-6">
       <section>
         <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#315bd1]">
           Management

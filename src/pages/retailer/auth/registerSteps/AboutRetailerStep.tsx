@@ -17,7 +17,10 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { updateRetailerAboutDetails } from "../../../../services/api/retailer/retailerAuthApi";
+import {
+  updateRetailerAboutDetails,
+  type CurrentRegistrationStepResult,
+} from "../../../../services/api/retailer/retailerAuthApi";
 
 export type AboutRetailerStepHandle = {
   submit: () => Promise<boolean>;
@@ -25,6 +28,7 @@ export type AboutRetailerStepHandle = {
 
 type AboutRetailerStepProps = {
   userId?: string;
+  initialData?: CurrentRegistrationStepResult["filledData"] | null;
 };
 
 const GENDER_TO_CODE: Record<string, "M" | "F" | "T"> = {
@@ -36,7 +40,7 @@ const GENDER_TO_CODE: Record<string, "M" | "F" | "T"> = {
 const AboutRetailerStep = forwardRef<
   AboutRetailerStepHandle,
   AboutRetailerStepProps
->(({ userId: userIdProp }, ref) => {
+>(({ userId: userIdProp, initialData }, ref) => {
   const userId =
     userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
@@ -44,6 +48,7 @@ const AboutRetailerStep = forwardRef<
 
   const [fullName, setFullName] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
+  const [existingSelfie, setExistingSelfie] = useState<string | null>(null);
   const [gender, setGender] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
   const [education, setEducation] = useState("");
@@ -51,6 +56,47 @@ const AboutRetailerStep = forwardRef<
 
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  const [prevInitialData, setPrevInitialData] = useState(initialData);
+
+  if (initialData !== prevInitialData) {
+    setPrevInitialData(initialData);
+    if (initialData) {
+      if (initialData.fullName || initialData.name) {
+        setFullName(initialData.fullName || initialData.name || "");
+      }
+
+      if (initialData.dateOfBirth || initialData.dob) {
+        const d = (initialData.dateOfBirth || initialData.dob) as string;
+        if (d.includes("-")) {
+          const [yyyy, mm, dd] = d.split("T")[0].split("-");
+          if (yyyy && mm && dd) setDateOfBirth(`${dd}/${mm}/${yyyy}`);
+        } else {
+          setDateOfBirth(d);
+        }
+      }
+
+      if (initialData.gender) {
+        const g = initialData.gender.toUpperCase();
+        if (g === "M" || g === "MALE") setGender("Male");
+        else if (g === "F" || g === "FEMALE") setGender("Female");
+        else if (g === "T" || g === "OTHER") setGender("Other");
+        else setGender(initialData.gender);
+      }
+
+      if (initialData.maritalStatus) {
+        setMaritalStatus(initialData.maritalStatus);
+      }
+
+      if (initialData.educationalQualification) {
+        setEducation(initialData.educationalQualification);
+      }
+
+      if (initialData.selfie) {
+        setExistingSelfie(initialData.selfie);
+      }
+    }
+  }
 
   // ==========================================================
   // FILE
@@ -111,7 +157,7 @@ const AboutRetailerStep = forwardRef<
       setError("Educational qualification is required.");
       return false;
     }
-    if (!selfie) {
+    if (!selfie && !existingSelfie) {
       setError("Selfie is required.");
       return false;
     }
@@ -192,18 +238,18 @@ const AboutRetailerStep = forwardRef<
           type="button"
           onClick={() => selfieInputRef.current?.click()}
           className={`flex min-h-[150px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition-all ${
-            selfie
+            selfie || existingSelfie
               ? "border-[#b9e8d4] bg-[#f3fcf8]"
               : "border-[#dfe3e9] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f3f6ff]"
           }`}
         >
-          {selfie ? (
+          {selfie || existingSelfie ? (
             <>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#e2f7ef]">
                 <Check className="h-6 w-6 text-[#08a77e]" strokeWidth={2.5} />
               </div>
               <span className="mt-3 max-w-full truncate px-4 text-[14px] font-semibold text-[#087b5d]">
-                {selfie.name}
+                {selfie ? selfie.name : "Selfie uploaded (Click to replace)"}
               </span>
               <span className="mt-1 text-[12px] text-[#6d8078]">
                 Selfie uploaded successfully

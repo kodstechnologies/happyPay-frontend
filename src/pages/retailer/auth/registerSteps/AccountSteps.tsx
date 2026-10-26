@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Phone,
@@ -10,25 +10,65 @@ import {
 
 import {
   sendRetailerRegisterOtp,
+  resendRetailerRegisterOtp,
   verifyRetailerRegisterOtp,
 } from "../../../../services/api/retailer/retailerAuthApi";
+import { toast } from "react-toastify";
 
 type AccountStepProps = {
   distributorId?: string;
   onAccountCreated?: (userId: string) => void;
+  initialMobile?: string;
+  initialVerified?: boolean;
+  userId?: string;
 };
 
-const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
+const AccountStep = ({
+  distributorId,
+  onAccountCreated,
+  initialMobile,
+  initialVerified,
+  userId: userIdProp,
+}: AccountStepProps) => {
   const navigate = useNavigate();
-  const [mobile, setMobile] = useState("");
+  const [mobile, setMobile] = useState(initialMobile || "");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [userId, setUserId] = useState<string>("");
+  const [otpVerified, setOtpVerified] = useState(initialVerified || false);
+  const [userId, setUserId] = useState<string>(userIdProp || "");
   const [error, setError] = useState("");
   const [isExistingAccount, setIsExistingAccount] = useState(false);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
+  const [resendSuccess, setResendSuccess] = useState("");
+
+  // Countdown timer for Resend OTP (1 minute = 60s)
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const [prevProps, setPrevProps] = useState({
+    initialMobile,
+    initialVerified,
+    userIdProp,
+  });
+
+  if (
+    prevProps.initialMobile !== initialMobile ||
+    prevProps.initialVerified !== initialVerified ||
+    prevProps.userIdProp !== userIdProp
+  ) {
+    setPrevProps({ initialMobile, initialVerified, userIdProp });
+    if (initialMobile) setMobile(initialMobile);
+    if (initialVerified !== undefined) setOtpVerified(initialVerified);
+    if (userIdProp) setUserId(userIdProp);
+  }
 
   // ==========================================================
   // MOBILE
@@ -41,6 +81,8 @@ const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
     setOtp("");
     setOtpVerified(false);
     setError("");
+    setResendSuccess("");
+    setResendTimer(0);
     setIsExistingAccount(false);
   };
 
@@ -58,10 +100,12 @@ const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
     }
 
     setSending(true);
+    setResendSuccess("");
     try {
       const res = await sendRetailerRegisterOtp(mobile);
       console.log(res);
       setOtpSent(true);
+      setResendTimer(60);
       localStorage.setItem("pendingRetailerMobile", mobile);
     } catch (err: unknown) {
       const errorObj = err as { message?: string; statusCode?: number } | undefined;
@@ -78,6 +122,30 @@ const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
       }
     } finally {
       setSending(false);
+    }
+  };
+
+  // ==========================================================
+  // RESEND OTP (API)
+  // ==========================================================
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || resending || verifying) return;
+    setError("");
+    setResendSuccess("");
+    setResending(true);
+    try {
+      await resendRetailerRegisterOtp(mobile);
+      setResendTimer(60);
+      setResendSuccess("OTP resent successfully!");
+      toast.success("OTP resent successfully!");
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; statusCode?: number } | undefined;
+      const msg = errorObj?.message || "Failed to resend OTP";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -254,6 +322,8 @@ const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
                 setOtpSent(false);
                 setOtp("");
                 setError("");
+                setResendSuccess("");
+                setResendTimer(0);
               }}
               className="shrink-0 rounded-lg px-2 py-1 text-[12px] font-semibold text-[#7c3aed] transition hover:bg-[#f8f5ff] hover:underline"
             >
@@ -273,6 +343,33 @@ const AccountStep = ({ distributorId, onAccountCreated }: AccountStepProps) => {
             autoComplete="one-time-code"
             className="mt-4 h-[58px] w-full rounded-xl border border-[#dfe3e9] bg-white px-4 text-center text-[18px] font-bold tracking-[0.4em] text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] placeholder:tracking-normal focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
           />
+
+          <div className="mt-3 flex items-center justify-between text-[12px]">
+            <span className="text-[#8992a3]">Didn't receive OTP?</span>
+            {resendTimer > 0 ? (
+              <span className="font-medium text-[#737c8c]">
+                Resend in{" "}
+                <strong className="font-bold text-[#7c3aed]">
+                  {Math.floor(resendTimer / 60)}:{(resendTimer % 60).toString().padStart(2, "0")}
+                </strong>
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resending || verifying}
+                className="font-semibold text-[#7c3aed] transition hover:underline disabled:opacity-50"
+              >
+                {resending ? "Resending..." : "Resend OTP"}
+              </button>
+            )}
+          </div>
+
+          {resendSuccess && !error && (
+            <p className="mt-2 text-center text-[12px] font-medium text-[#08a77e]">
+              {resendSuccess}
+            </p>
+          )}
 
           <button
             type="button"

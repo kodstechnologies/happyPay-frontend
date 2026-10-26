@@ -75,6 +75,16 @@ export function sendRetailerRegisterOtp(mobile: string) {
   );
 }
 
+export function resendRetailerRegisterOtp(mobile: string) {
+  return apiClient<ApiEnvelope<SendOtpResult>>(
+    "/api/v1/otp/resend",
+    {
+      method: "POST",
+      body: JSON.stringify({ mobile }),
+    },
+  );
+}
+
 // ============================================================
 // VERIFY OTP (mobile + otp)
 // ============================================================
@@ -132,25 +142,23 @@ export interface ShopLocation {
 
 export interface RegistrationShopDetails {
   name: string | null;
-  category: string | null;
-  propertyType: string | null;
+  category: string | { _id: string; name: string } | null;
+  propertyType: string | { _id: string; name: string } | null;
   address: ShopAddress;
   completeAddress: string | null;
   location: ShopLocation;
 }
-
-
 
 export interface CurrentRegistrationStepResult {
   userId: string;
   mobile: string;
   email: string;
   registrationStatus: string;
-  currentRegistrationStep: number;
+  currentRegistrationStep: number | string;
   isMobileVerified: boolean;
   isEmailVerified: boolean;
   outletId: string | null;
-  adminApproved: boolean;
+  adminApproved: boolean | string;
   eKYCStatus: string;
   filledData: {
     panNumber: string | null;
@@ -159,19 +167,38 @@ export interface CurrentRegistrationStepResult {
     shopInsidePhoto: string | null;
     shopOutsidePhoto: string | null;
     shopLocationPhoto: string | null;
-    businessProofType: string | null;
+    businessProofType: string | { _id: string; name: string } | null;
     businessProofDocument: string | null;
-    name: string | null;
+    fullName?: string | null;
+    name?: string | null;
+    fatherName?: string | null;
     selfie: string | null;
     gender: string | null;
     maritalStatus: string | null;
     educationalQualification: string | null;
-    dob: string | null;
+    dateOfBirth?: string | null;
+    dob?: string | null;
     aadhaarNumber: string | null;
     aadhaarDocument: string | null;
     aadhaarConsent: boolean;
+    aadhaarMobileLinked?: boolean;
     aadhaarVerified: boolean;
     banks: unknown[];
+    primaryBank?: {
+      bankName?: string;
+      bank_id?: string | number;
+      ifscCode?: string;
+      accountNumber?: string;
+      isPrimary?: boolean;
+    } | null;
+  };
+  completedSteps?: {
+    account: boolean;
+    shopDetails: boolean;
+    about: boolean;
+    aadhaarDetails: boolean;
+    bankDetails: boolean;
+    submitted: boolean;
   };
 }
 
@@ -368,7 +395,7 @@ export interface UpdateAboutPayload {
   gender: "M" | "F" | "T";   // ← narrowed
   maritalStatus: string;
   educationalQualification: string;
-  selfie: File;
+  selfie?: File | null;
 }
 
 export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
@@ -379,7 +406,7 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   fd.append("gender", payload.gender);
   fd.append("maritalStatus", payload.maritalStatus);
   fd.append("educationalQualification", payload.educationalQualification);
-  fd.append("selfie", payload.selfie);
+  if (payload.selfie) fd.append("selfie", payload.selfie);
 
   return apiClient<ApiEnvelope<UpdateAboutResult>>(
     "/api/v1/auth/registration/about",
@@ -400,6 +427,16 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
 export function sendRetailerLoginOtp(mobile: string) {
   return apiClient<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>(
     "/api/v1/auth/retailer/login/send-otp",
+    {
+      method: "POST",
+      body: JSON.stringify({ mobile }),
+    },
+  );
+}
+
+export function resendRetailerLoginOtp(mobile: string) {
+  return apiClient<ApiEnvelope<{ mobile: string; expiresInSeconds: number }>>(
+    "/api/v1/auth/retailer/login/resend-otp",
     {
       method: "POST",
       body: JSON.stringify({ mobile }),
@@ -459,7 +496,7 @@ export interface UpdateAadhaarResult {
 export interface UpdateAadhaarPayload {
   userId: string;
   aadhaarNumber: string;
-  aadhaarDocument: File;
+  aadhaarDocument?: File | null;
   aadhaarConsent: boolean;
   isAdharConsentGiven: boolean;
   aadhaarMobileLinked: boolean;
@@ -469,7 +506,7 @@ export function updateRetailerAadhaarDetails(payload: UpdateAadhaarPayload) {
   const fd = new FormData();
   fd.append("userId", payload.userId);
   fd.append("aadhaarNumber", payload.aadhaarNumber);
-  fd.append("aadhaarDocument", payload.aadhaarDocument);
+  if (payload.aadhaarDocument) fd.append("aadhaarDocument", payload.aadhaarDocument);
   fd.append("aadhaarConsent", String(payload.aadhaarConsent));
   fd.append("isAdharConsentGiven", String(payload.isAdharConsentGiven));
   fd.append("aadhaarMobileLinked", String(payload.aadhaarMobileLinked));
@@ -764,6 +801,7 @@ export interface RetailerFullProfile {
   banks?: Array<{
     _id?: string;
     id?: string;
+    name?: string;
     bankName?: string;
     accountNumber?: string;
     ifscCode?: string;
@@ -774,6 +812,7 @@ export interface RetailerFullProfile {
   primaryBank?: {
     _id?: string;
     id?: string;
+    name?: string;
     bankName?: string;
     accountNumber?: string;
     ifscCode?: string;

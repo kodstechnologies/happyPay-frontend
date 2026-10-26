@@ -42,7 +42,10 @@ export interface TfaPayload extends Omit<BiometricPayload, "referenceKey"> {
 
 interface Envelope<T> {
   success?: boolean;
+  status?: string;
+  statusCode?: number;
   message?: string;
+  msg?: string;
   data: T;
 }
 
@@ -172,12 +175,13 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
       prompt.message = msgCandidate;
     }
 
+    const rawOutlet = record.outletId ?? record.outlet_id;
     if (
-      typeof record.outletId === "string" &&
-      record.outletId.trim() &&
+      (typeof rawOutlet === "string" || typeof rawOutlet === "number") &&
+      String(rawOutlet).trim() &&
       !prompt.outletId
     ) {
-      prompt.outletId = record.outletId.trim();
+      prompt.outletId = String(rawOutlet).trim();
     }
 
     const refCandidate = record.referenceKey || record.reference_key;
@@ -242,12 +246,36 @@ export function verifyTfa(payload: TfaPayload) {
 }
 
 export interface OnboardMerchantResult {
-  userId: string;
-  outletId: string;
-  eKYCStatus: string;
+  userId?: string;
+  outletId?: string | number;
+  eKYCStatus?: string;
   alreadyOnboarded?: boolean;
   message?: string;
+  msg?: string;
+  status?: string;
   onboarding?: unknown;
+  name?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  pincode?: string;
+  state?: string;
+  city?: string;
+  address?: string;
+  profilePic?: string | null;
+  data?: {
+    outletId?: string | number;
+    outlet_id?: string | number;
+    name?: string;
+    dateOfBirth?: string;
+    gender?: string;
+    pincode?: string;
+    state?: string;
+    city?: string;
+    address?: string;
+    profilePic?: string | null;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
 }
 
 export function onboardAepsMerchant() {

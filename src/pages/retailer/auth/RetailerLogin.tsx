@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { getFCMToken } from "../../../config/firebase";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   sendRetailerLoginOtp,
+  resendRetailerLoginOtp,
   verifyRetailerLoginOtp,
 } from "../../../services/api/retailer/retailerAuthApi";
 import { setTokens } from "../../../services/auth/token";
@@ -30,8 +32,20 @@ const RetailerLogin = () => {
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // Countdown timer for Resend OTP (1 minute = 60s)
+  useEffect(() => {
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [resendTimer]);
 
   const getDeviceId = () => {
     const existing = localStorage.getItem("retailerDeviceId");
@@ -68,9 +82,11 @@ const RetailerLogin = () => {
 
     setMobile(value);
     setError("");
+    setSuccessMessage("");
     setOtpSent(false);
     setOtp("");
     setOtpVerified(false);
+    setResendTimer(0);
   };
 
   // ============================================================
@@ -79,6 +95,7 @@ const RetailerLogin = () => {
 
   const handleSendOtp = async () => {
     setError("");
+    setSuccessMessage("");
 
     if (mobile.length !== 10) {
       setError(
@@ -93,10 +110,35 @@ const RetailerLogin = () => {
       setOtp("");
       setOtpVerified(false);
       setOtpSent(true);
+      setResendTimer(60);
     } catch (err: any) {
       setError(err.message || "Failed to send OTP");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ============================================================
+  // RESEND OTP
+  // ============================================================
+
+  const handleResendOtp = async () => {
+    if (resendTimer > 0 || resending || submitting) return;
+    setError("");
+    setSuccessMessage("");
+
+    try {
+      setResending(true);
+      await resendRetailerLoginOtp(mobile);
+      setResendTimer(59);
+      setSuccessMessage("OTP resent successfully!");
+      toast.success("OTP resent successfully!");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to resend OTP";
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setResending(false);
     }
   };
 
@@ -204,6 +246,8 @@ const RetailerLogin = () => {
     setOtpVerified(false);
     setOtp("");
     setError("");
+    setSuccessMessage("");
+    setResendTimer(0);
   };
 
   return (
@@ -262,6 +306,16 @@ const RetailerLogin = () => {
                     <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#c84f4f]" />
                     <p className="text-[13px] leading-5 text-[#c84f4f]">
                       {error}
+                    </p>
+                  </div>
+                )}
+
+                {/* SUCCESS */}
+                {successMessage && !error && (
+                  <div className="mt-6 flex items-start gap-3 rounded-2xl border border-[#b9e8d4] bg-[#f4fcf8] px-4 py-3.5">
+                    <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#08a77e]" />
+                    <p className="text-[13px] leading-5 text-[#08a77e]">
+                      {successMessage}
                     </p>
                   </div>
                 )}
@@ -349,14 +403,23 @@ const RetailerLogin = () => {
                         Didn't receive the code?
                       </span>
 
-                      <button
-                        type="button"
-                        onClick={handleSendOtp}
-                        disabled={submitting}
-                        className="text-[11px] font-semibold text-[#7c3aed] hover:underline disabled:opacity-60"
-                      >
-                        Resend OTP
-                      </button>
+                      {resendTimer > 0 ? (
+                        <span className="text-[11px] font-medium text-[#737c8c]">
+                          Resend OTP in{" "}
+                          <strong className="font-bold text-[#7c3aed]">
+                            {Math.floor(resendTimer / 60)}:{(resendTimer % 60).toString().padStart(2, "0")}
+                          </strong>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleResendOtp}
+                          disabled={resending || submitting}
+                          className="text-[11px] font-semibold text-[#7c3aed] hover:underline disabled:opacity-60"
+                        >
+                          {resending ? "Resending..." : "Resend OTP"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

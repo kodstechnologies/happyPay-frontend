@@ -263,6 +263,8 @@ export default function AdminRetailerDetails() {
         status = "rejected";
       } else if (liveRetailer.adminApproved === "approved") {
         status = "approved";
+      } else if (liveRetailer.adminApproved === "rejected" && !review.status) {
+        status = "rejected";
       }
 
       items.push({
@@ -281,6 +283,9 @@ export default function AdminRetailerDetails() {
     return items;
   }, [liveRetailer]);
 
+  // Total required documents for full KYC approval
+  const TOTAL_REQUIRED_DOCUMENTS = 7;
+
   // Computed document counts & active filter
   const docCounts = useMemo(() => ({
     all: documents.length,
@@ -288,6 +293,14 @@ export default function AdminRetailerDetails() {
     pending: documents.filter((d) => d.status === "pending").length,
     rejected: documents.filter((d) => d.status === "rejected").length,
   }), [documents]);
+
+  const areAllDocumentsApproved = useMemo(() => {
+    return (
+      documents.length === TOTAL_REQUIRED_DOCUMENTS &&
+      docCounts.approved === TOTAL_REQUIRED_DOCUMENTS &&
+      documents.every((d) => d.status === "approved")
+    );
+  }, [documents, docCounts.approved]);
 
   const filteredDocuments = useMemo(() => {
     if (docFilter === "all") return documents;
@@ -483,6 +496,15 @@ export default function AdminRetailerDetails() {
   // Approve Entire Retailer
   const handleApproveRetailer = async () => {
     if (!id || actionLoading) return;
+
+    if (!areAllDocumentsApproved) {
+      setActionFeedback({
+        type: "error",
+        message: `All ${TOTAL_REQUIRED_DOCUMENTS} KYC documents must be approved before approving the retailer (${docCounts.approved}/${TOTAL_REQUIRED_DOCUMENTS} approved).`,
+      });
+      return;
+    }
+
     setActionLoading(true);
     setActionFeedback(null);
 
@@ -517,10 +539,12 @@ export default function AdminRetailerDetails() {
           documentReviews: updatedReviews,
         };
       });
+      loadRetailer();
       setActionFeedback({ type: "success", message: "Retailer approved successfully!" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to approve retailer.";
       setActionFeedback({ type: "error", message: msg });
+      loadRetailer();
     } finally {
       setActionLoading(false);
     }
@@ -552,8 +576,12 @@ export default function AdminRetailerDetails() {
           action: "approve",
         });
         setActionFeedback({ type: "success", message: "Document verified and approved." });
-      } catch (e) {
+        loadRetailer();
+      } catch (e: unknown) {
+        const errMessage = e instanceof Error ? e.message : (e as { message?: string })?.message || "Could not approve document.";
         console.warn("Could not sync document approval to backend:", e);
+        setActionFeedback({ type: "error", message: errMessage });
+        loadRetailer();
       }
     }
   };
@@ -597,6 +625,7 @@ export default function AdminRetailerDetails() {
             action: "reject",
             reason,
           });
+          loadRetailer();
         }
         setActionFeedback({ type: "success", message: `Document '${rejectingDoc.label}' rejected.` });
       } else if (isRejectingRetailer) {
@@ -604,6 +633,7 @@ export default function AdminRetailerDetails() {
         if (id) {
           await updateAdminRetailerAccountStatus(id, "rejected", reason);
           await updateAdminRetailerKyc(id, "rejected", reason);
+          loadRetailer();
           setLiveRetailer((prev) =>
             prev
               ? {
@@ -876,8 +906,13 @@ export default function AdminRetailerDetails() {
           {selected.adminApproved !== "approved" ? (
             <button
               onClick={handleApproveRetailer}
-              disabled={actionLoading}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm hover:shadow disabled:opacity-50"
+              disabled={actionLoading || !areAllDocumentsApproved}
+              title={
+                !areAllDocumentsApproved
+                  ? `All ${TOTAL_REQUIRED_DOCUMENTS} KYC documents must be approved before approving retailer (${docCounts.approved}/${TOTAL_REQUIRED_DOCUMENTS} approved)`
+                  : "Approve Retailer"
+              }
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle className="h-4 w-4" />
               Approve Retailer
@@ -901,12 +936,27 @@ export default function AdminRetailerDetails() {
           {selected.adminApproved === "rejected" && (
             <button
               onClick={handleApproveRetailer}
-              disabled={actionLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50"
+              disabled={actionLoading || !areAllDocumentsApproved}
+              title={
+                !areAllDocumentsApproved
+                  ? `All ${TOTAL_REQUIRED_DOCUMENTS} KYC documents must be approved before re-approving retailer (${docCounts.approved}/${TOTAL_REQUIRED_DOCUMENTS} approved)`
+                  : "Re-Approve Retailer"
+              }
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <CheckCircle className="h-3.5 w-3.5" />
               Re-Approve Retailer
             </button>
+          )}
+
+          {!areAllDocumentsApproved && selected.adminApproved !== "approved" && (
+            <span
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs"
+              title="All 7 documents must be verified and approved first"
+            >
+              <Clock className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              Docs: {docCounts.approved}/{TOTAL_REQUIRED_DOCUMENTS} Approved
+            </span>
           )}
         </div>
       </div>
@@ -1458,7 +1508,7 @@ export default function AdminRetailerDetails() {
                 <table className="hp-table">
                   <thead>
                     <tr>
-                      <th>Retailer ID</th>
+                      {/* <th>Retailer ID</th> */}
                       <th>Name</th>
                       <th>Email</th>
                       <th>Mobile</th>
@@ -1478,7 +1528,7 @@ export default function AdminRetailerDetails() {
                     ) : (
                       liveSubRetailers.map((sub) => (
                         <tr key={sub.id}>
-                          <td className="font-bold text-[#315bd1]">{sub.id}</td>
+                          {/* <td className="font-bold text-[#315bd1]">{sub.id}</td> */}
                           <td className="font-bold text-slate-800">{sub.fullName || "Unnamed Retailer"}</td>
                           <td className="text-slate-600">{sub.email || "-"}</td>
                           <td>{sub.mobile || "-"}</td>

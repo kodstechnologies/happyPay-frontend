@@ -1,4 +1,4 @@
-import { useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import {
   Fingerprint,
   FileText,
@@ -9,7 +9,10 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { updateRetailerAadhaarDetails } from "../../../../services/api/retailer/retailerAuthApi";
+import {
+  updateRetailerAadhaarDetails,
+  type CurrentRegistrationStepResult,
+} from "../../../../services/api/retailer/retailerAuthApi";
 
 export type AadhaarStepHandle = {
   submit: () => Promise<boolean>;
@@ -17,10 +20,11 @@ export type AadhaarStepHandle = {
 
 type AadhaarStepProps = {
   userId?: string;
+  initialData?: CurrentRegistrationStepResult["filledData"] | null;
 };
 
 const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
-  ({ userId: userIdProp }, ref) => {
+  ({ userId: userIdProp, initialData }, ref) => {
     const userId =
       userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
@@ -30,8 +34,25 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
     const [linkedMobile, setLinkedMobile] = useState<"yes" | "no">("no");
     const [aadhaarNumber, setAadhaarNumber] = useState("");
     const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
+    const [existingAadhaarFile, setExistingAadhaarFile] = useState<string | null>(null);
     const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
+
+    useEffect(() => {
+      if (!initialData) return;
+      if (initialData.aadhaarNumber) {
+        setAadhaarNumber(initialData.aadhaarNumber);
+      }
+      if (initialData.aadhaarConsent !== undefined) {
+        setConsent(!!initialData.aadhaarConsent);
+      }
+      if (initialData.aadhaarMobileLinked !== undefined) {
+        setLinkedMobile(initialData.aadhaarMobileLinked ? "yes" : "no");
+      }
+      if (initialData.aadhaarDocument) {
+        setExistingAadhaarFile(initialData.aadhaarDocument);
+      }
+    }, [initialData]);
 
     const handleAadhaarUpload = (
       event: React.ChangeEvent<HTMLInputElement>,
@@ -72,7 +93,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
         setError("Please enter a valid 12-digit Aadhaar number.");
         return false;
       }
-      if (!aadhaarFile) {
+      if (!aadhaarFile && !existingAadhaarFile) {
         setError("Aadhaar document is required.");
         return false;
       }
@@ -244,7 +265,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
         className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-3.5 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
       >
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3e8ff]">
-          {aadhaarFile ? (
+          {aadhaarFile || existingAadhaarFile ? (
             <CheckCircle2
               className="h-5 w-5 text-[#08ae82]"
               strokeWidth={2}
@@ -265,7 +286,9 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
           <p className="mt-1 truncate text-sm text-[#8992a3]">
             {aadhaarFile
               ? aadhaarFile.name
-              : "Upload Aadhaar front and back images."}
+              : existingAadhaarFile
+                ? "Aadhaar Document uploaded (Click to replace)"
+                : "Upload Aadhaar front and back images."}
           </p>
         </div>
 
