@@ -1,7 +1,8 @@
 import { Bell, ChevronDown, Menu } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { clearAdminSession, getAdminUser } from "../../utils/adminAuth";
+import { getAdminUser } from "../../utils/adminAuth";
+import { logoutAdmin } from "../../apis/adminAuth.apis";
 import { getNotifications } from "../../apis/adminNotifications.apis";
 
 const titles: Record<string, string> = {
@@ -38,8 +39,8 @@ export default function AdminNavbar({ onOpenMobile }: { onOpenMobile: () => void
     };
   }, []);
 
-  const logout = () => {
-    clearAdminSession();
+  const logout = async () => {
+    await logoutAdmin();
     navigate("/admin/login", { replace: true });
   };
 

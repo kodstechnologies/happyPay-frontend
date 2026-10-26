@@ -36,12 +36,21 @@ export default function AdminLogin() {
         console.warn("Failed to get FCM token", e);
       }
 
+      // Persistent device ID for this admin browser instance
+      let deviceId = localStorage.getItem("adminDeviceId");
+      if (!deviceId) {
+        deviceId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+          ? crypto.randomUUID()
+          : `admin-${Date.now()}`;
+        localStorage.setItem("adminDeviceId", deviceId);
+      }
+
       const data = await loginAdmin({
         email: email.trim(),
         password,
         rememberMe,
         fcmToken: fcmToken || localStorage.getItem("adminFcmToken") || null,
-        deviceId: localStorage.getItem("adminDeviceId") || crypto.randomUUID(),
+        deviceId,
         platform: "web",
         deviceName: navigator.platform || "Web browser",
       });

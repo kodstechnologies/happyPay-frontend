@@ -1,11 +1,12 @@
 import axios from "axios";
+import api from "../config/axiosInstance";
 import type {
   AdminLoginRequest,
   AdminLoginResponse,
   ForgotPasswordRequest,
   ResetPasswordRequest,
 } from "../types/admin/auth";
-import { clearAdminSession } from "../utils/adminAuth";
+import { clearAdminSession, getAdminToken } from "../utils/adminAuth";
 import type { AxiosResponse } from "axios";
 
 interface ApiEnvelope<T> {
@@ -41,7 +42,26 @@ export function resetPassword(payload: ResetPasswordRequest) {
     .then(unwrap);
 }
 
-export function logoutAdmin() {
-  clearAdminSession();
-  return axios.post(`${baseURL}/api/admin/auth/logout`).catch(() => undefined);
+export async function logoutAdmin(): Promise<void> {
+  const token = getAdminToken();
+  const deviceId = localStorage.getItem("adminDeviceId") || undefined;
+  try {
+    if (token) {
+      await api.post("/api/admin/auth/logout", { deviceId });
+    }
+  } catch (error) {
+    console.warn("Admin logout backend notification error:", error);
+  } finally {
+    clearAdminSession();
+    localStorage.removeItem("adminFcmToken");
+  }
+}
+
+export function updateAdminDeviceToken(payload: {
+  fcmToken: string;
+  deviceId?: string;
+  platform?: string;
+  deviceName?: string;
+}) {
+  return api.patch<ApiEnvelope<{ success: boolean }>>("/api/admin/device-token", payload).then(unwrap);
 }
