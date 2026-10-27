@@ -19,9 +19,11 @@ import { useNavigate } from "react-router-dom";
 import { setWalletBalance } from "../../../utils/wallet";
 import {
   getSettlementBankInfoApi,
+  initiateSettlementPayoutApi,
   type SettlementBankItem,
   type SettlementRetailerInfo,
   type SettlementLimits,
+  type InitiateSettlementPayload,
 } from "../../../apis/wallet.apis";
 
 const formatAmount = (val: number) =>
@@ -162,8 +164,11 @@ export default function SettlementToBank() {
     }
   };
 
-  const handleTransfer = (e: React.FormEvent) => {
+  const [transferError, setTransferError] = useState<string | null>(null);
+
+  const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTransferError(null);
 
     if (!retailer?.isKycApproved) {
       alert("Your KYC is not yet approved. Settlements are disabled until approval.");
@@ -196,31 +201,58 @@ export default function SettlementToBank() {
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const nextBalance = balance - numAmount;
-      setBalance(nextBalance);
-      setWalletBalance(nextBalance);
-
-      const txnId = `HP-BNK-${Date.now().toString().slice(-8)}`;
-      const utr = `UTR${Math.floor(100000000000 + Math.random() * 900000000000)}`;
-      setTxnDetails({
-        id: txnId,
-        date: new Date(),
+    try {
+      // Exactly required fields: accountType, branchName, benMobile, bank_name, beneficiary_name, ifsc, account_number, amount, mode
+      const payload: InitiateSettlementPayload = {
+        accountType: selectedBank.accountType || "Savings Account",
+        branchName: selectedBank.branchName || "",
+        benMobile: retailer?.mobile || "",
+        bank_name: selectedBank.name,
+        beneficiary_name: retailer?.fullName || "",
+        ifsc: selectedBank.ifscCode,
+        account_number: selectedBank.accountNumber,
         amount: numAmount,
-        bankName: selectedBank.name,
-        accountNumber: selectedBank.accountNumber,
         mode: settlementMode,
-        utr: utr,
-      });
+      };
 
+      const res = await initiateSettlementPayoutApi(payload);
+
+      if (res && res.data) {
+        const payoutData = res.data;
+        const newBalance = payoutData.balanceAfter ?? balance - numAmount;
+        setBalance(newBalance);
+        setWalletBalance(newBalance);
+
+        setTxnDetails({
+          id: payoutData.txnid || `HP-BNK-${Date.now().toString().slice(-8)}`,
+          date: new Date(),
+          amount: payoutData.amount || numAmount,
+          bankName: payoutData.bankName || selectedBank.name,
+          accountNumber: payoutData.accountNumber || selectedBank.accountNumber,
+          mode: payoutData.mode || settlementMode,
+          utr: payoutData.utr || payoutData.txnid,
+        });
+
+        setIsSuccess(true);
+      } else {
+        throw new Error(res?.message || "Settlement payout failed");
+      }
+    } catch (err: unknown) {
+      console.error("Settlement payout error:", err);
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        (err instanceof Error ? err.message : "Settlement payout failed. Please try again.");
+      setTransferError(msg);
+      alert(msg);
+    } finally {
       setIsProcessing(false);
-      setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   const handleReset = () => {
     setAmount("");
     setMpin("");
+    setTransferError(null);
     setIsSuccess(false);
     setTxnDetails(null);
   };
@@ -623,6 +655,13 @@ export default function SettlementToBank() {
                       </button>
                     </div>
                   </div>
+
+                  {transferError && (
+                    <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                      <span>{transferError}</span>
+                    </div>
+                  )}
 
                   {/* Submit Button */}
                   <button

@@ -117,4 +117,45 @@ export const getSettlementBankInfoApi = async (): Promise<SettlementBankInfoResp
   return response.data;
 };
 
+export interface InitiateSettlementPayload {
+  accountType: string;
+  branchName: string;
+  benMobile: string;
+  bank_name: string;
+  beneficiary_name: string;
+  ifsc: string;
+  account_number: string;
+  amount: number;
+  mode: "IMPS" | "NEFT";
+}
+
+export interface InitiateSettlementResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: {
+    txnid: string;
+    utr: string;
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    bankName: string;
+    accountNumber: string;
+    mode: string;
+    status: string;
+    providerResponse?: unknown;
+  };
+}
+
+export const initiateSettlementPayoutApi = async (
+  payload: InitiateSettlementPayload
+): Promise<InitiateSettlementResponse> => {
+  const response = await api.post<InitiateSettlementResponse>(
+    "/api/v1/wallet/settlement/payout",
+    payload
+  );
+  return response.data;
+};
+
+
 
