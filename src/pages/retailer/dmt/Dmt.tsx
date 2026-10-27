@@ -294,6 +294,8 @@ const Dmt = () => {
   const [deletingBeneficiary, setDeletingBeneficiary] = useState<Beneficiary | null>(null);
   const [deleteOtp, setDeleteOtp] = useState<string>("");
   const [deleteReferenceKey, setDeleteReferenceKey] = useState<string>("");
+  const [txnReferenceKey, setTxnReferenceKey] = useState<string>("");
+  const txnReferenceKeyRef = useRef<string>("");
   const [isInitiatingDelete, setIsInitiatingDelete] = useState<boolean>(false);
   const [isVerifyingDeleteOtp, setIsVerifyingDeleteOtp] = useState<boolean>(false);
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
@@ -480,11 +482,6 @@ const Dmt = () => {
     
   }, [fetchWallet,fetchAllBanks]);
 
-  /*
-   * Demo values matching the reference UI.
-   */
-  const commission = 5;
-
   /* =========================
      HELPERS
   ========================= */
@@ -509,14 +506,12 @@ const Dmt = () => {
   };
 
   /* =========================
-     CCF CALCULATION
+     TOTAL PAYABLE CALCULATION
   ========================= */
 
   const numericSendAmount = Number(sendAmount) || 0;
 
-  const ccf = numericSendAmount * 0.01;
-
-  const totalPayable = numericSendAmount + ccf;
+  const totalPayable = numericSendAmount;
 
   /* =========================
      OTP TIMER
@@ -1246,6 +1241,8 @@ const Dmt = () => {
 
     setTransactionOtp("");
     setTxnOtpTimer(0);
+    setTxnReferenceKey("");
+    txnReferenceKeyRef.current = "";
     setShowTxnOtpModal(false);
 
     setScreen("send-money");
@@ -1288,6 +1285,11 @@ const Dmt = () => {
       });
 
       if (res?.success !== false && res?.status !== "FAILED") {
+        const returnedRefKey = res?.data?.referenceKey;
+        if (returnedRefKey && typeof returnedRefKey === "string") {
+          setTxnReferenceKey(returnedRefKey.trim());
+          txnReferenceKeyRef.current = returnedRefKey.trim();
+        }
         toast.success(res?.message || res?.msg || "Transaction OTP sent to customer mobile successfully.");
         setTxnOtpTimer(60);
         setShowTxnOtpModal(true);
@@ -1349,6 +1351,8 @@ const Dmt = () => {
       const storedUser = getAuthUser();
       const effectiveOutletId = String(storedUser?.outletId || storedUser?.AepsEkyc?.outletId || "748399");
       const effectiveRefKey =
+        txnReferenceKeyRef.current ||
+        txnReferenceKey ||
         activeReferenceKey ||
         referenceKeyRef.current ||
         sessionStorage.getItem("dmt_remitter_ref_key") ||
@@ -1409,6 +1413,8 @@ const Dmt = () => {
 
     setTransactionOtp("");
     setTxnOtpTimer(0);
+    setTxnReferenceKey("");
+    txnReferenceKeyRef.current = "";
     setShowTxnOtpModal(false);
 
     setSelectedBeneficiary(null);
@@ -2630,32 +2636,6 @@ const Dmt = () => {
                   </span>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[#555b67]">
-                      CCF (1%)
-                    </span>
-
-                    <span className="font-bold text-[#172033]">
-                      ₹{ccf.toFixed(2)}
-                    </span>
-                  </div>
-
-                  <p className="mt-1 text-sm text-[#8a8f99]">
-                    Customer Convenience Fee
-                  </p>
-                </div>
-
-                {/* <div className="flex items-center justify-between">
-                  <span className="text-[#555b67]">
-                    Your Commission
-                  </span>
-
-                  <span className="font-bold text-[#10a66d]">
-                    +₹{commission.toFixed(2)}
-                  </span>
-                </div> */}
-
                 <div className="border-t border-slate-200 pt-5">
                   <div className="flex items-center justify-between">
                     <span className="text-base font-bold text-[#172033]">
@@ -2923,26 +2903,6 @@ const Dmt = () => {
 
                 <span className="text-right font-semibold text-[#172033]">
                   {transferMode}
-                </span>
-              </div>
-
-              <div className="flex items-start justify-between gap-3">
-                <span className="text-[#555b67]">
-                  CCF Charged
-                </span>
-
-                <span className="text-right font-semibold text-[#172033]">
-                  ₹{ccf.toFixed(2)}
-                </span>
-              </div>
-
-              <div className="flex items-start justify-between gap-3">
-                <span className="text-[#555b67]">
-                  Commission Earned
-                </span>
-
-                <span className="text-right font-bold text-[#12a968]">
-                  +₹{commission.toFixed(2)}
                 </span>
               </div>
 
