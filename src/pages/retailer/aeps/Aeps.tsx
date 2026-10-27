@@ -218,26 +218,28 @@ const getErrorMessage = (
 
     if (resData) {
       if (typeof resData === "string" && resData.trim()) {
-        return resData;
+        return resData.trim();
       }
       if (typeof resData === "object") {
         const msg =
+          resData.msg ||
           resData.message ||
+          resData.data?.msg ||
           resData.data?.message ||
           resData.details?.msg ||
           resData.details?.message ||
           resData.data?.details?.msg ||
           resData.data?.details?.message ||
-          resData.msg ||
           resData.error;
 
-        if (typeof msg === "string" && msg.trim()) {
-          return msg;
+        if (typeof msg === "string" && msg.trim() && !msg.toLowerCase().startsWith("request failed with status code")) {
+          return msg.trim();
         }
       }
     }
 
     const directMsg =
+      apiError.data?.msg ||
       apiError.data?.message ||
       apiError.data?.details?.msg ||
       apiError.details?.msg ||
@@ -248,7 +250,7 @@ const getErrorMessage = (
       directMsg.trim() &&
       !directMsg.toLowerCase().startsWith("request failed with status code")
     ) {
-      return directMsg;
+      return directMsg.trim();
     }
   }
 
@@ -257,7 +259,7 @@ const getErrorMessage = (
     error.message &&
     !error.message.toLowerCase().startsWith("request failed with status code")
   ) {
-    return error.message;
+    return error.message.trim();
   }
 
   return fallback;
@@ -376,6 +378,8 @@ const Aeps = () => {
   const [isDoingBioKyc, setIsDoingBioKyc] = useState<boolean>(false);
   const [ekycPrompt, setEkycPrompt] = useState<EkycPrompt | null>(null);
   const [bioKycReferenceKey, setBioKycReferenceKey] = useState<string>("");
+  const bioKycRefKeyRef = useRef<string>("");
+  const hasCheckedKycRef = useRef<boolean>(false);
   const [bioKycError, setBioKycError] = useState<string>("");
   const [bioKycSuccess, setBioKycSuccess] = useState<string>("");
 
@@ -432,6 +436,7 @@ const Aeps = () => {
       const prompt = readEkycPrompt(response);
       setEkycPrompt(prompt);
       if (prompt.referenceKey) {
+        bioKycRefKeyRef.current = prompt.referenceKey;
         setBioKycReferenceKey(prompt.referenceKey);
       }
 
@@ -440,6 +445,23 @@ const Aeps = () => {
       const providerStatus =
         (typeof statusData?.status === "string" ? statusData.status : "") ||
         (typeof rawResponse?.status === "string" ? String(rawResponse.status) : "");
+
+      // Check if response indicates an error or failure
+      const isFailed =
+        response?.success === false ||
+        providerStatus === "FAILED" ||
+        providerStatus === "ERROR" ||
+        providerStatus === "REJECTED";
+
+      if (isFailed) {
+        const errorMsg =
+          response?.message ||
+          (statusData as Record<string, unknown>)?.msg as string ||
+          (statusData as Record<string, unknown>)?.message as string ||
+          "eKYC verification failed at bank gateway";
+        setBioKycError(errorMsg);
+      }
+
       const isCompleted =
         statusData?.eKYCStatus === "COMPLETED" ||
         providerStatus === "NO-ACTION-REQUIRED" ||
@@ -453,10 +475,23 @@ const Aeps = () => {
       }
     } catch (err: unknown) {
       console.warn("eKYC status check:", err);
-      // Extract referenceKey & pidOptionWadh even if check-bio-kyc returned 400 (e.g. pending registration)
+      const actualErrorMsg = getErrorMessage(err, "Failed to check eKYC status");
       const prompt = readEkycPrompt(err);
+
+      if (actualErrorMsg) {
+        setBioKycError(actualErrorMsg);
+      }
+
+      setEkycPrompt((prev) => ({
+        message: actualErrorMsg || prompt.message || prev?.message || "Biometric authentication required",
+        outletId: prompt.outletId || prev?.outletId || "",
+        referenceKey: prompt.referenceKey || prev?.referenceKey || "",
+        pidOptionWadh: prompt.pidOptionWadh || prev?.pidOptionWadh || "",
+      }));
+
+      // Extract referenceKey & pidOptionWadh even if check-bio-kyc returned 400 (e.g. pending registration)
       if (prompt.referenceKey) {
-        setEkycPrompt(prompt);
+        bioKycRefKeyRef.current = prompt.referenceKey;
         setBioKycReferenceKey(prompt.referenceKey);
         console.log("[AePS] Captured referenceKey in React state from check bio kyc response:", prompt.referenceKey);
       }
@@ -466,9 +501,10 @@ const Aeps = () => {
   }, [isBioKycDone, authUser, getEffectiveOutletId, refreshUser]);
 
   useEffect(() => {
-    // Wait for auth context to load from DB first
-    if (isAuthLoading || isBioKycDone || !isOnboarded) return;
+    // Wait for auth context to load from DB first; run check bio kyc strictly once
+    if (isAuthLoading || isBioKycDone || !isOnboarded || hasCheckedKycRef.current) return;
 
+    hasCheckedKycRef.current = true;
     let isMounted = true;
     const verifyKyc = async () => {
       await Promise.resolve();
@@ -689,7 +725,7 @@ const Aeps = () => {
   const [actcode, setActcode] = useState("");
 
   const [isCheckingLoginStatus, setIsCheckingLoginStatus] =
-    useState(true);
+    useState(false);
 
   const [tfaError, setTfaError] = useState("");
 
@@ -697,6 +733,13 @@ const Aeps = () => {
     useState("");
 
   const fetchLoginStatus = useCallback(async (): Promise<void> => {
+    // Gatekeeper: Never call check login status if not onboarded or if Bio KYC is not completed
+    if (!isOnboarded || !isBioKycDone) {
+      setIsCheckingLoginStatus(false);
+      setRetailerAuthenticated(false);
+      return;
+    }
+
     try {
       const token = getToken();
       if (!token) {
@@ -767,18 +810,25 @@ const Aeps = () => {
     } finally {
       setIsCheckingLoginStatus(false);
     }
-  }, [getEffectiveOutletId]);
+  }, [isOnboarded, isBioKycDone, getEffectiveOutletId]);
 
   const handleRefreshLoginStatus = (): void => {
+    if (!isOnboarded || !isBioKycDone) return;
     setIsCheckingLoginStatus(true);
     setTfaError("");
     void fetchLoginStatus();
   };
 
   useEffect(() => {
+    // Call login status ONLY if auth is loaded, onboarded, AND Bio KYC is completed
+    if (isAuthLoading || !isOnboarded || !isBioKycDone) {
+      return;
+    }
+
     let isMounted = true;
 
     const checkStatus = async () => {
+      setIsCheckingLoginStatus(true);
       await Promise.resolve();
       if (!isMounted) return;
       await fetchLoginStatus();
@@ -789,7 +839,7 @@ const Aeps = () => {
     return () => {
       isMounted = false;
     };
-  }, [fetchLoginStatus]);
+  }, [isAuthLoading, isOnboarded, isBioKycDone, fetchLoginStatus]);
 
   // Fetch retailer Aadhaar on mount
   useEffect(() => {
@@ -2003,9 +2053,13 @@ const Aeps = () => {
     setBioKycSuccess("");
 
     try {
-      // Step 1: Ensure active referenceKey from check-bio-kyc API stored in React state
+      // Step 1: Ensure active referenceKey from ref or React state
       let activePrompt = ekycPrompt;
-      let activeRefKey = bioKycReferenceKey || activePrompt?.referenceKey || "";
+      let activeRefKey =
+        bioKycRefKeyRef.current ||
+        bioKycReferenceKey ||
+        activePrompt?.referenceKey ||
+        "";
 
       if (!activeRefKey) {
         try {
@@ -2014,24 +2068,38 @@ const Aeps = () => {
           if (p.referenceKey) {
             activePrompt = p;
             activeRefKey = p.referenceKey;
+            bioKycRefKeyRef.current = p.referenceKey;
             setEkycPrompt(p);
             setBioKycReferenceKey(p.referenceKey);
           }
         } catch (checkErr: unknown) {
           const p = readEkycPrompt(checkErr);
+          const actualCheckErr = getErrorMessage(checkErr, "");
           if (p.referenceKey) {
             activePrompt = p;
             activeRefKey = p.referenceKey;
+            bioKycRefKeyRef.current = p.referenceKey;
             setEkycPrompt(p);
             setBioKycReferenceKey(p.referenceKey);
+          }
+          if (actualCheckErr) {
+            setBioKycError(actualCheckErr);
+            throw new Error(actualCheckErr, { cause: checkErr });
           }
         }
       }
 
-      const refKey = activeRefKey || bioKycReferenceKey || activePrompt?.referenceKey || "";
+      const refKey =
+        activeRefKey ||
+        bioKycRefKeyRef.current ||
+        bioKycReferenceKey ||
+        activePrompt?.referenceKey ||
+        "";
 
       if (!refKey) {
-        throw new Error("Reference key not found from Check Bio KYC API. Please refresh and try again.");
+        throw new Error(
+          bioKycError || "Reference key not found from Check Bio KYC API. Please refresh and try again."
+        );
       }
 
       let targetPort = selectedDevicePort;
@@ -2092,6 +2160,7 @@ const Aeps = () => {
     } catch (err: unknown) {
       console.error("Biometric eKYC failed:", err);
       // Clear ephemeral session key on failure so next attempt gets a fresh key from gateway
+      bioKycRefKeyRef.current = "";
       setBioKycReferenceKey("");
       setEkycPrompt(null);
       setBioKycError(getErrorMessage(err, "Biometric eKYC verification failed. Please check scanner and retry."));
@@ -2167,10 +2236,15 @@ const Aeps = () => {
                     </span>
                   </div>
                   <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions."}
+                    {bioKycError
+                      ? bioKycError
+                      : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
                   </p>
                   {bioKycError && (
-                    <p className="mt-2 text-xs font-semibold text-red-600">{bioKycError}</p>
+                    <p className="mt-2 text-xs font-semibold text-red-600 flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                      {bioKycError}
+                    </p>
                   )}
                   {bioKycSuccess && (
                     <p className="mt-2 text-xs font-semibold text-emerald-600">{bioKycSuccess}</p>
@@ -2226,8 +2300,8 @@ const Aeps = () => {
                 <button
                   type="button"
                   onClick={handleRefreshLoginStatus}
-                  disabled={isCheckingLoginStatus}
-                  title="Refresh Login Status"
+                  disabled={isCheckingLoginStatus || !isOnboarded || !isBioKycDone}
+                  title={!isOnboarded ? "Onboard to AEPS first" : !isBioKycDone ? "Complete Biometric eKYC first" : "Refresh Login Status"}
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-purple-100 text-purple-600 hover:bg-purple-50 disabled:opacity-50"
                 >
                   <RefreshCw
@@ -2244,7 +2318,11 @@ const Aeps = () => {
 
             <div className="mt-3 pt-2 border-t border-purple-50 flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-500">2FA Status:</span>
-              {isCheckingLoginStatus ? (
+              {!isOnboarded ? (
+                <span className="font-semibold text-amber-600">Onboarding Required</span>
+              ) : !isBioKycDone ? (
+                <span className="font-semibold text-amber-600">Bio eKYC Required</span>
+              ) : isCheckingLoginStatus ? (
                 <span className="inline-flex items-center gap-1.5 font-medium text-purple-600">
                   <RefreshCw className="h-3 w-3 animate-spin" /> Checking...
                 </span>

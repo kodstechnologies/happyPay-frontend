@@ -114,7 +114,7 @@ export default function SettlementToDistributor() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full space-y-6">
       {/* Header Section */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">

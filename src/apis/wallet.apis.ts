@@ -58,3 +58,63 @@ export const recordPaymentFailureApi = async (
   return response.data;
 };
 
+export interface SettlementBankItem {
+  _id: string;
+  id: string;
+  name: string;
+  bank_id?: string;
+  accountNumber: string;
+  maskedAccountNumber: string;
+  ifscCode: string;
+  branchName?: string;
+  isPrimary: boolean;
+  isActive: boolean;
+  isVerified: boolean;
+}
+
+export interface SettlementRetailerInfo {
+  id: string;
+  fullName: string;
+  mobile: string;
+  email: string;
+  shopName: string;
+  status: string;
+  adminApproved: string;
+  isKycApproved: boolean;
+}
+
+export interface SettlementLimits {
+  minSettlementAmount: number;
+  maxSettlementPerTxn: number;
+  dailySettlementLimit: number;
+  supportedModes: ("IMPS" | "NEFT")[];
+}
+
+export interface SettlementBankInfoData {
+  retailer: SettlementRetailerInfo;
+  wallet: {
+    walletId: string;
+    totalBalance: number;
+    holdBalance: number;
+    availableBalance: number;
+    currency: string;
+    status: string;
+  };
+  banks: SettlementBankItem[];
+  primaryBank: SettlementBankItem | null;
+  limits: SettlementLimits;
+}
+
+export interface SettlementBankInfoResponse {
+  success: boolean;
+  statusCode: number;
+  message: string;
+  data: SettlementBankInfoData;
+}
+
+export const getSettlementBankInfoApi = async (): Promise<SettlementBankInfoResponse> => {
+  const response = await api.get<SettlementBankInfoResponse>("/api/v1/wallet/settlement/bank-info");
+  return response.data;
+};
+
+

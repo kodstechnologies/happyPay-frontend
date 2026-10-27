@@ -12,7 +12,6 @@ import {
   Loader2,
   RefreshCw,
   Wallet,
-  ArrowUpRight,
   ShieldCheck,
   Filter,
 } from "lucide-react";
@@ -214,7 +213,7 @@ export default function RetailerNotifications() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-5 p-2 sm:p-4">
+    <div className="mx-auto w-full space-y-5 p-2 sm:p-4">
       {/* HEADER SECTION */}
       <section className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -402,14 +401,14 @@ export default function RetailerNotifications() {
 
                     {/* ACTION LINKS & ACTIONS */}
                     <div className="mt-2.5 flex items-center justify-between gap-2">
-                      {notification.data?.screen ? (
+                      {/* {notification.data?.screen ? (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#7c3aed] transition group-hover:underline">
                           View details
                           <ArrowUpRight className="h-3 w-3" />
                         </span>
                       ) : (
                         <div />
-                      )}
+                      )} */}
 
                       {isUnread && (
                         <button

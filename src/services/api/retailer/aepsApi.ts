@@ -168,13 +168,28 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
 
     const record = current as Record<string, unknown>;
 
-    const msgCandidate =
-      typeof record.msg === "string" && record.msg.trim()
-        ? record.msg.trim()
-        : typeof record.message === "string" && record.message.trim()
-          ? record.message.trim()
-          : "";
-    if (msgCandidate && (prompt.message === "Biometric authentication required" || !prompt.message)) {
+    const rawMsg =
+      record.msg ??
+      record.message ??
+      record.error;
+
+    let msgCandidate = "";
+    if (typeof rawMsg === "string" && rawMsg.trim()) {
+      msgCandidate = rawMsg.trim();
+    } else if (typeof rawMsg === "object" && rawMsg !== null) {
+      const inner = (rawMsg as Record<string, unknown>).msg || (rawMsg as Record<string, unknown>).message;
+      if (typeof inner === "string" && inner.trim()) {
+        msgCandidate = inner.trim();
+      }
+    }
+
+    if (
+      msgCandidate &&
+      !msgCandidate.toLowerCase().startsWith("request failed with status code") &&
+      (prompt.message === "Biometric authentication required" ||
+        prompt.message.toLowerCase().startsWith("request failed with status code") ||
+        !prompt.message)
+    ) {
       prompt.message = msgCandidate;
     }
 
@@ -187,18 +202,38 @@ export function readEkycPrompt(value: unknown): EkycPrompt {
       prompt.outletId = String(rawOutlet).trim();
     }
 
-    const refCandidate = record.referenceKey || record.reference_key;
+    const refCandidate =
+      record.referenceKey ||
+      record.referencekey ||
+      record.ReferenceKey ||
+      record.reference_key ||
+      record.refKey ||
+      record.ref_key;
     if (typeof refCandidate === "string" && refCandidate.trim()) {
       prompt.referenceKey = refCandidate.trim();
     }
 
-    const wadhCandidate = record.pidOptionWadh || record.wadh;
+    const wadhCandidate =
+      record.pidOptionWadh ||
+      record.pidoptionwadh ||
+      record.PidOptionWadh ||
+      record.wadh ||
+      record.Wadh;
     if (typeof wadhCandidate === "string" && wadhCandidate.trim()) {
       prompt.pidOptionWadh = wadhCandidate.trim();
     }
 
     Object.values(record).forEach(walk);
   };
+
+  // Prioritize error response data if value is an Axios error
+  if (value && typeof value === "object") {
+    const valObj = value as Record<string, unknown>;
+    const resData = (valObj.response as Record<string, unknown> | undefined)?.data;
+    if (resData && typeof resData === "object") {
+      walk(resData);
+    }
+  }
 
   walk(value);
 
