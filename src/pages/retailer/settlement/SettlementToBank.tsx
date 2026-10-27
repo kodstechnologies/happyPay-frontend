@@ -25,6 +25,7 @@ import {
   type SettlementLimits,
   type InitiateSettlementPayload,
 } from "../../../apis/wallet.apis";
+import { getGeolocationCoordinates } from "../../../utils/geolocation";
 
 const formatAmount = (val: number) =>
   val.toLocaleString("en-IN", {
@@ -202,17 +203,23 @@ export default function SettlementToBank() {
 
     setIsProcessing(true);
     try {
-      // Exactly required fields: accountType, branchName, benMobile, bank_name, beneficiary_name, ifsc, account_number, amount, mode
+      const coords = await getGeolocationCoordinates();
+      const bankCode = String(selectedBank.bank_id || selectedBank.id || selectedBank._id || "").trim();
+
+      // Required fields: accountType, branchName, benMobile, bank_code (bank_id), beneficiary_name, ifsc, account_number, amount, mode, lat, long
       const payload: InitiateSettlementPayload = {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
+        bank_code: bankCode,
         bank_name: selectedBank.name,
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
         account_number: selectedBank.accountNumber,
         amount: numAmount,
         mode: settlementMode,
+        lat: coords.latitude,
+        long: coords.longitude,
       };
 
       const res = await initiateSettlementPayoutApi(payload);

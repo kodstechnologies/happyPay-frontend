@@ -122,12 +122,15 @@ export interface InitiateSettlementPayload {
   accountType: string;
   branchName: string;
   benMobile: string;
-  bank_name: string;
+  bank_code: string;
   beneficiary_name: string;
   ifsc: string;
   account_number: string;
   amount: number;
   mode: "IMPS" | "NEFT";
+  lat: string;
+  long: string;
+  bank_name?: string;
 }
 
 export interface InitiateSettlementResponse {
