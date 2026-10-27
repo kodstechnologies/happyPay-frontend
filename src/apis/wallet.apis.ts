@@ -67,6 +67,7 @@ export interface SettlementBankItem {
   maskedAccountNumber: string;
   ifscCode: string;
   branchName?: string;
+  accountType?: string;
   isPrimary: boolean;
   isActive: boolean;
   isVerified: boolean;
