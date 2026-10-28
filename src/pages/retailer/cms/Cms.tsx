@@ -47,6 +47,85 @@ const CompanyIcon = ({
 type CmsTab = "collection" | "drop";
 type PluginStatus = "IDLE" | "PROCESSING" | "SUCCESS" | "FAILED";
 
+// Helper to parse query parameters from the URL redirect
+const parseUrlCallbackData = (): CmsCallbackData | null => {
+  if (typeof window === "undefined") return null;
+  const urlParams = new URLSearchParams(window.location.search);
+  const statusParam = urlParams.get("status") || urlParams.get("txn_status");
+  if (!statusParam) return null;
+  return {
+    status: statusParam.toUpperCase(),
+    txnid: urlParams.get("txnid") || urlParams.get("txn_id") || undefined,
+    rrn: urlParams.get("rrn") || urlParams.get("bankRefNum") || undefined,
+    amount: urlParams.get("amount") || undefined,
+    message: urlParams.get("message") || urlParams.get("msg") || undefined,
+  };
+};
+
+// Helper to normalize callback payload into state structure and toast messages
+const processCallbackData = (
+  rawResponse: unknown
+): {
+  isSuccess: boolean;
+  status: PluginStatus;
+  result: CmsCallbackData;
+  toastMessage: string;
+} => {
+  const data = (rawResponse || {}) as CmsCallbackData;
+  const isSuccess =
+    data.status === "SUCCESS" ||
+    String(data.status).toLowerCase() === "success" ||
+    String(data.status).toLowerCase() === "true" ||
+    String(data.statuscode) === "001" ||
+    Number(data.response_code) === 1 ||
+    data.success === true;
+
+  if (isSuccess) {
+    const message =
+      data.message ||
+      data.msg ||
+      "Cash collection processed successfully via Airtel CMS Plugin!";
+    return {
+      isSuccess: true,
+      status: "SUCCESS",
+      result: {
+        status: "SUCCESS",
+        txnid:
+          data.txnid ||
+          ((data as Record<string, unknown>).txn_id as string) ||
+          `AIRTEL-${Date.now().toString().slice(-8)}`,
+        rrn:
+          data.rrn ||
+          data.bankRefNum ||
+          `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        message,
+        amount: data.amount ? String(data.amount) : "5,000.00",
+      },
+      toastMessage: data.message || data.msg || "CMS Transaction Successful!",
+    };
+  } else {
+    const message =
+      data.message ||
+      data.msg ||
+      "Transaction cancelled or failed on Airtel CMS portal.";
+    return {
+      isSuccess: false,
+      status: "FAILED",
+      result: {
+        status: "FAILED",
+        txnid:
+          data.txnid ||
+          ((data as Record<string, unknown>).txn_id as string) ||
+          `AIRTEL-${Date.now().toString().slice(-8)}`,
+        rrn: data.rrn || data.bankRefNum || "-",
+        message,
+        amount: data.amount ? String(data.amount) : undefined,
+      },
+      toastMessage: data.message || data.msg || "CMS Transaction Failed.",
+    };
+  }
+};
+
 export default function Cms() {
   const navigate = useNavigate();
 
@@ -61,6 +140,23 @@ export default function Cms() {
   const [pluginStatus, setPluginStatus] = useState<PluginStatus>("IDLE");
   const [txnResult, setTxnResult] = useState<CmsCallbackData | null>(null);
   const popupRef = useRef<Window | null>(null);
+
+  // Helper to append callback parameters to the URL returned by initiateCMSPayment
+  const buildUrlWithCallback = useCallback((baseUrl: string): string => {
+    try {
+      const urlObj = new URL(baseUrl);
+      if (!urlObj.searchParams.has("callback")) {
+        urlObj.searchParams.set("callback", "https://partner.subhearndigital.tech");
+      }
+      if (!urlObj.searchParams.has("callback_url")) {
+        urlObj.searchParams.set("callback_url", window.location.origin + "/retailer/cms");
+      }
+      return urlObj.toString();
+    } catch {
+      const sep = baseUrl.includes("?") ? "&" : "?";
+      return `${baseUrl}${sep}callback=${encodeURIComponent("https://partner.subhearndigital.tech")}&callback_url=${encodeURIComponent(window.location.origin + "/retailer/cms")}`;
+    }
+  }, []);
 
   const selectedCompany =
     cmsCompanies.find((company) => company.id === selectedCompanyId) ?? null;
@@ -214,67 +310,64 @@ export default function Cms() {
   /* =========================================================
      2. CROSS-WINDOW CALLBACK LISTENER
   ========================================================= */
-  const handleCallbackResponse = useCallback((data: CmsCallbackData) => {
-    const isSuccess =
-      data.status === "SUCCESS" ||
-      String(data.status).toLowerCase() === "success" ||
-      String(data.status).toLowerCase() === "true";
+  const handleCallbackResponse = useCallback((rawResponse: unknown) => {
+    // 1. Log the incoming callback response directly to console as requested
+    console.log("[Airtel CMS Callback Response]:", rawResponse);
 
-    if (isSuccess) {
-      setPluginStatus("SUCCESS");
-      setTxnResult({
-        status: "SUCCESS",
-        txnid: data.txnid || `AIRTEL-${Date.now().toString().slice(-8)}`,
-        rrn:
-          data.rrn ||
-          `${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-        message:
-          data.message ||
-          data.msg ||
-          "Cash collection processed successfully via Airtel CMS Plugin!",
-        amount: data.amount || "5,000.00",
-      });
-      toast.success(data.message || "CMS Transaction Successful!");
+    const processed = processCallbackData(rawResponse);
+    setPluginStatus(processed.status);
+    setTxnResult(processed.result);
+
+    if (processed.isSuccess) {
+      toast.success(processed.toastMessage);
     } else {
-      setPluginStatus("FAILED");
-      setTxnResult({
-        status: "FAILED",
-        txnid: data.txnid || `AIRTEL-${Date.now().toString().slice(-8)}`,
-        rrn: data.rrn || "-",
-        message:
-          data.message ||
-          data.msg ||
-          "Transaction cancelled or failed on Airtel CMS portal.",
-        amount: data.amount,
-      });
-      toast.error(data.message || "CMS Transaction Failed.");
+      toast.error(processed.toastMessage);
     }
   }, []);
 
   useEffect(() => {
+    // A. Observer for URL redirect callback parameters
+    const callbackData = parseUrlCallbackData();
+    if (callbackData) {
+      if (window.opener && window.opener !== window) {
+        window.opener.postMessage(callbackData, "*");
+        window.close();
+        return;
+      }
+
+      queueMicrotask(() => {
+        handleCallbackResponse(callbackData);
+      });
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    // B. Listener for cross-window postMessage events
     const handleMessageEvent = (event: MessageEvent) => {
       if (!event.data) return;
 
-      let payload: CmsCallbackData | null = null;
+      let payload: unknown = event.data;
 
       if (typeof event.data === "string") {
         try {
           payload = JSON.parse(event.data);
         } catch {
-          // Non-JSON message, ignore
+          return;
         }
-      } else if (typeof event.data === "object") {
-        payload = event.data as CmsCallbackData;
       }
 
       if (
         payload &&
-        (payload.status ||
-          payload.txnid ||
-          payload.rrn ||
-          payload.bankRefNum ||
-          payload.message)
+        typeof payload === "object" &&
+        "data" in payload &&
+        (payload as { data: unknown }).data
       ) {
+        payload = {
+          ...((payload as { data: object }).data),
+          ...(payload as object),
+        };
+      }
+
+      if (payload && typeof payload === "object") {
         handleCallbackResponse(payload);
       }
     };
@@ -297,8 +390,9 @@ export default function Cms() {
     setPluginStatus("PROCESSING");
     setTxnResult(null);
 
-    // Open redirection URL in a new window/tab
-    const openedWindow = window.open(redirectionUrl, "_blank");
+    // Add callback on the URL returned by initiateCMSPayment, then navigate
+    const targetUrlWithCallback = buildUrlWithCallback(redirectionUrl);
+    const openedWindow = window.open(targetUrlWithCallback, "_blank");
     popupRef.current = openedWindow;
   };
 

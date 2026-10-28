@@ -205,14 +205,15 @@ export default function SettlementToBank() {
     try {
       const coords = await getGeolocationCoordinates();
       const bankCode = String(selectedBank.bank_id || selectedBank.id || selectedBank._id || "").trim();
+      const bankName = String(selectedBank.bank_name || selectedBank.name || "").trim();
 
-      // Required fields: accountType, branchName, benMobile, bank_code (bank_id), beneficiary_name, ifsc, account_number, amount, mode, lat, long
+      // Required fields: accountType, branchName, benMobile, bank_code, bank_name, beneficiary_name, ifsc, account_number, amount, mode, lat, long
       const payload: InitiateSettlementPayload = {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
         bank_code: bankCode,
-        bank_name: selectedBank.name,
+        bank_name: bankName,
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
         account_number: selectedBank.accountNumber,

@@ -62,6 +62,7 @@ export interface SettlementBankItem {
   _id: string;
   id: string;
   name: string;
+  bank_name?: string;
   bank_id?: string;
   accountNumber: string;
   maskedAccountNumber: string;
@@ -123,6 +124,7 @@ export interface InitiateSettlementPayload {
   branchName: string;
   benMobile: string;
   bank_code: string;
+  bank_name: string;
   beneficiary_name: string;
   ifsc: string;
   account_number: string;
@@ -130,7 +132,6 @@ export interface InitiateSettlementPayload {
   mode: "IMPS" | "NEFT";
   lat: string;
   long: string;
-  bank_name?: string;
 }
 
 export interface InitiateSettlementResponse {
