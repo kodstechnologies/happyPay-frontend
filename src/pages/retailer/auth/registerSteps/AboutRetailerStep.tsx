@@ -18,7 +18,10 @@ import {
 } from "lucide-react";
 
 import { toast } from "react-toastify";
-import { updateRetailerAboutDetails } from "../../../../services/api/retailer/retailerAuthApi";
+import {
+  updateRetailerAboutDetails,
+  type CurrentRegistrationStepResult,
+} from "../../../../services/api/retailer/retailerAuthApi";
 
 export type AboutRetailerStepHandle = {
   submit: () => Promise<boolean>;
