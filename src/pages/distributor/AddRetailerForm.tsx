@@ -498,6 +498,7 @@ export default function AddRetailerForm({
         propertyType,
         address: address.trim(),
         city: city.trim(),
+        state: state.trim(),
         pincode: pincode.trim(),
         latitude,
         longitude,
