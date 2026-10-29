@@ -252,6 +252,26 @@ export function doBioEkyc(payload: BiometricPayload) {
   return api.post<Envelope<unknown>>("/api/v1/auth/do-bio-ekyc", payload).then(unwrap);
 }
 
+export interface OutletRegisterPayload {
+  outlet_id: string;
+  referenceKey: string;
+}
+
+export interface OutletRegisterVerifyPayload {
+  outlet_id: string;
+  referenceKey: string;
+  otp: string;
+}
+
+export function outletRegister(payload: OutletRegisterPayload) {
+  return api.post<Envelope<unknown>>("/api/v1/aeps/outlet-register", payload).then(unwrap);
+}
+
+export function outletRegisterVerify(payload: OutletRegisterVerifyPayload) {
+  return api.post<Envelope<unknown>>("/api/v1/aeps/outlet-register-verify", payload).then(unwrap);
+}
+
+
 export function checkAepsLoginStatus(outletId?: string) {
   return api.post<
     Envelope<{

@@ -25,6 +25,8 @@ import {
   Copy,
   CheckCircle2,
   Search,
+  X,
+  Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import OtpInput from "../../../components/common/OtpInput";
@@ -41,6 +43,8 @@ import {
   onboardAepsMerchant,
   checkDoEkyc,
   doBioEkyc,
+  outletRegister,
+  outletRegisterVerify,
   readEkycPrompt,
   type EkycPrompt,
   type TfaPayload,
@@ -382,6 +386,19 @@ const Aeps = () => {
   const hasCheckedKycRef = useRef<boolean>(false);
   const [bioKycError, setBioKycError] = useState<string>("");
   const [bioKycSuccess, setBioKycSuccess] = useState<string>("");
+  // Bank Outlet Registration States
+  const [isOutletRegistering, setIsOutletRegistering] = useState<boolean>(false);
+  const [isBankRegistrationCompleted, setIsBankRegistrationCompleted] = useState<boolean>(false);
+  const [showOutletOtpModal, setShowOutletOtpModal] = useState<boolean>(false);
+  const [outletOtp, setOutletOtp] = useState<string>("");
+  const [outletRegReferenceKey, setOutletRegReferenceKey] = useState<string>("");
+  const [outletRegError, setOutletRegError] = useState<string>("");
+  const [isVerifyingOutletOtp, setIsVerifyingOutletOtp] = useState<boolean>(false);
+
+  const isBankRegistrationRequired =
+    !isBankRegistrationCompleted &&
+    (Boolean(bioKycError && bioKycError.toLowerCase().includes("outlet not yet registered with bank")) ||
+     Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
 
   const token = getToken();
   let tokenOutletId = "";
@@ -394,10 +411,22 @@ const Aeps = () => {
     }
   }
 
+  const authUserOutletId =
+    (authUser as Record<string, unknown> | null)?.outletId ||
+    (authUser as Record<string, unknown> | null)?.outlet_id ||
+    (authUser as Record<string, unknown> | null)?.outletid ||
+    "";
+
+  const authUserAepsOutletId =
+    authUser?.AepsEkyc?.outletId ||
+    (authUser?.AepsEkyc as Record<string, unknown> | undefined)?.outlet_id ||
+    (authUser?.AepsEkyc as Record<string, unknown> | undefined)?.outletid ||
+    "";
+
   const isOnboarded = Boolean(
     onboardedOutletId ||
-    authUser?.outletId ||
-    authUser?.AepsEkyc?.outletId ||
+    authUserOutletId ||
+    authUserAepsOutletId ||
     tokenOutletId
   );
 
@@ -407,14 +436,14 @@ const Aeps = () => {
       const candidate =
         forcedOutletId ||
         onboardedOutletId ||
-        authUser?.outletId ||
-        authUser?.AepsEkyc?.outletId ||
+        authUserOutletId ||
+        authUserAepsOutletId ||
         tokenOutletId ||
         ekycPrompt?.outletId ||
         "";
       return candidate ? String(candidate).trim() : "";
     },
-    [onboardedOutletId, authUser, tokenOutletId, ekycPrompt?.outletId]
+    [onboardedOutletId, authUserOutletId, authUserAepsOutletId, tokenOutletId, ekycPrompt?.outletId]
   );
 
   // Check eKYC status from server ONLY if onboarded and NOT yet completed in DB
@@ -427,12 +456,25 @@ const Aeps = () => {
     const effectiveOutletId = getEffectiveOutletId(forcedOutletId);
 
     const userId = authUser?.id || authUser?._id;
-    if (!effectiveOutletId || !userId) return;
+    if (!effectiveOutletId || !userId) {
+      console.warn("[AePS] checkKycStatus skipped: effectiveOutletId or userId missing", {
+        effectiveOutletId,
+        userId,
+      });
+      return;
+    }
 
     setIsCheckingKyc(true);
     setBioKycError("");
+    console.log("[AePS] Calling checkDoEkyc on page load with:", {
+      outlet_id: effectiveOutletId,
+      userId,
+    });
+
     try {
       const response = await checkDoEkyc(effectiveOutletId, userId);
+      console.log("[AePS] checkDoEkyc response:", response);
+
       const prompt = readEkycPrompt(response);
       setEkycPrompt(prompt);
       if (prompt.referenceKey) {
@@ -474,7 +516,7 @@ const Aeps = () => {
         }
       }
     } catch (err: unknown) {
-      console.warn("eKYC status check:", err);
+      console.warn("[AePS] eKYC status check error:", err);
       const actualErrorMsg = getErrorMessage(err, "Failed to check eKYC status");
       const prompt = readEkycPrompt(err);
 
@@ -493,7 +535,7 @@ const Aeps = () => {
       if (prompt.referenceKey) {
         bioKycRefKeyRef.current = prompt.referenceKey;
         setBioKycReferenceKey(prompt.referenceKey);
-        console.log("[AePS] Captured referenceKey in React state from check bio kyc response:", prompt.referenceKey);
+        console.log("[AePS] Captured referenceKey from check bio kyc response:", prompt.referenceKey);
       }
     } finally {
       setIsCheckingKyc(false);
@@ -505,18 +547,7 @@ const Aeps = () => {
     if (isAuthLoading || isBioKycDone || !isOnboarded || hasCheckedKycRef.current) return;
 
     hasCheckedKycRef.current = true;
-    let isMounted = true;
-    const verifyKyc = async () => {
-      await Promise.resolve();
-      if (!isMounted) return;
-      await checkKycStatus();
-    };
-
-    void verifyKyc();
-
-    return () => {
-      isMounted = false;
-    };
+    void checkKycStatus();
   }, [isAuthLoading, isBioKycDone, isOnboarded, checkKycStatus]);
 
   /*
@@ -890,14 +921,26 @@ const Aeps = () => {
   const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
   const [banksFetched, setBanksFetched] = useState(false);
-  const bankSelectRef = useRef<HTMLSelectElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const BANKS_PER_PAGE = 50;
   const [bankSearchTerm, setBankSearchTerm] = useState("");
+  const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
+  const bankDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch bank list when dropdown is opened
+  // Close bank dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bankDropdownRef.current && !bankDropdownRef.current.contains(e.target as Node)) {
+        setIsBankDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Fetch bank list when needed or on initial mount
   const fetchBanks = async (page: number = 1, append: boolean = false) => {
     if (append) {
       setLoadingMore(true);
@@ -909,7 +952,11 @@ const Aeps = () => {
       const response = await getBankList(page, BANKS_PER_PAGE);
       if (response.success && response.data) {
         if (append) {
-          setAvailableBanks(prev => [...prev, ...response.data]);
+          setAvailableBanks((prev) => {
+            const existing = new Set(prev.map((b) => b.iin || b.bank_id || b.name));
+            const newUnique = response.data.filter((b) => !existing.has(b.iin || b.bank_id || b.name));
+            return [...prev, ...newUnique];
+          });
         } else {
           setAvailableBanks([...response.data]);
         }
@@ -927,14 +974,43 @@ const Aeps = () => {
     }
   };
 
-  const handleBankDropdownOpen = () => {
-    if (!banksFetched) {
-      void fetchBanks(1, false);
-    }
-  };
+  // Fetch initial bank list on mount asynchronously to prevent cascading renders
+  useEffect(() => {
+    let ignore = false;
+
+    getBankList(1, BANKS_PER_PAGE)
+      .then((response) => {
+        if (ignore) return;
+        if (response.success && response.data) {
+          setAvailableBanks(response.data);
+          setBanksFetched(true);
+          if (
+            response.meta &&
+            typeof response.meta === "object" &&
+            "totalPages" in response.meta
+          ) {
+            setTotalPages((response.meta as { totalPages: number }).totalPages);
+          }
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to fetch initial bank list:", err);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoadingBanks(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   const handleLoadMoreBanks = () => {
-    if (currentPage < totalPages) {
+    if (currentPage < totalPages && !loadingMore) {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
       void fetchBanks(nextPage, true);
@@ -1264,6 +1340,8 @@ const Aeps = () => {
 
   const handleBankSelect = (bank: Bank) => {
     setSelectedBank(bank);
+    setIsBankDropdownOpen(false);
+    setBankSearchTerm("");
   };
 
   /*
@@ -2039,7 +2117,7 @@ const Aeps = () => {
     }
   };
 
-  const handleDoBioKyc = async () => {
+  const proceedWithBiometricCapture = async (refKeyToUse: string) => {
     const effectiveOutletId = getEffectiveOutletId();
     const userId = authUser?.id || authUser?._id;
 
@@ -2048,60 +2126,16 @@ const Aeps = () => {
       return;
     }
 
+    if (!refKeyToUse) {
+      setBioKycError("Reference key not found. Please refresh the page and try again.");
+      return;
+    }
+
     setIsDoingBioKyc(true);
     setBioKycError("");
     setBioKycSuccess("");
 
     try {
-      // Step 1: Ensure active referenceKey from ref or React state
-      let activePrompt = ekycPrompt;
-      let activeRefKey =
-        bioKycRefKeyRef.current ||
-        bioKycReferenceKey ||
-        activePrompt?.referenceKey ||
-        "";
-
-      if (!activeRefKey) {
-        try {
-          const checkRes = await checkDoEkyc(effectiveOutletId, userId);
-          const p = readEkycPrompt(checkRes);
-          if (p.referenceKey) {
-            activePrompt = p;
-            activeRefKey = p.referenceKey;
-            bioKycRefKeyRef.current = p.referenceKey;
-            setEkycPrompt(p);
-            setBioKycReferenceKey(p.referenceKey);
-          }
-        } catch (checkErr: unknown) {
-          const p = readEkycPrompt(checkErr);
-          const actualCheckErr = getErrorMessage(checkErr, "");
-          if (p.referenceKey) {
-            activePrompt = p;
-            activeRefKey = p.referenceKey;
-            bioKycRefKeyRef.current = p.referenceKey;
-            setEkycPrompt(p);
-            setBioKycReferenceKey(p.referenceKey);
-          }
-          if (actualCheckErr) {
-            setBioKycError(actualCheckErr);
-            throw new Error(actualCheckErr, { cause: checkErr });
-          }
-        }
-      }
-
-      const refKey =
-        activeRefKey ||
-        bioKycRefKeyRef.current ||
-        bioKycReferenceKey ||
-        activePrompt?.referenceKey ||
-        "";
-
-      if (!refKey) {
-        throw new Error(
-          bioKycError || "Reference key not found from Check Bio KYC API. Please refresh and try again."
-        );
-      }
-
       let targetPort = selectedDevicePort;
 
       // Auto-scan if no device selected
@@ -2125,7 +2159,7 @@ const Aeps = () => {
 
       // Capture fingerprint with WADH from activePrompt if available, and fType: "2" (ISO 19794-2)
       const captureResult = await rdService.captureFingerprint(targetPort, {
-        wadh: activePrompt?.pidOptionWadh,
+        wadh: ekycPrompt?.pidOptionWadh,
         fType: "2",
       });
 
@@ -2138,10 +2172,11 @@ const Aeps = () => {
 
       const parsedData = parsePidXml(captureResult.data);
 
+      console.log("[AePS] Submitting doBioEkyc with referenceKey:", refKeyToUse);
       await doBioEkyc({
         userId,
         outlet_id: effectiveOutletId,
-        referenceKey: refKey,
+        referenceKey: refKeyToUse,
         latitude: coords.latitude,
         longitude: coords.longitude,
         ...parsedData,
@@ -2159,15 +2194,145 @@ const Aeps = () => {
       void fetchLoginStatus();
     } catch (err: unknown) {
       console.error("Biometric eKYC failed:", err);
-      // Clear ephemeral session key on failure so next attempt gets a fresh key from gateway
-      bioKycRefKeyRef.current = "";
-      setBioKycReferenceKey("");
-      setEkycPrompt(null);
-      setBioKycError(getErrorMessage(err, "Biometric eKYC verification failed. Please check scanner and retry."));
+      const errorMsg = getErrorMessage(err, "Biometric eKYC verification failed. Please check scanner and retry.");
+      setBioKycError(errorMsg);
     } finally {
       setIsDoingBioKyc(false);
     }
   };
+
+  const handleRegisterOutlet = async () => {
+    const effectiveOutletId = getEffectiveOutletId();
+    const currentRefKey =
+      bioKycRefKeyRef.current ||
+      bioKycReferenceKey ||
+      ekycPrompt?.referenceKey ||
+      "";
+
+    if (!effectiveOutletId || !currentRefKey) {
+      setBioKycError("Outlet ID or Reference key missing from Check KYC API. Please refresh and try again.");
+      return;
+    }
+
+    setIsOutletRegistering(true);
+    setBioKycError("");
+    setBioKycSuccess("");
+
+    try {
+      console.log("[AePS] Calling outletRegister with:", {
+        outlet_id: effectiveOutletId,
+        referenceKey: currentRefKey,
+      });
+
+      const regRes = await outletRegister({
+        outlet_id: effectiveOutletId,
+        referenceKey: currentRefKey,
+      });
+
+      console.log("[AePS] outletRegister response:", regRes);
+
+      const prompt = readEkycPrompt(regRes);
+      const regData = (regRes as { data?: { data?: { referenceKey?: string }; referenceKey?: string } })?.data;
+      const newRefKey =
+        prompt.referenceKey ||
+        regData?.data?.referenceKey ||
+        regData?.referenceKey ||
+        currentRefKey;
+
+      bioKycRefKeyRef.current = newRefKey;
+      setBioKycReferenceKey(newRefKey);
+      setOutletRegReferenceKey(newRefKey);
+      setOutletOtp("");
+      setOutletRegError("");
+      setShowOutletOtpModal(true);
+    } catch (err: unknown) {
+      console.error("[AePS] outletRegister failed:", err);
+      setBioKycError(getErrorMessage(err, "Failed to initiate bank outlet registration."));
+    } finally {
+      setIsOutletRegistering(false);
+    }
+  };
+
+  const handleVerifyOutletOtp = async () => {
+    const effectiveOutletId = getEffectiveOutletId();
+    if (!effectiveOutletId) {
+      setOutletRegError("Outlet ID is missing.");
+      return;
+    }
+    if (!outletRegReferenceKey) {
+      setOutletRegError("Reference key is missing. Please retry registration.");
+      return;
+    }
+    if (!outletOtp || outletOtp.length !== 6) {
+      setOutletRegError("Please enter the 6-digit OTP sent to your registered mobile.");
+      return;
+    }
+
+    setIsVerifyingOutletOtp(true);
+    setOutletRegError("");
+
+    try {
+      console.log("[AePS] Calling outletRegisterVerify with:", {
+        outlet_id: effectiveOutletId,
+        referenceKey: outletRegReferenceKey,
+        otp: outletOtp,
+      });
+
+      const verifyRes = await outletRegisterVerify({
+        outlet_id: effectiveOutletId,
+        referenceKey: outletRegReferenceKey,
+        otp: outletOtp,
+      });
+
+      console.log("[AePS] outletRegisterVerify response:", verifyRes);
+
+      const prompt = readEkycPrompt(verifyRes);
+      const verifyData = (verifyRes as { data?: { data?: { referenceKey?: string }; referenceKey?: string } })?.data;
+      const finalRefKey =
+        prompt.referenceKey ||
+        verifyData?.data?.referenceKey ||
+        verifyData?.referenceKey ||
+        outletRegReferenceKey;
+
+      bioKycRefKeyRef.current = finalRefKey;
+      setBioKycReferenceKey(finalRefKey);
+      setIsBankRegistrationCompleted(true);
+      setShowOutletOtpModal(false);
+      setBioKycError("");
+      setOutletRegError("");
+      setBioKycSuccess("Outlet registered with bank successfully! Please click 'Do Bio KYC' to complete biometric authentication.");
+    } catch (err: unknown) {
+      console.error("[AePS] outletRegisterVerify failed:", err);
+      setOutletRegError(getErrorMessage(err, "OTP verification failed. Please check OTP and retry."));
+    } finally {
+      setIsVerifyingOutletOtp(false);
+    }
+  };
+
+  const handleDoBioKyc = async () => {
+    const effectiveOutletId = getEffectiveOutletId();
+    const userId = authUser?.id || authUser?._id;
+
+    if (!effectiveOutletId || !userId) {
+      setBioKycError("Outlet ID or User ID missing. Please ensure your account is onboarded.");
+      return;
+    }
+
+    const currentRefKey =
+      bioKycRefKeyRef.current ||
+      bioKycReferenceKey ||
+      ekycPrompt?.referenceKey ||
+      "";
+
+    if (isBankRegistrationRequired) {
+      await handleRegisterOutlet();
+      return;
+    }
+
+    await proceedWithBiometricCapture(currentRefKey);
+  };
+
+
 
   const renderRetailerAuth = () => {
     return (
@@ -2236,8 +2401,8 @@ const Aeps = () => {
                     </span>
                   </div>
                   <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {bioKycError
-                      ? bioKycError
+                    {isBankRegistrationRequired
+                      ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
                       : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
                   </p>
                   {bioKycError && (
@@ -2253,24 +2418,45 @@ const Aeps = () => {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={handleDoBioKyc}
-                  disabled={isDoingBioKyc || isCheckingKyc}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-amber-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isDoingBioKyc ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" />
-                      <span>Verifying Biometric...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Fingerprint className="h-4 w-4" />
-                      <span>Do Bio KYC</span>
-                    </>
-                  )}
-                </button>
+                {isBankRegistrationRequired ? (
+                  <button
+                    type="button"
+                    onClick={handleRegisterOutlet}
+                    disabled={isOutletRegistering || isCheckingKyc}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-purple-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isOutletRegistering ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Registering Outlet...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Building2 className="h-4 w-4" />
+                        <span>Register Outlet</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleDoBioKyc}
+                    disabled={isDoingBioKyc || isCheckingKyc}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-amber-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isDoingBioKyc ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 animate-spin" />
+                        <span>Verifying Biometric...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Fingerprint className="h-4 w-4" />
+                        <span>Do Bio KYC</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -2585,11 +2771,21 @@ const Aeps = () => {
     { name: "Union Bank", fullName: "Union Bank of India" },
   ];
 
-  const handleSelectPopularBank = (popularName: string) => {
-    if (!banksFetched) {
-      void fetchBanks(1, false);
+  const handleSelectPopularBank = async (popularName: string) => {
+    let banks = availableBanks;
+    if (!banksFetched || banks.length === 0) {
+      try {
+        const response = await getBankList(1, BANKS_PER_PAGE);
+        if (response.success && response.data) {
+          banks = response.data;
+          setAvailableBanks(response.data);
+          setBanksFetched(true);
+        }
+      } catch (err) {
+        console.error("Failed to fetch popular bank list:", err);
+      }
     }
-    const matched = availableBanks.find((b) =>
+    const matched = banks.find((b) =>
       b.name.toLowerCase().includes(popularName.toLowerCase())
     );
     if (matched) {
@@ -2598,9 +2794,11 @@ const Aeps = () => {
   };
 
   const filteredBanks = bankSearchTerm
-    ? availableBanks.filter((b) =>
-      b.name.toLowerCase().includes(bankSearchTerm.toLowerCase())
-    )
+    ? availableBanks.filter(
+        (b) =>
+          b.name.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+          (b.iin && b.iin.includes(bankSearchTerm.trim()))
+      )
     : availableBanks;
 
   const isCustomerFormValid =
@@ -2804,78 +3002,144 @@ const Aeps = () => {
             </div>
           </div>
 
-          {/* Bank Search & Dropdown Filter */}
-          <div className="space-y-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={bankSearchTerm}
-                onChange={(e) => setBankSearchTerm(e.target.value)}
-                placeholder="Type to filter bank list..."
-                className="w-full h-10 rounded-xl border border-slate-200 bg-slate-50/50 pl-10 pr-4 text-xs sm:text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-purple-600 focus:bg-white focus:ring-2 focus:ring-purple-500/15 transition"
-              />
-              {bankSearchTerm && (
+          {/* Bank Selection Trigger & Searchable Dropdown */}
+          <div className="relative" ref={bankDropdownRef}>
+            <div
+              id="bank-select-trigger"
+              onClick={() => {
+                if (!banksFetched) {
+                  void fetchBanks(1, false);
+                }
+                setIsBankDropdownOpen(!isBankDropdownOpen);
+              }}
+              className={`flex h-12 w-full cursor-pointer items-center gap-3 rounded-xl border bg-white px-3.5 py-2 text-sm transition focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-500/15 ${
+                isBankDropdownOpen
+                  ? "border-purple-600 ring-2 ring-purple-500/15"
+                  : selectedBank
+                  ? "border-purple-600 font-semibold text-slate-900"
+                  : "border-slate-200 text-slate-400"
+              }`}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-700">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <span className="flex-1 truncate font-semibold">
+                {loadingBanks && availableBanks.length === 0
+                  ? "Loading banks..."
+                  : selectedBank?.name || "Select customer bank from list..."}
+              </span>
+
+              {selectedBank && (
                 <button
                   type="button"
-                  onClick={() => setBankSearchTerm("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedBank(null);
+                    setBankSearchTerm("");
+                  }}
+                  className="flex h-6 w-6 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
+                  title="Clear bank selection"
                 >
-                  Clear
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
+
+              <ChevronDown
+                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
+                  isBankDropdownOpen ? "rotate-180 text-purple-600" : ""
+                }`}
+              />
             </div>
 
-            <div className="relative">
-              <Building2 className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-purple-600" />
-              <select
-                id="bank-select"
-                ref={bankSelectRef}
-                value={selectedBank?.iin || ""}
-                onChange={(e) => {
-                  const bank = availableBanks.find((b) => b.iin === e.target.value);
-                  if (bank) handleBankSelect(bank);
-                }}
-                onFocus={handleBankDropdownOpen}
-                onClick={handleBankDropdownOpen}
-                disabled={loadingBanks}
-                className="w-full h-12 appearance-none rounded-xl border border-slate-200 bg-white py-2 pl-11 pr-10 text-sm font-semibold text-slate-900 outline-none transition focus:border-purple-600 focus:ring-2 focus:ring-purple-500/15 cursor-pointer disabled:opacity-50"
-              >
-                <option value="" disabled>
-                  {loadingBanks ? "Loading banks..." : "-- Select Bank from List --"}
-                </option>
-                {filteredBanks.map((bank) => (
-                  <option key={bank.iin} value={bank.iin}>
-                    {bank.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            </div>
+            {/* Dropdown Floating Panel - Opens UPWARDS into empty viewport space */}
+            {isBankDropdownOpen && (
+              <div className="absolute left-0 right-0 bottom-full mb-2 z-50 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl">
+                {/* Search Box Header */}
+                <div className="border-b border-slate-100 p-2.5 bg-slate-50/70">
+                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 focus-within:border-purple-600 focus-within:ring-1 focus-within:ring-purple-500/20 transition">
+                    <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={bankSearchTerm}
+                      onChange={(e) => setBankSearchTerm(e.target.value)}
+                      placeholder="Search bank name or IIN..."
+                      className="w-full bg-transparent text-xs sm:text-sm text-slate-800 outline-none placeholder:text-slate-400 font-medium"
+                      autoFocus
+                    />
+                    {bankSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setBankSearchTerm("")}
+                        className="text-xs text-slate-400 hover:text-slate-600 font-bold px-1"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
 
-            {banksFetched && currentPage < totalPages && (
-              <div className="flex items-center justify-between pt-1 text-xs">
-                <span className="text-slate-500">
-                  Showing {availableBanks.length} banks
-                </span>
-                <button
-                  type="button"
-                  onClick={handleLoadMoreBanks}
-                  disabled={loadingMore}
-                  className="inline-flex items-center gap-1.5 font-bold text-purple-600 hover:text-purple-700 disabled:opacity-50"
-                >
-                  {loadingMore ? (
-                    <>
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                      <span>Loading more...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ArrowDown className="h-3.5 w-3.5" />
-                      <span>Load more banks ({currentPage}/{totalPages})</span>
-                    </>
+                {/* Bank Options List */}
+                <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
+                  {filteredBanks.map((bank) => {
+                    const isCurrentSelected = selectedBank?.iin === bank.iin;
+                    return (
+                      <button
+                        key={bank.iin || bank.id || bank.bank_id || bank.name}
+                        type="button"
+                        onClick={() => handleBankSelect(bank)}
+                        className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs sm:text-sm transition ${
+                          isCurrentSelected
+                            ? "bg-purple-50 text-purple-700 font-bold"
+                            : "text-slate-700 hover:bg-purple-50/50 hover:text-purple-700 font-medium"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <Building2
+                            className={`h-4 w-4 shrink-0 ${
+                              isCurrentSelected ? "text-purple-600" : "text-slate-400"
+                            }`}
+                          />
+                          <span className="truncate">{bank.name}</span>
+                        </div>
+                        {isCurrentSelected && (
+                          <Check className="h-4 w-4 text-purple-600 shrink-0 stroke-[2.5]" />
+                        )}
+                      </button>
+                    );
+                  })}
+
+                  {filteredBanks.length === 0 && (
+                    <div className="p-4 text-center text-xs sm:text-sm text-slate-400">
+                      No banks found matching "{bankSearchTerm}"
+                    </div>
                   )}
-                </button>
+
+                  {/* Pagination Option - Directly after the last bank */}
+                  {currentPage < totalPages && (
+                    <div className="p-2.5 text-center bg-slate-50/70 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleLoadMoreBanks}
+                        disabled={loadingMore}
+                        className="inline-flex items-center justify-center gap-1.5 w-full py-1.5 text-xs font-bold text-purple-600 hover:text-purple-700 hover:underline disabled:opacity-50"
+                      >
+                        {loadingMore ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <span>Loading more banks...</span>
+                          </>
+                        ) : (
+                          <>
+                            <ChevronDown className="h-3.5 w-3.5" />
+                            <span>
+                              Load more banks ({availableBanks.length} loaded · Page {currentPage}/{totalPages})
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -3445,6 +3709,85 @@ const Aeps = () => {
     );
   };
 
+  const renderOutletRegistrationOtpModal = () => {
+    if (!showOutletOtpModal) return null;
+
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="w-full max-w-md overflow-hidden rounded-[28px] border border-white bg-white p-6 shadow-2xl sm:p-7">
+          <div className="flex items-center gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-sm">
+              <ShieldCheck className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
+                Bank Registration OTP
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bank Outlet Activation Verification
+              </p>
+            </div>
+          </div>
+
+          <p className="mt-5 text-sm leading-relaxed text-slate-600">
+            An OTP has been sent by the bank gateway to your registered mobile number. Please enter the 6-digit OTP below to complete bank outlet registration.
+          </p>
+
+          <div className="mt-6 flex justify-center">
+            <OtpInput
+              value={outletOtp}
+              onChange={setOutletOtp}
+              length={6}
+              disabled={isVerifyingOutletOtp}
+            />
+          </div>
+
+          {outletRegError && (
+            <p className="mt-4 text-xs font-semibold text-red-600 bg-red-50 p-2.5 rounded-xl border border-red-200 flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-600"></span>
+              {outletRegError}
+            </p>
+          )}
+
+          <div className="mt-6 flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => {
+                setShowOutletOtpModal(false);
+                setOutletOtp("");
+                setOutletRegError("");
+              }}
+              disabled={isVerifyingOutletOtp}
+              className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition"
+            >
+              Cancel
+            </button>
+
+            <button
+              type="button"
+              onClick={handleVerifyOutletOtp}
+              disabled={outletOtp.length !== 6 || isVerifyingOutletOtp}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-md hover:bg-purple-700 disabled:opacity-40 transition"
+            >
+              {isVerifyingOutletOtp ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span>Verifying Registration...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4" />
+                  <span>Verify Outlet Registration</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   /*
    * ============================================================
    * RECEIPT HELPERS
@@ -3819,8 +4162,10 @@ const Aeps = () => {
       </section>
 
       {isFetchingService && renderServiceFetchingOverlay()}
+      {renderOutletRegistrationOtpModal()}
     </div>
   );
 };
 
 export default Aeps;
+
