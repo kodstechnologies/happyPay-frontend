@@ -170,6 +170,7 @@ export interface CurrentRegistrationStepResult {
     primaryBank?: {
       bankName?: string;
       bank_id?: string | number;
+  bank_code?: string;
       ifscCode?: string;
       accountNumber?: string;
       isPrimary?: boolean;
@@ -236,6 +237,7 @@ export interface UpdateShopDetailsResult {
   latitude: number;
   longitude: number;
   city: string;
+  state?: string;
   pincode: string;
   shopInsidePhoto: string;
   shopOutsidePhoto: string;
@@ -254,6 +256,7 @@ export interface UpdateShopDetailsPayload {
   propertyType: string;
   address: string;
   city: string;
+  state?: string;
   pincode: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -275,6 +278,7 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   fd.append("propertyType", payload.propertyType);
   fd.append("address", payload.address);
   fd.append("city", payload.city);
+  if (payload.state) fd.append("state", payload.state.trim());
   fd.append("pincode", payload.pincode);
   if (payload.latitude != null) fd.append("latitude", String(payload.latitude));
   if (payload.longitude != null)
@@ -502,7 +506,7 @@ export interface UpdateBankDetailsResult {
 export interface UpdateBankDetailsPayload {
   userId: string;
   bankName: string;
-  bank_id?: string | number;
+  bank_code?: string;
   ifscCode: string;
   accountNumber: string;
   fcmToken?: string | null;
@@ -545,7 +549,21 @@ export function getBankList(page?: number, limit?: number) {
   if (page) params.page = page;
   if (limit) params.limit = limit;
 
-  return api.get<ApiEnvelope<Bank[]>>("/api/v1/auth/banks", { params }).then(unwrap);
+  return api.get<ApiEnvelope<Bank[]>>("/api/v1/aeps/banks", { params }).then(unwrap).catch(() => api.get<ApiEnvelope<Bank[]>>("/api/v1/auth/banks", { params }).then(unwrap));
+}
+
+export interface SettlementBank {
+  description: string;
+  code: string;
+}
+
+export function getSettlementBankList(page?: number, limit?: number, search?: string) {
+  const params: { page?: number; limit?: number; search?: string } = {};
+  if (page) params.page = page;
+  if (limit) params.limit = limit;
+  if (search) params.search = search;
+
+  return api.get<ApiEnvelope<SettlementBank[]>>("/api/v1/wallet/banklist", { params }).then(unwrap);
 }
 
 export function getRetailerAadhaarAndMobile(userId: string) {
@@ -596,6 +614,7 @@ export interface RetailerUser {
   isEmailVerified: boolean;
   status: string;
   isActive: boolean;
+  isMpinSet?: boolean;
 }
 
 export function getAuthenticatedRetailer() {

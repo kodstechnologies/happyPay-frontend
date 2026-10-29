@@ -3,9 +3,6 @@ import {
   Fingerprint,
   Send,
   WalletCards,
-  Eye,
-  EyeOff,
-  Plus,
   CheckCircle2,
   X,
   IdCard,
@@ -13,7 +10,6 @@ import {
   ReceiptIndianRupee,
   Clock3,
   XCircle,
-  RefreshCw,
 } from "lucide-react";
 import { getWalletBalance, setWalletBalance } from "../../utils/wallet";
 import { initiatePaymentApi, verifyPaymentApi, recordPaymentFailureApi } from "../../apis/wallet.apis";
@@ -101,12 +97,9 @@ const Dashboard = () => {
 
 
   const [activeBanner, setActiveBanner] = useState(0);
-  const [showBalance, setShowBalance] = useState(true);
 
   const [walletBalance, setWalletBalanceState] =
     useState(getWalletBalance);
-  const [isFetchingBalance, setIsFetchingBalance] =
-    useState(false);
   const [isAddingMoney, setIsAddingMoney] =
     useState(false);
 
@@ -143,7 +136,6 @@ const Dashboard = () => {
 
   const fetchLiveBalance = useCallback(async (showLoader = false) => {
     if (showLoader) {
-      setIsFetchingBalance(true);
       setIsLoadingDashboard(true);
     }
     try {
@@ -157,7 +149,6 @@ const Dashboard = () => {
     } catch (err) {
       console.error("Failed to fetch dashboard data:", err);
     } finally {
-      setIsFetchingBalance(false);
       setIsLoadingDashboard(false);
     }
   }, []);
@@ -165,7 +156,6 @@ const Dashboard = () => {
   useEffect(() => {
     let isMounted = true;
     const loadDashboard = async () => {
-      setIsFetchingBalance(true);
       setIsLoadingDashboard(true);
       try {
         const res = await getRetailerDashboardApi();
@@ -179,7 +169,6 @@ const Dashboard = () => {
         console.error("Failed to load dashboard data on mount:", err);
       } finally {
         if (isMounted) {
-          setIsFetchingBalance(false);
           setIsLoadingDashboard(false);
         }
       }
@@ -604,59 +593,36 @@ const Dashboard = () => {
                 </div>
               </section>
 
-            {/* BALANCE CARD RIGHT COLUMN */}
-              {/* =================================================
-                  LIGHT PURPLE BALANCE CARD
-              ================================================== */}
-              <section className="relative overflow-hidden rounded-[1.5rem] border border-[#e5d9ff] bg-gradient-to-br from-[#eee7ff] via-[#e8ddff] to-[#f3edff] px-5 py-4 shadow-[0_12px_30px_-20px_rgba(124,58,237,0.25)] sm:px-6 sm:py-5">
-                {/* Decorative circles */}
-                <div className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full bg-[#d8c5ff]/40 blur-xl" />
-                <div className="pointer-events-none absolute -bottom-8 -left-6 h-20 w-20 rounded-full bg-[#d8c5ff]/30 blur-lg" />
-                <div className="relative z-10">
-                  <div className="relative flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[12px] font-semibold uppercase tracking-wide text-[#6d5a96] sm:text-xs">
-                          Available Balance
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setShowBalance((previous) => !previous)}
-                          className="text-[#8066b5] transition hover:text-[#63449b]"
-                          aria-label={showBalance ? "Hide balance" : "Show balance"}
-                        >
-                          {showBalance ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => fetchLiveBalance(true)}
-                          disabled={isFetchingBalance}
-                          title="Refresh Balance"
-                          className="text-[#8066b5] transition hover:text-[#63449b] disabled:opacity-50"
-                        >
-                          <RefreshCw className={`h-3.5 w-3.5 ${isFetchingBalance ? "animate-spin text-[#63449b]" : ""}`} />
-                        </button>
-                      </div>
-                      <h2 className="mt-1 text-2xl font-bold tracking-tight text-[#5b21b6] sm:text-3xl">
-                        {showBalance
-                          ? `₹${walletBalance.toLocaleString("en-IN", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}`
-                          : "₹••••••"}
-                      </h2>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMoneyModal(true)}
-                      className="flex shrink-0 items-center gap-1.5 rounded-xl bg-[#8b5cf6] px-3 py-2 text-[11px] font-bold text-white shadow-[0_8px_18px_-10px_rgba(124,58,237,0.6)] transition hover:scale-105 hover:bg-[#7c3aed] sm:px-4 sm:py-2.5"
-                    >
-                      <Plus className="h-4 w-4" />
-                      ADD MONEY
-                    </button>
+             {/* ACCOUNT SNAPSHOT */}
+              <section className="bg-white rounded-[24px] p-5 sm:p-6 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
+                <div className="flex items-center gap-4 mb-4 border-b border-slate-100">
+                  <h2 className="text-[17px] font-bold text-slate-800 border-b-2 border-[#7c3aed] pb-3 -mb-[1px]">Account Snapshot</h2>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
+                    <p className="text-xs font-medium text-[#64748b]">Today's Earnings</p>
+                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">
+                      {isLoadingDashboard ? (
+                        <span className="inline-block h-4 w-16 animate-pulse rounded bg-purple-200" />
+                      ) : (
+                        `₹${formatAmount(dashboardData?.earnings?.todayEarnings || 0)}`
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
+                    <p className="text-xs font-medium text-[#64748b]">Retailer ID</p>
+                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">
+                      {isLoadingDashboard ? (
+                        <span className="inline-block h-4 w-20 animate-pulse rounded bg-purple-200" />
+                      ) : (
+                        dashboardData?.retailer?.id || getAuthUser()?.outletId || "HP100001"
+                      )}
+                    </p>
                   </div>
                 </div>
               </section>
+
+            
             </div>
 
             {/* =================================================
@@ -703,35 +669,7 @@ const Dashboard = () => {
             
             <div className="space-y-6">
 
-              {/* ACCOUNT SNAPSHOT */}
-              <section className="bg-white rounded-[24px] p-5 sm:p-6 border border-slate-100 shadow-[0_4px_20px_rgb(0,0,0,0.02)]">
-                <div className="flex items-center gap-4 mb-4 border-b border-slate-100">
-                  <h2 className="text-[17px] font-bold text-slate-800 border-b-2 border-[#7c3aed] pb-3 -mb-[1px]">Account Snapshot</h2>
-                </div>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
-                    <p className="text-xs font-medium text-[#64748b]">Today's Earnings</p>
-                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">
-                      {isLoadingDashboard ? (
-                        <span className="inline-block h-4 w-16 animate-pulse rounded bg-purple-200" />
-                      ) : (
-                        `₹${formatAmount(dashboardData?.earnings?.todayEarnings || 0)}`
-                      )}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-[#f8f5ff] p-3 transition hover:bg-[#f3eaff]">
-                    <p className="text-xs font-medium text-[#64748b]">Retailer ID</p>
-                    <p className="mt-1 text-[15px] font-bold text-[#0f172a]">
-                      {isLoadingDashboard ? (
-                        <span className="inline-block h-4 w-20 animate-pulse rounded bg-purple-200" />
-                      ) : (
-                        dashboardData?.retailer?.id || getAuthUser()?.outletId || "HP100001"
-                      )}
-                    </p>
-                  </div>
-                </div>
-              </section>
-
+             
               {/* RECENT TRANSACTIONS */}
               <section className="bg-white rounded-[24px] p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100">
                 <div className="flex items-center justify-between mb-6 border-b border-slate-100">

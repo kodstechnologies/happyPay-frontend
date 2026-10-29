@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowRightLeft,
@@ -11,32 +11,19 @@ import {
   RotateCcw,
   Search,
   ShieldCheck,
-  UserCheck,
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
-
-const RECENT_TRANSFERS = [
-  {
-    id: "P2P-9812401",
-    name: "Ramesh Kumar",
-    shopName: "Ramesh Telecom",
-    mobile: "9876543210",
-    amount: 1500,
-    date: "Today, 11:20 AM",
-    status: "Success",
-  },
-  {
-    id: "P2P-9811982",
-    name: "Pooja Verma",
-    shopName: "Verma Digital Center",
-    mobile: "9812345678",
-    amount: 3000,
-    date: "Yesterday",
-    status: "Success",
-  },
-];
+import {
+  getWalletBalanceApi,
+  verifyRecipientRetailerApi,
+  transferRetailerSettlementApi,
+  getRecentRetailerTransfersApi,
+  type VerifiedRetailerData,
+  type RecentRetailerTransferItem,
+} from "../../../apis/wallet.apis";
 
 const formatAmount = (val: number) =>
   val.toLocaleString("en-IN", {
@@ -46,21 +33,21 @@ const formatAmount = (val: number) =>
 
 export default function SettlementToRetailer() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(getWalletBalance);
+  const [balance, setBalance] = useState<number>(getWalletBalance);
+  const [isLoadingBalance, setIsLoadingBalance] = useState(false);
   const [mobile, setMobile] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [verifiedRetailer, setVerifiedRetailer] = useState<{
-    name: string;
-    shopName: string;
-    id: string;
-    mobile: string;
-  } | null>(null);
+  const [verifyError, setVerifyError] = useState("");
+  const [verifiedRetailer, setVerifiedRetailer] = useState<VerifiedRetailerData | null>(null);
   const [amount, setAmount] = useState("");
   const [remarks, setRemarks] = useState("");
   const [mpin, setMpin] = useState("");
   const [showMpin, setShowMpin] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+  const [recentTransfers, setRecentTransfers] = useState<RecentRetailerTransferItem[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [txnDetails, setTxnDetails] = useState<{
     id: string;
     date: Date;
@@ -73,21 +60,119 @@ export default function SettlementToRetailer() {
 
   const numAmount = Number(amount) || 0;
 
-  const handleVerify = () => {
+  // 1. Fetch live balance from database on mount
+  const fetchLiveBalance = async () => {
+    try {
+      const res = await getWalletBalanceApi();
+      if (res && res.data) {
+        const liveBal = Number(res.data.availableBalance ?? res.data.balance ?? 0);
+        setBalance(liveBal);
+        setWalletBalance(liveBal);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      console.warn("Could not fetch live wallet balance:", errorObj?.message);
+    } finally {
+      setIsLoadingBalance(false);
+    }
+  };
+
+  // 2. Fetch live recent transfers from database on mount
+  const fetchRecentTransfers = async () => {
+    try {
+      const res = await getRecentRetailerTransfersApi();
+      if (res && Array.isArray(res.data)) {
+        setRecentTransfers(res.data);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      console.warn("Could not fetch recent P2P transfers:", errorObj?.message);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    getWalletBalanceApi()
+      .then((res) => {
+        if (isMounted && res && res.data) {
+          const liveBal = Number(res.data.availableBalance ?? res.data.balance ?? 0);
+          setBalance(liveBal);
+          setWalletBalance(liveBal);
+        }
+      })
+      .catch((err: unknown) => {
+        const errorObj = err as { message?: string };
+        console.warn("Could not fetch live wallet balance:", errorObj?.message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingBalance(false);
+      });
+
+    getRecentRetailerTransfersApi()
+      .then((res) => {
+        if (isMounted && res && Array.isArray(res.data)) {
+          setRecentTransfers(res.data);
+        }
+      })
+      .catch((err: unknown) => {
+        const errorObj = err as { message?: string };
+        console.warn("Could not fetch recent P2P transfers:", errorObj?.message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingRecent(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleVerify = async () => {
+    setVerifyError("");
     if (mobile.length !== 10) {
-      alert("Please enter a valid 10-digit mobile number");
+      const msg = "Please enter a valid 10-digit mobile number";
+      setVerifyError(msg);
+      toast.error(msg);
       return;
     }
+
     setIsVerifying(true);
-    setTimeout(() => {
+    try {
+      const res = await verifyRecipientRetailerApi(mobile);
+      if (res && res.data) {
+        const raw = res.data as unknown as {
+          id?: string;
+          _id?: string;
+          name?: string;
+          fullName?: string;
+          shopName?: string;
+          shop?: { name?: string };
+          mobile?: string;
+          status?: string;
+        };
+        const normalized: VerifiedRetailerData = {
+          id: String(raw.id || raw._id || ""),
+          name: String(raw.name || raw.fullName || "Registered Retailer"),
+          shopName: String(raw.shopName || raw.shop?.name || "Retail Store"),
+          mobile: String(raw.mobile || mobile),
+          status: String(raw.status || "active"),
+        };
+        setVerifiedRetailer(normalized);
+        toast.success(`Retailer verified: ${normalized.name}`);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      const msg =
+        errorObj?.response?.data?.message ||
+        "Could not verify retailer with this mobile number.";
+      setVerifyError(msg);
+      setVerifiedRetailer(null);
+      toast.error(msg);
+    } finally {
       setIsVerifying(false);
-      setVerifiedRetailer({
-        name: "Sunil Sharma",
-        shopName: "Sharma Mobile & CSC Center",
-        id: "RET-8842",
-        mobile: mobile,
-      });
-    }, 600);
+    }
   };
 
   const handleQuickAmount = (val: number | "full") => {
@@ -98,56 +183,87 @@ export default function SettlementToRetailer() {
     }
   };
 
-  const handleTransfer = (e: React.FormEvent) => {
+  const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTransferError("");
+
     if (!verifiedRetailer) {
-      alert("Please verify recipient retailer mobile number first");
+      setTransferError("Please verify recipient retailer mobile number first");
+      toast.error("Please verify recipient retailer mobile number first");
       return;
     }
     if (numAmount < 10) {
-      alert("Minimum transfer amount is ₹10");
+      setTransferError("Minimum transfer amount is ₹10");
+      toast.error("Minimum transfer amount is ₹10");
       return;
     }
     if (numAmount > balance) {
-      alert("Insufficient wallet balance");
+      setTransferError("Insufficient wallet balance for this transfer");
+      toast.error("Insufficient wallet balance for this transfer");
       return;
     }
     if (mpin.length < 4) {
-      alert("Please enter a valid 4-digit MPIN");
+      setTransferError("Please enter a valid 4-digit MPIN");
+      toast.error("Please enter a valid 4-digit MPIN");
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const nextBalance = balance - numAmount;
-      setBalance(nextBalance);
-      setWalletBalance(nextBalance);
-
-      const txnId = `HP-P2P-${Date.now().toString().slice(-8)}`;
-      setTxnDetails({
-        id: txnId,
-        date: new Date(),
+    try {
+      const res = await transferRetailerSettlementApi({
+        recipientMobile: mobile,
         amount: numAmount,
-        recipientName: verifiedRetailer.name,
-        shopName: verifiedRetailer.shopName,
-        recipientMobile: verifiedRetailer.mobile,
-        remarks: remarks,
+        mpin,
+        remarks,
       });
 
+      if (res && res.data) {
+        const data = res.data;
+        const nextBalance = Number(data.balanceAfter ?? balance - numAmount);
+        setBalance(nextBalance);
+        setWalletBalance(nextBalance);
+
+        setTxnDetails({
+          id: data.transactionId || data.id,
+          date: new Date(data.date || Date.now()),
+          amount: data.amount || numAmount,
+          recipientName: data.recipientName || verifiedRetailer.name,
+          shopName: data.recipientShopName || verifiedRetailer.shopName,
+          recipientMobile: data.recipientMobile || verifiedRetailer.mobile,
+          remarks: data.remarks || remarks,
+        });
+
+        setIsSuccess(true);
+        fetchRecentTransfers();
+        toast.success(`₹${formatAmount(data.amount || numAmount)} transferred successfully to ${data.recipientName || verifiedRetailer.name}!`);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      const msg =
+        errorObj?.response?.data?.message ||
+        "Transfer failed. Please verify your details and MPIN.";
+      setTransferError(msg);
+      toast.error(msg);
+    } finally {
       setIsProcessing(false);
-      setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   const handleReset = () => {
     setMobile("");
     setVerifiedRetailer(null);
+    setVerifyError("");
     setAmount("");
     setRemarks("");
     setMpin("");
+    setTransferError("");
     setIsSuccess(false);
     setTxnDetails(null);
+    setIsLoadingRecent(true);
+    fetchLiveBalance();
+    fetchRecentTransfers();
   };
+
 
   return (
     <div className="mx-auto w-full space-y-6">
@@ -195,7 +311,7 @@ export default function SettlementToRetailer() {
             </div>
           </div>
           <p className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight">
-            ₹{formatAmount(balance)}
+            {isLoadingBalance ? "₹..." : `₹${formatAmount(balance)}`}
           </p>
           <div className="mt-3 flex items-center gap-2 text-[11px] text-purple-200">
             <ShieldCheck className="h-3.5 w-3.5 text-purple-200" />
@@ -334,6 +450,7 @@ export default function SettlementToRetailer() {
                       onChange={(e) => {
                         setMobile(e.target.value.replace(/\D/g, "").slice(0, 10));
                         if (verifiedRetailer) setVerifiedRetailer(null);
+                        if (verifyError) setVerifyError("");
                       }}
                       placeholder="Enter 10-digit registered mobile"
                       maxLength={10}
@@ -358,27 +475,36 @@ export default function SettlementToRetailer() {
                   </button>
                 </div>
 
-                {/* Verified Retailer Preview Card */}
-                {verifiedRetailer && (
-                  <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                        <UserCheck className="h-5 w-5" />
+                {/* Bottom Field: Retailer Name & Verified Status */}
+                <div className="mt-3">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    Retailer Name
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      readOnly
+                      value={verifiedRetailer ? (verifiedRetailer.name || (verifiedRetailer as { fullName?: string }).fullName || "") : ""}
+                      placeholder="Retailer name will appear once verified"
+                      className={`w-full rounded-xl border py-3 pl-4 pr-28 text-sm font-semibold outline-none transition ${
+                        verifiedRetailer
+                          ? "border-emerald-300 bg-emerald-50/40 text-slate-900 ring-1 ring-emerald-400/20"
+                          : "border-slate-200 bg-slate-50/70 text-slate-400 cursor-not-allowed"
+                      }`}
+                    />
+                    {verifiedRetailer && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Verified</span>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-900">
-                          {verifiedRetailer.name}
-                        </p>
-                        <p className="text-[11px] text-slate-600">
-                          {verifiedRetailer.shopName} • {verifiedRetailer.id}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                      Verified Retailer
-                    </span>
+                    )}
                   </div>
-                )}
+                  {verifiedRetailer?.shopName && (
+                    <p className="mt-1 text-[11px] text-slate-500 font-medium">
+                      Shop Name: <span className="font-semibold text-slate-700">{verifiedRetailer.shopName}</span>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Step 2: Amount */}
@@ -398,7 +524,10 @@ export default function SettlementToRetailer() {
                   <input
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      if (transferError) setTransferError("");
+                    }}
                     placeholder="Enter amount (min ₹10)"
                     min="10"
                     max={balance}
@@ -452,9 +581,10 @@ export default function SettlementToRetailer() {
                   <input
                     type={showMpin ? "text" : "password"}
                     value={mpin}
-                    onChange={(e) =>
-                      setMpin(e.target.value.replace(/\D/g, "").slice(0, 4))
-                    }
+                    onChange={(e) => {
+                      setMpin(e.target.value.replace(/\D/g, "").slice(0, 4));
+                      if (transferError) setTransferError("");
+                    }}
                     placeholder="Enter 4-digit MPIN"
                     maxLength={4}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-4 pr-11 text-base font-bold tracking-widest text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20"
@@ -546,27 +676,51 @@ export default function SettlementToRetailer() {
               </div>
 
               <div className="mt-3 space-y-3">
-                {RECENT_TRANSFERS.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900">{item.name}</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">
-                        {item.mobile} • {item.date}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-slate-900">
-                        ₹{formatAmount(item.amount)}
-                      </p>
-                      <span className="text-[10px] font-bold text-emerald-600">
-                        {item.status}
-                      </span>
-                    </div>
+                {isLoadingRecent ? (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    <span className="h-4 w-4 inline-block border-2 border-slate-300 border-t-[#7c3aed] rounded-full animate-spin mr-2 align-middle" />
+                    Loading recent transfers...
                   </div>
-                ))}
+                ) : recentTransfers.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    No recent peer-to-peer transfers found
+                  </div>
+                ) : (
+                  recentTransfers.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between rounded-xl bg-slate-50 p-3 text-xs"
+                    >
+                      <div>
+                        <p className="font-bold text-slate-900">{item.name}</p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          {item.mobile} •{" "}
+                          {new Date(item.date).toLocaleDateString("en-IN", {
+                            day: "numeric",
+                            month: "short",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p
+                          className={`font-bold ${
+                            item.type === "credit"
+                              ? "text-emerald-600"
+                              : "text-slate-900"
+                          }`}
+                        >
+                          {item.type === "credit" ? "+" : "-"}₹
+                          {formatAmount(item.amount)}
+                        </p>
+                        <span className="text-[10px] font-bold text-emerald-600">
+                          {item.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

@@ -14,8 +14,8 @@ import {
 
 import {
   updateRetailerBankDetails,
-  getBankList,
-  type Bank,
+  getSettlementBankList,
+  type SettlementBank,
   type CurrentRegistrationStepResult,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
@@ -68,7 +68,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     }, [initialData]);
 
     // Bank list state & pagination
-    const [banks, setBanks] = useState<Bank[]>([]);
+    const [banks, setBanks] = useState<SettlementBank[]>([]);
     const [loadingBanks, setLoadingBanks] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
@@ -85,12 +85,12 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         setLoadingBanks(true);
       }
       try {
-        const response = await getBankList(page, BANKS_PER_PAGE);
+        const response = await getSettlementBankList(page, BANKS_PER_PAGE);
         if (response.success && response.data) {
           if (append) {
             setBanks((prev) => {
-              const existingIds = new Set(prev.map((b) => b.id || b.name));
-              const newItems = response.data.filter((b) => !existingIds.has(b.id || b.name));
+              const existingIds = new Set(prev.map((b) => b.code));
+              const newItems = response.data.filter((b) => !existingIds.has(b.code));
               return [...prev, ...newItems];
             });
           } else {
@@ -133,16 +133,17 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       }
     };
 
-    const handleBankSelect = (bank: Bank) => {
-      setBankName(bank.name);
-      setBankId(bank.bank_id);
+    const handleBankSelect = (bank: SettlementBank) => {
+      setBankName(bank.description);
+      setBankId(bank.code);
       setIsDropdownOpen(false);
       setBankSearch("");
       setError("");
     };
 
     const filteredBanks = banks.filter((b) =>
-      b.name.toLowerCase().includes(bankSearch.toLowerCase())
+      b.description.toLowerCase().includes(bankSearch.toLowerCase()) ||
+      b.code.toLowerCase().includes(bankSearch.toLowerCase())
     );
 
   const handleIfscChange = (
@@ -218,12 +219,12 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       const effectiveBankId =
         bank_id !== undefined && bank_id !== null && bank_id !== ""
           ? String(bank_id)
-          : banks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+          : banks.find((b) => b.description.toLowerCase() === bankName.trim().toLowerCase())?.code;
 
       await updateRetailerBankDetails({
         userId,
         bankName,
-        bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
+        bank_code: effectiveBankId ? String(effectiveBankId) : undefined,
         ifscCode,
         accountNumber,
         fcmToken,
@@ -354,20 +355,20 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
               <div className="max-h-60 overflow-y-auto">
                 {filteredBanks.map((bank) => (
                   <button
-                    key={bank.id || bank.bank_id || bank.name}
+                    key={bank.code || bank.description}
                     type="button"
                     onClick={() => handleBankSelect(bank)}
                     className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
-                      bankName === bank.name
+                      bankName === bank.description
                         ? "bg-purple-50 text-[#7c3aed] font-bold"
                         : "text-slate-700 hover:bg-slate-50"
                     }`}
                   >
                     <div className="flex items-center gap-2.5 truncate">
                       <Building2 className="h-4 w-4 shrink-0 text-slate-400" />
-                      <span className="truncate">{bank.name}</span>
+                      <span className="truncate">{bank.description}</span>
                     </div>
-                    {bankName === bank.name && (
+                    {bankName === bank.description && (
                       <Check className="h-4 w-4 text-[#7c3aed] shrink-0" strokeWidth={2.5} />
                     )}
                   </button>

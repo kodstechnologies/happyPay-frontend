@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Building,
   Check,
@@ -7,9 +8,12 @@ import {
   Eye,
   EyeOff,
   Headphones,
+  History,
+  Lock,
   MapPin,
   Phone,
   Printer,
+  RefreshCw,
   RotateCcw,
   Send,
   ShieldCheck,
@@ -17,19 +21,15 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
-
-const DISTRIBUTORS = [
-  {
-    id: "HP-DIST-2088",
-    name: "Shree Ganesh Communications",
-    contactName: "Ganesh Verma",
-    zone: "West Regional Hub",
-    phone: "+91 9812345678",
-    address: "Shop 12, Commercial Hub, Sector 18",
-    isPrimary: true,
-  },
-];
+import {
+  getDistributorSettlementInfoApi,
+  transferDistributorSettlementApi,
+  getRecentDistributorTransfersApi,
+  type AssignedDistributorData,
+  type RecentDistributorTransferItem,
+} from "../../../apis/wallet.apis";
 
 const formatAmount = (val: number) =>
   val.toLocaleString("en-IN", {
@@ -39,14 +39,28 @@ const formatAmount = (val: number) =>
 
 export default function SettlementToDistributor() {
   const navigate = useNavigate();
-  const [balance, setBalance] = useState(getWalletBalance);
-  const [selectedDistId, setSelectedDistId] = useState(DISTRIBUTORS[0].id);
+
+  // Wallet & Distributor State
+  const [balance, setBalance] = useState<number>(getWalletBalance);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasDistributor, setHasDistributor] = useState(false);
+  const [canTransfer, setCanTransfer] = useState(false);
+  const [hasMpin, setHasMpin] = useState(true);
+  const [distributor, setDistributor] = useState<AssignedDistributorData | null>(null);
+  const [noDistributorMsg, setNoDistributorMsg] = useState("");
+
+  // Transfer Form State
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("Wallet Top-up / Stock Reorder");
   const [mpin, setMpin] = useState("");
   const [showMpin, setShowMpin] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [transferError, setTransferError] = useState("");
   const [isSuccess, setIsSuccess] = useState(false);
+
+  // History & Receipt State
+  const [recentTransfers, setRecentTransfers] = useState<RecentDistributorTransferItem[]>([]);
+  const [isLoadingRecent, setIsLoadingRecent] = useState(true);
   const [txnDetails, setTxnDetails] = useState<{
     id: string;
     date: Date;
@@ -57,11 +71,110 @@ export default function SettlementToDistributor() {
     reason: string;
   } | null>(null);
 
-  const selectedDist =
-    DISTRIBUTORS.find((d) => d.id === selectedDistId) || DISTRIBUTORS[0];
   const numAmount = Number(amount) || 0;
 
+  // 1. Fetch live distributor info and balance from backend
+  const fetchDistributorData = async () => {
+    try {
+      const res = await getDistributorSettlementInfoApi();
+      if (res && res.data) {
+        const d = res.data;
+        setHasDistributor(Boolean(d.hasDistributor));
+        setCanTransfer(Boolean(d.canTransfer));
+        setDistributor(d.distributor || null);
+        if (d.retailer && typeof d.retailer.hasMpin === "boolean") {
+          setHasMpin(d.retailer.hasMpin);
+        }
+        setNoDistributorMsg(d.message || "No distributor assigned to your account.");
+
+        if (d.wallet) {
+          const liveBal = Number(d.wallet.availableBalance ?? d.wallet.balance ?? 0);
+          setBalance(liveBal);
+          setWalletBalance(liveBal);
+        }
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      const msg = errorObj?.response?.data?.message || "Failed to load distributor details.";
+      setTransferError(msg);
+      setHasDistributor(false);
+      setCanTransfer(false);
+      setDistributor(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 2. Fetch recent distributor transfers
+  const fetchRecentTransfers = async () => {
+    try {
+      const res = await getRecentDistributorTransfersApi();
+      if (res && Array.isArray(res.data)) {
+        setRecentTransfers(res.data);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      console.warn("Could not fetch recent distributor transfers:", errorObj?.message);
+    } finally {
+      setIsLoadingRecent(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    getDistributorSettlementInfoApi()
+      .then((res) => {
+        if (isMounted && res && res.data) {
+          const d = res.data;
+          setHasDistributor(Boolean(d.hasDistributor));
+          setCanTransfer(Boolean(d.canTransfer));
+          setDistributor(d.distributor || null);
+          if (d.retailer && typeof d.retailer.hasMpin === "boolean") {
+            setHasMpin(d.retailer.hasMpin);
+          }
+          setNoDistributorMsg(d.message || "No distributor assigned to your account.");
+
+          if (d.wallet) {
+            const liveBal = Number(d.wallet.availableBalance ?? d.wallet.balance ?? 0);
+            setBalance(liveBal);
+            setWalletBalance(liveBal);
+          }
+        }
+      })
+      .catch((err: unknown) => {
+        if (!isMounted) return;
+        const errorObj = err as { response?: { data?: { message?: string } } };
+        const msg = errorObj?.response?.data?.message || "Failed to load distributor details.";
+        setTransferError(msg);
+        setHasDistributor(false);
+        setCanTransfer(false);
+        setDistributor(null);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
+
+    getRecentDistributorTransfersApi()
+      .then((res) => {
+        if (isMounted && res && Array.isArray(res.data)) {
+          setRecentTransfers(res.data);
+        }
+      })
+      .catch((err: unknown) => {
+        const errorObj = err as { message?: string };
+        console.warn("Could not fetch recent distributor transfers:", errorObj?.message);
+      })
+      .finally(() => {
+        if (isMounted) setIsLoadingRecent(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const handleQuickAmount = (val: number | "full") => {
+    if (!hasDistributor || !canTransfer) return;
     if (val === "full") {
       setAmount(balance.toString());
     } else {
@@ -69,48 +182,86 @@ export default function SettlementToDistributor() {
     }
   };
 
-  const handleTransfer = (e: React.FormEvent) => {
+  const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    setTransferError("");
+
+    if (!hasDistributor || !distributor) {
+      const msg = "Settlement disabled: No distributor is assigned to your account.";
+      setTransferError(msg);
+      toast.error(msg);
+      return;
+    }
     if (numAmount < 100) {
-      alert("Minimum transfer amount to distributor is ₹100");
+      const msg = "Minimum transfer amount to distributor is ₹100";
+      setTransferError(msg);
+      toast.error(msg);
       return;
     }
     if (numAmount > balance) {
-      alert("Insufficient wallet balance for transfer");
+      const msg = "Insufficient wallet balance for transfer";
+      setTransferError(msg);
+      toast.error(msg);
       return;
     }
     if (mpin.length < 4) {
-      alert("Please enter a valid 4-digit MPIN");
+      const msg = "Please enter your 4-digit security MPIN";
+      setTransferError(msg);
+      toast.error(msg);
       return;
     }
 
     setIsProcessing(true);
-    setTimeout(() => {
-      const nextBalance = balance - numAmount;
-      setBalance(nextBalance);
-      setWalletBalance(nextBalance);
-
-      const txnId = `HP-DST-${Date.now().toString().slice(-8)}`;
-      setTxnDetails({
-        id: txnId,
-        date: new Date(),
+    try {
+      const res = await transferDistributorSettlementApi({
         amount: numAmount,
-        distName: selectedDist.name,
-        distId: selectedDist.id,
-        contactName: selectedDist.contactName,
-        reason: reason,
+        mpin,
+        reason,
+        distributorId: distributor.id,
       });
 
+      if (res && res.data) {
+        const data = res.data;
+        const nextBalance = Number(data.senderBalanceAfter ?? (balance - numAmount));
+        setBalance(nextBalance);
+        setWalletBalance(nextBalance);
+
+        setTxnDetails({
+          id: data.transactionId || data.id,
+          date: new Date(data.date || Date.now()),
+          amount: data.amount || numAmount,
+          distName: data.distributorName || distributor.name,
+          distId: distributor.customId || distributor.id,
+          contactName: distributor.contactName || distributor.name,
+          reason: data.reason || reason,
+        });
+
+        setIsSuccess(true);
+        fetchRecentTransfers();
+        toast.success(`₹${formatAmount(numAmount)} transferred successfully to ${data.distributorName || distributor.name}!`);
+      }
+    } catch (err: unknown) {
+      const errorObj = err as { response?: { data?: { message?: string } } };
+      const msg =
+        errorObj?.response?.data?.message ||
+        "Transfer failed. Please check your MPIN and try again.";
+      setTransferError(msg);
+      toast.error(msg);
+    } finally {
       setIsProcessing(false);
-      setIsSuccess(true);
-    }, 1500);
+    }
   };
 
   const handleReset = () => {
     setAmount("");
     setMpin("");
+    setTransferError("");
     setIsSuccess(false);
     setTxnDetails(null);
+    setIsLoading(true);
+    setIsLoadingRecent(true);
+    fetchDistributorData();
+    fetchRecentTransfers();
   };
 
   return (
@@ -151,12 +302,22 @@ export default function SettlementToDistributor() {
         {/* Balance Card */}
         <div className="rounded-2xl border border-purple-100 bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] p-5 text-white shadow-md">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-purple-100">
-              Available Wallet Balance
-            </span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
-              <Wallet className="h-4 w-4 text-white" />
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm">
+                <Wallet className="h-4 w-4 text-white" />
+              </div>
+              <span className="text-xs font-medium text-purple-100">
+                Available Wallet Balance
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={fetchDistributorData}
+              title="Refresh Balance"
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20 hover:bg-white/30 backdrop-blur-sm transition"
+            >
+              <RefreshCw className={`h-4 w-4 text-white ${isLoading ? "animate-spin" : ""}`} />
+            </button>
           </div>
           <p className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight">
             ₹{formatAmount(balance)}
@@ -167,25 +328,52 @@ export default function SettlementToDistributor() {
           </div>
         </div>
 
-        {/* Assigned Distributor */}
+        {/* Assigned Distributor Card */}
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500">
               Assigned Distributor
             </span>
-            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-              Linked
-            </span>
+            {hasDistributor && distributor ? (
+              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                Linked & Active
+              </span>
+            ) : (
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
+                Not Assigned
+              </span>
+            )}
           </div>
-          <p className="mt-2 text-base font-bold text-slate-900 truncate">
-            {selectedDist.name}
-          </p>
-          <p className="text-xs font-medium text-slate-600 mt-0.5">
-            {selectedDist.contactName} • {selectedDist.id}
-          </p>
-          <p className="mt-2 text-[11px] text-slate-400">
-            {selectedDist.zone}
-          </p>
+          {isLoading ? (
+            <div className="mt-3 space-y-2 animate-pulse">
+              <div className="h-4 bg-slate-100 rounded w-3/4"></div>
+              <div className="h-3 bg-slate-100 rounded w-1/2"></div>
+            </div>
+          ) : hasDistributor && distributor ? (
+            <>
+              <p className="mt-2 text-base font-bold text-slate-900 truncate">
+                {distributor.name}
+              </p>
+              <p className="text-xs font-medium text-slate-600 mt-0.5 truncate">
+                {distributor.shopName} • {distributor.customId}
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Zone: {distributor.zone}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="mt-2 text-sm font-bold text-slate-700">
+                No Distributor Linked
+              </p>
+              <p className="text-xs text-rose-600 mt-0.5">
+                Transfer functionality is disabled
+              </p>
+              <p className="mt-2 text-[11px] text-slate-400">
+                Contact administrator to map a distributor
+              </p>
+            </>
+          )}
         </div>
 
         {/* Transfer Fee & Limit */}
@@ -203,17 +391,40 @@ export default function SettlementToDistributor() {
           </p>
           <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
             <span>Min: ₹100</span>
-            <span>Max: No Limit</span>
+            <span>Max: ₹1,00,000</span>
           </div>
         </div>
       </div>
+
+      {/* Negative Scenario Guard Banner: When Retailer Has NO Distributor */}
+      {!isLoading && !hasDistributor && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-5 shadow-sm">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-rose-900">
+                Distributor Settlement Disabled: No Distributor Assigned
+              </h3>
+              <p className="text-xs text-rose-700 leading-relaxed">
+                {noDistributorMsg ||
+                  "Your retailer account is currently not assigned to any authorized distributor in our system. Therefore, transferring settlement funds to a distributor is disabled."}
+              </p>
+              <p className="text-[11px] text-rose-600 font-medium pt-1">
+                👉 If you believe this is an error or need to be mapped to your area distributor for stock top-ups, please reach out to Happy Pay Support or your Regional Relationship Manager.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       {isSuccess && txnDetails ? (
         /* Success Receipt View */
         <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="mx-auto max-w-lg text-center">
-            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4">
+            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4 shadow-inner">
               <CheckCircle2 className="h-9 w-9" />
             </div>
             <h2 className="text-2xl font-bold text-slate-900">
@@ -287,63 +498,53 @@ export default function SettlementToDistributor() {
           {/* Transfer Form Card */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <form onSubmit={handleTransfer} className="space-y-5">
-              {/* Step 1: Select Distributor */}
+              {/* Step 1: Destination Distributor Info Card */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
-                  1. Select Destination Distributor
+                  1. Destination Distributor
                 </label>
-                <div className="space-y-2.5">
-                  {DISTRIBUTORS.map((dist) => {
-                    const isSelected = selectedDistId === dist.id;
-                    return (
-                      <button
-                        key={dist.id}
-                        type="button"
-                        onClick={() => setSelectedDistId(dist.id)}
-                        className={`w-full flex items-start justify-between p-4 rounded-xl border text-left transition ${
-                          isSelected
-                            ? "border-[#7c3aed] bg-[#f8f5ff] ring-1 ring-[#7c3aed]"
-                            : "border-slate-200 bg-slate-50 hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold text-xs ${
-                            isSelected ? "bg-[#7c3aed] text-white" : "bg-purple-100 text-purple-700"
-                          }`}>
-                            <Building className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-bold text-sm text-slate-900">
-                                {dist.name}
-                              </p>
-                              {dist.isPrimary && (
-                                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
-                                  Primary
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-slate-600 mt-1">
-                              Contact: {dist.contactName} ({dist.phone})
-                            </p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              ID: {dist.id} • {dist.zone}
-                            </p>
-                          </div>
+                {isLoading ? (
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 animate-pulse space-y-2">
+                    <div className="h-4 bg-slate-200 rounded w-2/3"></div>
+                    <div className="h-3 bg-slate-200 rounded w-1/2"></div>
+                  </div>
+                ) : hasDistributor && distributor ? (
+                  <div className="w-full flex items-start justify-between p-4 rounded-xl border border-[#7c3aed] bg-[#f8f5ff] ring-1 ring-[#7c3aed] text-left">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg font-bold text-xs bg-[#7c3aed] text-white">
+                        <Building className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-slate-900">
+                            {distributor.name}
+                          </p>
+                          <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+                            Assigned Partner
+                          </span>
                         </div>
+                        <p className="text-xs text-slate-600 mt-1">
+                          Shop: {distributor.shopName} • Contact: {distributor.phone || "N/A"}
+                        </p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          ID: {distributor.customId} • {distributor.address}
+                        </p>
+                      </div>
+                    </div>
 
-                        <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 ${
-                          isSelected ? "border-[#7c3aed] bg-[#7c3aed]" : "border-slate-300"
-                        }`}>
-                          {isSelected && <Check className="h-3 w-3 text-white stroke-[3]" />}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                    <div className="h-5 w-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 border-[#7c3aed] bg-[#7c3aed]">
+                      <Check className="h-3 w-3 text-white stroke-[3]" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="w-full p-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 text-xs flex items-center gap-2">
+                    <Lock className="h-4 w-4 text-slate-400 shrink-0" />
+                    <span>No authorized destination distributor mapped to your retailer profile.</span>
+                  </div>
+                )}
               </div>
 
-              {/* Step 2: Amount */}
+              {/* Step 2: Amount Input */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
@@ -360,11 +561,15 @@ export default function SettlementToDistributor() {
                   <input
                     type="number"
                     value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
+                    onChange={(e) => {
+                      setAmount(e.target.value);
+                      if (transferError) setTransferError("");
+                    }}
                     placeholder="Enter amount (min ₹100)"
                     min="100"
                     max={balance}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-9 pr-4 text-lg font-bold text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20"
+                    disabled={!hasDistributor || !canTransfer || isProcessing}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-9 pr-4 text-lg font-bold text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
@@ -375,23 +580,25 @@ export default function SettlementToDistributor() {
                     <button
                       key={val}
                       type="button"
+                      disabled={!hasDistributor || !canTransfer || isProcessing}
                       onClick={() => handleQuickAmount(val)}
-                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:border-slate-300"
+                      className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       +₹{val.toLocaleString("en-IN")}
                     </button>
                   ))}
                   <button
                     type="button"
+                    disabled={!hasDistributor || !canTransfer || isProcessing}
                     onClick={() => handleQuickAmount("full")}
-                    className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 transition hover:bg-purple-100"
+                    className="rounded-lg border border-purple-200 bg-purple-50 px-3 py-1.5 text-xs font-bold text-purple-700 transition hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Full Balance
                   </button>
                 </div>
               </div>
 
-              {/* Step 3: Reason */}
+              {/* Step 3: Settlement Purpose */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">
                   3. Settlement Purpose / Note
@@ -399,10 +606,11 @@ export default function SettlementToDistributor() {
                 <select
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 px-4 text-xs font-bold text-slate-800 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20"
+                  disabled={!hasDistributor || !canTransfer || isProcessing}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 px-4 text-xs font-bold text-slate-800 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                 >
                   <option value="Wallet Top-up / Stock Reorder">Wallet Top-up / Stock Reorder</option>
-                  <option value="Cash Settlement">Daily Cash Settlement</option>
+                  <option value="Daily Cash Settlement">Daily Cash Settlement</option>
                   <option value="Hardware / Micro-ATM Purchase">Hardware / Micro-ATM Purchase</option>
                   <option value="Other Service Settlement">Other Service Settlement</option>
                 </select>
@@ -422,13 +630,15 @@ export default function SettlementToDistributor() {
                     }
                     placeholder="Enter 4-digit MPIN"
                     maxLength={4}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-4 pr-11 text-base font-bold tracking-widest text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20"
+                    disabled={!hasDistributor || !canTransfer || isProcessing}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-3 pl-4 pr-11 text-base font-bold tracking-widest text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-2 focus:ring-[#7c3aed]/20 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed"
                     required
                   />
                   <button
                     type="button"
+                    disabled={!hasDistributor || !canTransfer || isProcessing}
                     onClick={() => setShowMpin(!showMpin)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 disabled:opacity-50"
                   >
                     {showMpin ? (
                       <EyeOff className="h-5 w-5" />
@@ -437,18 +647,47 @@ export default function SettlementToDistributor() {
                     )}
                   </button>
                 </div>
+                {!hasMpin && (
+                  <p className="mt-1.5 text-[11px] text-amber-600 font-medium">
+                    Transaction MPIN is not configured on your account.{" "}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/retailer/profile/security")}
+                      className="underline font-bold text-amber-700 hover:text-amber-800"
+                    >
+                      Set up MPIN now
+                    </button>
+                  </p>
+                )}
               </div>
+
+              {transferError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">
+                  {transferError}
+                </div>
+              )}
 
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isProcessing || numAmount <= 0 || mpin.length < 4}
+                disabled={
+                  !hasDistributor ||
+                  !canTransfer ||
+                  isProcessing ||
+                  numAmount < 100 ||
+                  mpin.length < 4
+                }
                 className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#7c3aed] py-3.5 text-sm font-bold text-white transition hover:bg-[#6d28d9] shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <>
                     <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     Processing Settlement...
+                  </>
+                ) : !hasDistributor || !canTransfer ? (
+                  <>
+                    <Lock className="h-4 w-4" />
+                    Transfer Disabled (No Distributor Assigned)
                   </>
                 ) : (
                   <>
@@ -472,12 +711,14 @@ export default function SettlementToDistributor() {
                 <div className="flex justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-500">Distributor</span>
                   <span className="font-semibold text-slate-800">
-                    {selectedDist.name}
+                    {distributor?.name || "None Assigned"}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-500">Distributor ID</span>
-                  <span className="font-bold text-purple-700">{selectedDist.id}</span>
+                  <span className="font-bold text-purple-700">
+                    {distributor?.customId || "N/A"}
+                  </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-slate-100">
                   <span className="text-slate-500">Settlement Amount</span>
@@ -505,24 +746,108 @@ export default function SettlementToDistributor() {
               <p className="text-xs text-slate-600 leading-relaxed">
                 Need priority stock approval or high-volume limit top-ups? Contact your assigned distributor directly:
               </p>
-              <div className="rounded-xl bg-white p-3 border border-purple-100 space-y-1.5 text-xs">
-                <div className="flex items-center gap-2 text-slate-800 font-bold">
-                  <User className="h-3.5 w-3.5 text-purple-700" />
-                  <span>{selectedDist.contactName}</span>
+              {hasDistributor && distributor ? (
+                <div className="rounded-xl bg-white p-3 border border-purple-100 space-y-1.5 text-xs">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold">
+                    <User className="h-3.5 w-3.5 text-purple-700" />
+                    <span>{distributor.contactName}</span>
+                  </div>
+                  {distributor.phone && (
+                    <div className="flex items-center gap-2 text-slate-600">
+                      <Phone className="h-3.5 w-3.5 text-purple-700" />
+                      <a
+                        href={`tel:${distributor.phone}`}
+                        className="hover:underline text-purple-700 font-medium"
+                      >
+                        {distributor.phone}
+                      </a>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-slate-500 text-[11px]">
+                    <MapPin className="h-3.5 w-3.5 text-purple-700 shrink-0" />
+                    <span className="truncate">{distributor.address}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 text-slate-600">
-                  <Phone className="h-3.5 w-3.5 text-purple-700" />
-                  <span>{selectedDist.phone}</span>
+              ) : (
+                <div className="rounded-xl bg-white p-3 border border-slate-200 text-xs text-slate-500">
+                  No distributor desk currently linked. Contact Happy Pay Support at 1800-XXX-XXXX for assistance.
                 </div>
-                <div className="flex items-center gap-2 text-slate-500 text-[11px]">
-                  <MapPin className="h-3.5 w-3.5 text-purple-700" />
-                  <span>{selectedDist.address}</span>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Recent Distributor Settlements History Section */}
+      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4 text-[#7c3aed]" />
+            <h3 className="font-bold text-slate-900 text-sm">
+              Recent Distributor Settlements
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={fetchRecentTransfers}
+            className="text-xs text-purple-700 font-bold hover:underline inline-flex items-center gap-1"
+          >
+            <RefreshCw className={`h-3 w-3 ${isLoadingRecent ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
+
+        {isLoadingRecent ? (
+          <div className="py-6 text-center text-xs text-slate-400 animate-pulse">
+            Loading recent distributor transfers...
+          </div>
+        ) : recentTransfers.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <th className="py-2.5 pr-4">Txn ID</th>
+                  <th className="py-2.5 pr-4">Distributor</th>
+                  <th className="py-2.5 pr-4">Date</th>
+                  <th className="py-2.5 pr-4">Amount</th>
+                  <th className="py-2.5 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {recentTransfers.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition">
+                    <td className="py-2.5 pr-4 font-mono font-medium text-slate-700">
+                      {item.id}
+                    </td>
+                    <td className="py-2.5 pr-4 font-semibold text-slate-900">
+                      {item.name}
+                      {item.shopName ? ` (${item.shopName})` : ""}
+                    </td>
+                    <td className="py-2.5 pr-4 text-slate-500">
+                      {new Date(item.date).toLocaleString("en-IN", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </td>
+                    <td className="py-2.5 pr-4 font-bold text-slate-900">
+                      ₹{formatAmount(item.amount)}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                        {item.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-8 text-center text-xs text-slate-400">
+            No past distributor settlements recorded yet.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -27,6 +27,7 @@ import type {
 
 const SERVICE_OPTIONS: { label: string; value: TransactionService | "ALL" }[] = [
   { label: "All Services", value: "ALL" },
+  { label: "Settlement", value: "SETTLEMENT" },
   { label: "AEPS", value: "AEPS" },
   { label: "DMT", value: "DMT" },
   { label: "UPI Cashpoint", value: "UPI" },
@@ -508,12 +509,6 @@ export default function AdminTransactions() {
                   const statusInfo = getStatusBadge(tx.status);
                   const isCredit = String(tx.type).toLowerCase() === "credit";
                   const txnId = tx.transactionId || tx._id;
-                  const payeeSummary =
-                    tx.payee?.accountHolderName ||
-                    tx.payee?.bankName ||
-                    (tx.payee?.accountNumber ? `A/C: ${tx.payee.accountNumber}` : null) ||
-                    tx.description ||
-                    "—";
 
                   return (
                     <tr
@@ -553,13 +548,35 @@ export default function AdminTransactions() {
                       </td>
 
                       {/* 3. DESCRIPTION / PAYEE */}
-                      <td className="px-5 py-3.5 max-w-xs truncate">
+                      <td className="px-5 py-3.5 max-w-xs">
                         <div>
-                          <p className="font-semibold text-slate-800 truncate" title={payeeSummary}>
-                            {payeeSummary}
-                          </p>
+                          {tx.payee?.name || tx.payee?.accountHolderName ? (
+                            <div>
+                              <p className="font-semibold text-slate-800 truncate" title={tx.payee.name || tx.payee.accountHolderName}>
+                                {tx.payee.name || tx.payee.accountHolderName}
+                              </p>
+                              {(tx.payee.mobile || tx.payee.accountNumber || tx.payee.shopName || tx.payee.bankName) && (
+                                <p className="text-[11px] font-medium text-slate-500 truncate">
+                                  {[
+                                    tx.payee.mobile,
+                                    tx.payee.accountNumber && tx.payee.accountNumber !== tx.payee.mobile ? `A/C: ${tx.payee.accountNumber}` : null,
+                                    tx.payee.shopName || (tx.payee.bankName && !tx.payee.bankName.includes("Wallet") ? tx.payee.bankName : null),
+                                  ].filter(Boolean).join(" • ")}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="font-semibold text-slate-800 truncate">
+                              {tx.service} Transaction
+                            </p>
+                          )}
+                          {tx.description && (
+                            <p className="text-[11px] text-slate-400 truncate mt-0.5" title={tx.description}>
+                              {tx.description}
+                            </p>
+                          )}
                           {tx.wallet?.user?.fullName && (
-                            <p className="text-[10px] text-slate-400">
+                            <p className="text-[10px] text-slate-400 mt-0.5">
                               By: {tx.wallet.user.fullName} {tx.wallet.user.mobile ? `(${tx.wallet.user.mobile})` : ""}
                             </p>
                           )}
@@ -761,10 +778,16 @@ export default function AdminTransactions() {
                 {selectedTxn.payee && (
                   <div className="col-span-2 rounded-xl border border-slate-100 bg-white p-3 space-y-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Payee / Beneficiary</p>
-                    {selectedTxn.payee.accountHolderName && (
+                    {(selectedTxn.payee.name || selectedTxn.payee.accountHolderName) && (
                       <p className="font-bold text-slate-800">
-                        {selectedTxn.payee.accountHolderName}
+                        {selectedTxn.payee.name || selectedTxn.payee.accountHolderName}
                       </p>
+                    )}
+                    {selectedTxn.payee.mobile && (
+                      <p className="text-slate-600">Mobile: {selectedTxn.payee.mobile}</p>
+                    )}
+                    {selectedTxn.payee.shopName && (
+                      <p className="text-slate-600">Shop: {selectedTxn.payee.shopName}</p>
                     )}
                     {selectedTxn.payee.bankName && (
                       <p className="text-slate-600">Bank: {selectedTxn.payee.bankName}</p>

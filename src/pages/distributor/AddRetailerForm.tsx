@@ -36,8 +36,8 @@ import {
   updateRetailerAadhaarDetails,
   updateRetailerBankDetails,
   validatePincodeApi,
-  getBankList,
-  type Bank,
+  getSettlementBankList,
+  type SettlementBank,
 } from "../../services/api/retailer/retailerAuthApi";
 
 import {
@@ -205,9 +205,9 @@ export default function AddRetailerForm({
   // ==========================================================
   // STEP 5 STATE: Bank Details
   // ==========================================================
-  const [bankList, setBankList] = useState<Bank[]>([]);
+  const [bankList, setBankList] = useState<SettlementBank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
-  const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
+  const [selectedBank, setSelectedBank] = useState<SettlementBank | null>(null);
   const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
   const [ifscCode, setIfscCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
@@ -233,7 +233,7 @@ export default function AddRetailerForm({
           getCategories().catch(() => [] as MasterDataItem[]),
           getPropertyTypes().catch(() => [] as MasterDataItem[]),
           getProofTypes().catch(() => [] as MasterDataItem[]),
-          getBankList(1, 100).catch(() => ({ success: false, data: [] as Bank[] })),
+          getSettlementBankList(1, 100).catch(() => ({ success: false, data: [] as SettlementBank[] })),
         ]);
         const catList = extractMasterDataList(catRes);
         const propList = extractMasterDataList(propRes);
@@ -475,6 +475,10 @@ export default function AddRetailerForm({
       setError("City is required.");
       return;
     }
+    if (!state.trim()) {
+      setError("State is required.");
+      return;
+    }
     if (!pincode || pincode.length !== 6) {
       setError("Please enter a valid 6-digit Pincode.");
       return;
@@ -498,6 +502,7 @@ export default function AddRetailerForm({
         propertyType,
         address: address.trim(),
         city: city.trim(),
+        state: state.trim(),
         pincode: pincode.trim(),
         latitude,
         longitude,
@@ -626,8 +631,8 @@ export default function AddRetailerForm({
     try {
       await updateRetailerBankDetails({
         userId,
-        bankName: selectedBank?.name || bankSearch.trim(),
-        bank_id: selectedBank?.id || undefined,
+        bankName: selectedBank?.description || bankSearch.trim(),
+        bank_code: selectedBank?.code || undefined,
         ifscCode: ifscCode.toUpperCase(),
         accountNumber: accountNumber.trim(),
         distributorId,
@@ -1731,7 +1736,7 @@ export default function AddRetailerForm({
                 <div className="flex items-center gap-2 truncate">
                   <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
                   <span className="truncate">
-                    {selectedBank ? selectedBank.name : bankSearch || "Choose a bank from list"}
+                    {selectedBank ? selectedBank.description : bankSearch || "Choose a bank from list"}
                   </span>
                 </div>
                 <Search className="h-4 w-4 text-slate-400" />
@@ -1751,19 +1756,22 @@ export default function AddRetailerForm({
                   </div>
                   <div className="divide-y divide-slate-100">
                     {bankList
-                      .filter((b) => b.name.toLowerCase().includes(bankSearch.toLowerCase()))
-                      .slice(0, 30)
+                      .filter((b) =>
+                        b.description.toLowerCase().includes(bankSearch.toLowerCase()) ||
+                        b.code.toLowerCase().includes(bankSearch.toLowerCase())
+                      )
+                      .slice(0, 50)
                       .map((b) => (
                         <div
-                          key={b.id || b.name}
+                          key={b.code || b.description}
                           onClick={() => {
                             setSelectedBank(b);
                             setIsBankDropdownOpen(false);
                           }}
                           className="flex items-center justify-between p-2.5 text-xs font-semibold text-slate-700 hover:bg-violet-50 hover:text-[#7c3aed] cursor-pointer rounded-lg transition"
                         >
-                          <span>{b.name}</span>
-                          {selectedBank?.name === b.name && <Check className="h-3.5 w-3.5 text-[#7c3aed]" />}
+                          <span>{b.description}</span>
+                          {selectedBank?.code === b.code && <Check className="h-3.5 w-3.5 text-[#7c3aed]" />}
                         </div>
                       ))}
                   </div>

@@ -25,6 +25,7 @@ import {
   Star,
   LoaderCircle,
   Trash2,
+  Settings,
 } from "lucide-react";
 
 import {
@@ -304,9 +305,11 @@ export default function Profile() {
     },
     {
       title: "Security Settings",
-      description: "Manage your password and account security",
+      description: "Manage your password, transaction MPIN and account security",
       icon: LockKeyhole,
       path: "/retailer/profile/security",
+      badge: profile?.isMpinSet ? "MPIN Protected" : "Setup MPIN",
+      badgeType: profile?.isMpinSet ? "success" : "warning",
     },
     {
       title: "Help & Support",
@@ -539,6 +542,25 @@ export default function Profile() {
                         AEPS eKYC: {profile.eKYCStatus}
                       </span>
                     )}
+
+                    {/* MPIN Status */}
+                    <button
+                      type="button"
+                      onClick={() => navigate("/retailer/profile/security")}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium backdrop-blur-sm transition ${
+                        profile.isMpinSet
+                          ? "bg-emerald-500/25 text-emerald-200 border border-emerald-400/30 hover:bg-emerald-500/35"
+                          : "bg-amber-500/30 text-amber-200 border border-amber-400/30 hover:bg-amber-500/40"
+                      }`}
+                      title={
+                        profile.isMpinSet
+                          ? "Transaction MPIN is enabled. Click to manage."
+                          : "Click to set up your Transaction MPIN."
+                      }
+                    >
+                      <LockKeyhole className="h-3 w-3" />
+                      <span>{profile.isMpinSet ? "MPIN Active" : "Set MPIN"}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -627,18 +649,14 @@ export default function Profile() {
                 )}
               </button>
 
-              {/* <button
+              <button
                 type="button"
-                onClick={() => setActiveTab("settings")}
-                className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
-                  activeTab === "settings"
-                    ? "border-[#7c3aed] text-[#7c3aed]"
-                    : "border-transparent text-slate-500 hover:text-slate-800"
-                }`}
+                onClick={() => navigate("/retailer/profile/security")}
+                className="flex items-center gap-2 border-b-2 border-transparent px-4 py-3 text-xs font-semibold text-slate-500 transition hover:text-slate-800"
               >
-                <Building2 className="h-4 w-4" />
-                <span>Quick Settings</span>
-              </button> */}
+                <Settings className="h-4 w-4" />
+                <span>Settings</span>
+              </button>
             </div>
 
             {/* TAB 1: OVERVIEW & DETAILS */}
@@ -1244,9 +1262,22 @@ export default function Profile() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-[15px] font-bold text-[#0f172a]">
-                            {option.title}
-                          </h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-[15px] font-bold text-[#0f172a]">
+                              {option.title}
+                            </h4>
+                            {option.badge && (
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                                  option.badgeType === "success"
+                                    ? "border border-emerald-200 bg-emerald-50 text-emerald-700"
+                                    : "border border-amber-200 bg-amber-50 text-amber-700"
+                                }`}
+                              >
+                                {option.badge}
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-0.5 text-xs leading-5 text-[#64748b]">
                             {option.description}
                           </p>

@@ -1,6 +1,9 @@
 import api from "../config/axiosInstance";
 
 export interface PayeeInfo {
+  name?: string;
+  mobile?: string;
+  shopName?: string;
   bankName?: string;
   aadharNumber?: string;
   accountNumber?: string;

@@ -42,6 +42,7 @@ export interface RetailerShop {
 export interface RetailerBank {
   _id?: string;
   bank_id?: string | number;
+  bank_code?: string;
   name: string;
   ifscCode: string;
   accountNumber: string;
@@ -88,6 +89,7 @@ export interface RetailerFullProfile {
   currentRegistrationStep?: string;
   status: string;
   isActive: boolean;
+  isMpinSet?: boolean;
   lastLoginAt?: string;
   createdAt?: string;
   updatedAt?: string;

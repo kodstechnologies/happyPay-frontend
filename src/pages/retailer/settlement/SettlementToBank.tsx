@@ -16,7 +16,9 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import { setWalletBalance } from "../../../utils/wallet";
+
 import {
   getSettlementBankInfoApi,
   initiateSettlementPayoutApi,
@@ -26,7 +28,6 @@ import {
   type InitiateSettlementPayload,
 } from "../../../apis/wallet.apis";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
-
 const formatAmount = (val: number) =>
   val.toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -204,15 +205,16 @@ export default function SettlementToBank() {
     setIsProcessing(true);
     try {
       const coords = await getGeolocationCoordinates();
-      const bankCode = String(selectedBank.bank_id || selectedBank.id || selectedBank._id || "").trim();
+      const bankCode = String(selectedBank.bank_code || "").trim();
       const bankName = String(selectedBank.bank_name || selectedBank.name || "").trim();
 
-      // Required fields: accountType, branchName, benMobile, bank_code, bank_name, beneficiary_name, ifsc, account_number, amount, mode, lat, long
+      // Required fields: accountType, branchName, benMobile, bank_code, bank_name, beneficiary_name, ifsc, account_number, amount, mode, lat, long, mpin
       const payload: InitiateSettlementPayload = {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
         bank_code: bankCode,
+        code: bankCode,
         bank_name: bankName,
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
@@ -221,6 +223,7 @@ export default function SettlementToBank() {
         mode: settlementMode,
         lat: coords.latitude,
         long: coords.longitude,
+        mpin,
       };
 
       const res = await initiateSettlementPayoutApi(payload);
@@ -242,6 +245,7 @@ export default function SettlementToBank() {
         });
 
         setIsSuccess(true);
+        toast.success(`₹${formatAmount(payoutData.amount || numAmount)} settlement initiated successfully!`);
       } else {
         throw new Error(res?.message || "Settlement payout failed");
       }
@@ -251,7 +255,7 @@ export default function SettlementToBank() {
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         (err instanceof Error ? err.message : "Settlement payout failed. Please try again.");
       setTransferError(msg);
-      alert(msg);
+      toast.error(msg);
     } finally {
       setIsProcessing(false);
     }
@@ -552,11 +556,10 @@ export default function SettlementToBank() {
                               key={bankKey}
                               type="button"
                               onClick={() => setSelectedBankId(bankKey)}
-                              className={`flex flex-col text-left p-3.5 rounded-xl border transition ${
-                                isSelected
+                              className={`flex flex-col text-left p-3.5 rounded-xl border transition ${isSelected
                                   ? "border-[#7c3aed] bg-[#f8f5ff] ring-1 ring-[#7c3aed]"
                                   : "border-slate-200 bg-slate-50 hover:bg-white"
-                              }`}
+                                }`}
                             >
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-sm text-slate-900 truncate">

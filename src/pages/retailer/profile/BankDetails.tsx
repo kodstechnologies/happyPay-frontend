@@ -21,7 +21,7 @@ import {
   getRetailerProfile,
   updateRetailerProfile,
 } from "../../../services/api/retailer/retailerProfileApi";
-import { getBankList, type Bank } from "../../../services/api/retailer/retailerAuthApi";
+import { getSettlementBankList, type SettlementBank } from "../../../services/api/retailer/retailerAuthApi";
 import type { RetailerFullProfile, RetailerBank } from "../../../types/retailer/profile";
 
 const ACCOUNT_TYPES = [
@@ -44,7 +44,7 @@ export default function BankDetails() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Bank list options & pagination
-  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+  const [availableBanks, setAvailableBanks] = useState<SettlementBank[]>([]);
   const [bankSearch, setBankSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -68,7 +68,7 @@ export default function BankDetails() {
   useEffect(() => {
     let ignore = false;
 
-    Promise.allSettled([getRetailerProfile(), getBankList(1, BANKS_PER_PAGE)])
+    Promise.allSettled([getRetailerProfile(), getSettlementBankList(1, BANKS_PER_PAGE)])
       .then(([profileRes, bankListRes]) => {
         if (ignore) return;
 
@@ -81,7 +81,7 @@ export default function BankDetails() {
 
           if (primaryBank) {
             setBankName(primaryBank.name || "");
-            setBankId(primaryBank.bank_id);
+            setBankId(primaryBank.bank_code || primaryBank.bank_id);
             setIfsc(primaryBank.ifscCode || "");
             setAccountNumber(primaryBank.accountNumber || "");
             setConfirmAccountNumber(primaryBank.accountNumber || "");
@@ -125,11 +125,11 @@ export default function BankDetails() {
     setLoadingMoreBanks(true);
     try {
       const nextPage = currentPage + 1;
-      const res = await getBankList(nextPage, BANKS_PER_PAGE);
+      const res = await getSettlementBankList(nextPage, BANKS_PER_PAGE);
       if (res && res.data) {
         setAvailableBanks((prev) => {
-          const existingIds = new Set(prev.map((b) => b.id || b.bank_id || b.name));
-          const newItems = res.data.filter((b) => !existingIds.has(b.id || b.bank_id || b.name));
+          const existingIds = new Set(prev.map((b) => b.code));
+          const newItems = res.data.filter((b) => !existingIds.has(b.code));
           return [...prev, ...newItems];
         });
         setCurrentPage(nextPage);
@@ -158,13 +158,14 @@ export default function BankDetails() {
 
   // Filtered banks for search
   const filteredBanks = availableBanks.filter((b) =>
-    b.name.toLowerCase().includes(bankSearch.toLowerCase())
+    b.description.toLowerCase().includes(bankSearch.toLowerCase()) ||
+    b.code.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
   // Form handlers
-  const handleBankSelect = (bank: Bank) => {
-    setBankName(bank.name);
-    setBankId(bank.bank_id);
+  const handleBankSelect = (bank: SettlementBank) => {
+    setBankName(bank.description);
+    setBankId(bank.code);
     setOpenDropdown(null);
     setBankSearch("");
     setError(null);
@@ -252,16 +253,16 @@ export default function BankDetails() {
 
       let payload: FormData | Record<string, unknown>;
 
-      const effectiveBankId =
+      const effectiveBankCode =
         bank_id !== undefined && bank_id !== null && bank_id !== ""
           ? String(bank_id)
-          : availableBanks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+          : availableBanks.find((b) => b.description.toLowerCase() === bankName.trim().toLowerCase())?.code;
 
       if (proofFile) {
         const formData = new FormData();
         formData.append("bankName", bankName.trim());
-        if (effectiveBankId) {
-          formData.append("bank_id", String(effectiveBankId));
+        if (effectiveBankCode) {
+          formData.append("bank_code", String(effectiveBankCode));
         }
         formData.append("accountNumber", accountNumber.trim());
         formData.append("ifscCode", ifsc.trim().toUpperCase());
@@ -271,7 +272,7 @@ export default function BankDetails() {
       } else {
         payload = {
           bankName: bankName.trim(),
-          bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
+          bank_code: effectiveBankCode ? String(effectiveBankCode) : undefined,
           accountNumber: accountNumber.trim(),
           ifscCode: ifsc.trim().toUpperCase(),
           branchName: branchName.trim(),
@@ -523,17 +524,17 @@ export default function BankDetails() {
                       <div className="max-h-[220px] overflow-y-auto">
                         {filteredBanks.map((bank) => (
                           <button
-                            key={bank.id || bank.bank_id || bank.name}
+                            key={bank.code || bank.description}
                             type="button"
                             onClick={() => handleBankSelect(bank)}
                             className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-medium transition ${
-                              bankName === bank.name
+                              bankName === bank.description
                                 ? "bg-purple-50 text-[#7c3aed] font-bold"
                                 : "text-slate-700 hover:bg-slate-50"
                             }`}
                           >
-                            <span>{bank.name}</span>
-                            {bankName === bank.name && <Check size={16} className="text-[#7c3aed]" />}
+                            <span>{bank.description}</span>
+                            {bankName === bank.description && <Check size={16} className="text-[#7c3aed]" />}
                           </button>
                         ))}
 

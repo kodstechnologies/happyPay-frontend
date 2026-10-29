@@ -421,3 +421,42 @@ export function cashDeposit(payload: CashDepositPayload) {
 export function sendAepsOtp(payload: SendAepsOtpPayload) {
   return api.post<Envelope<Record<string, unknown>>>("/api/v1/aeps/send-otp", payload).then(unwrap);
 }
+
+export interface Bank {
+  id?: number | string;
+  bank_id?: number | string;
+  name: string;
+  iin: string;
+  aeps_enabled?: number;
+  aadhaarpay_enabled?: number;
+  aeps_failure_rate?: string;
+  aadhaarpay_failure_rate?: string;
+  activeFlag?: number | string | boolean;
+  created_at?: string;
+  updated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface BankListMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export function getBankList(page?: number, limit?: number, search?: string) {
+  const params: { page?: number; limit?: number; search?: string } = {};
+  if (page) params.page = page;
+  if (limit) params.limit = limit;
+  if (search) params.search = search;
+
+  // Primary: Dedicated AEPS bank list API; Fallback: auth banks
+  return api
+    .get<Envelope<Bank[]>>("/api/v1/aeps/banks", { params })
+    .then(unwrap)
+    .catch(() => {
+      return api.get<Envelope<Bank[]>>("/api/v1/auth/banks", { params }).then(unwrap);
+    });
+}
+
+export const getAepsBankList = getBankList;

@@ -51,8 +51,9 @@ import {
   type CashWithdrawalPayload,
   type CashDepositPayload,
   type AepsServicePayload,
+  getBankList,
 } from "../../../services/api/retailer/aepsApi";
-import { getRetailerAadhaarAndMobile, getBankList } from "../../../services/api/retailer/retailerAuthApi";
+import { getRetailerAadhaarAndMobile } from "../../../services/api/retailer/retailerAuthApi";
 import {
   ensureConfirmedLocation,
   initAepsLocation,

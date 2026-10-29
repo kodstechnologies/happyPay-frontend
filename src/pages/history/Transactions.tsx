@@ -30,6 +30,7 @@ import {
 // Retailer-visible service options (Excludes: PAYOUT, MANUAL, COMMISSION)
 const SERVICE_OPTIONS = [
   { label: "All Services", value: "ALL" },
+  { label: "Settlement", value: "SETTLEMENT" },
   { label: "AEPS", value: "AEPS" },
   { label: "DMT", value: "DMT" },
   { label: "BBPS", value: "BBPS" },
@@ -554,14 +555,28 @@ export default function Transactions() {
 
                       {/* Description & Payee details */}
                       <td className="px-5 py-4 max-w-xs">
-                        <ExpandableDescription
-                          text={tx.description || `${tx.service} Transaction`}
-                          maxLength={40}
-                        />
-                        {tx.payee?.accountHolderName && (
-                          <p className="text-[11px] text-slate-400 mt-0.5 break-words">
-                            {tx.payee.accountHolderName} • {tx.payee.bankName || tx.payee.accountNumber}
-                          </p>
+                        {tx.payee?.name || tx.payee?.accountHolderName ? (
+                          <div>
+                            <span className="font-semibold text-slate-900 block leading-tight">
+                              {tx.payee.name || tx.payee.accountHolderName}
+                            </span>
+                            {(tx.payee.mobile || tx.payee.accountNumber || tx.payee.shopName || tx.payee.bankName) && (
+                              <p className="text-[12px] font-medium text-slate-500 mt-0.5 break-words">
+                                {[
+                                  tx.payee.mobile,
+                                  tx.payee.accountNumber && tx.payee.accountNumber !== tx.payee.mobile ? `A/C: ${tx.payee.accountNumber}` : null,
+                                  tx.payee.shopName || (tx.payee.bankName && !tx.payee.bankName.includes("Wallet") ? tx.payee.bankName : null),
+                                ].filter(Boolean).join(" • ")}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="font-semibold text-slate-800 block">
+                            {tx.service} Transaction
+                          </span>
+                        )}
+                        {tx.description && (
+                          <ExpandableDescription text={tx.description} maxLength={45} />
                         )}
                       </td>
 
@@ -749,8 +764,13 @@ export default function Transactions() {
                 )}
               </div>
               <h2 className="text-xl font-bold text-slate-900 break-words px-2 leading-snug">
-                {selectedTxn.description || `${selectedTxn.service} Transaction`}
+                {selectedTxn.payee?.name || selectedTxn.payee?.accountHolderName || `${selectedTxn.service} Transaction`}
               </h2>
+              {selectedTxn.description && (
+                <p className="text-xs text-slate-500 mt-1 italic px-2">
+                  {selectedTxn.description}
+                </p>
+              )}
               <p className="mt-1 text-xs font-semibold text-slate-500">
                 {formatDate(selectedTxn.createdAt).date} at{" "}
                 {formatDate(selectedTxn.createdAt).time}
@@ -876,14 +896,14 @@ export default function Transactions() {
                 </div>
               ) : null}
 
-              {selectedTxn.payee?.accountHolderName && (
+              {(selectedTxn.payee?.name || selectedTxn.payee?.accountHolderName) && (
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Beneficiary / Payee</span>
                   <span className="font-semibold text-slate-800 text-right">
-                    {selectedTxn.payee.accountHolderName}
-                    {selectedTxn.payee.accountNumber && (
+                    {selectedTxn.payee.name || selectedTxn.payee.accountHolderName}
+                    {(selectedTxn.payee.mobile || selectedTxn.payee.accountNumber) && (
                       <span className="block text-slate-400 font-mono">
-                        A/C: {selectedTxn.payee.accountNumber}
+                        {selectedTxn.payee.mobile ? `Mobile: ${selectedTxn.payee.mobile}` : `A/C: ${selectedTxn.payee.accountNumber}`}
                       </span>
                     )}
                   </span>

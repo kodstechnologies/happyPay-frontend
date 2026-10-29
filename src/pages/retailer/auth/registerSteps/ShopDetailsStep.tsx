@@ -389,6 +389,7 @@ const ShopDetailsStep = ({
         propertyType, // This is now an ID from the API
         address,
         city,
+        state: pincodeInfo?.state || (initialData?.filledData?.shop?.address?.state ?? ""),
         pincode,
         latitude,
         longitude,

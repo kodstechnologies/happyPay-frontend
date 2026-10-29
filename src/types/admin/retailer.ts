@@ -90,7 +90,8 @@ export type TransactionService =
   | "BBPS"
   | "RAZORPAY"
   | "MANUAL"
-  | "COMMISSION";
+  | "COMMISSION"
+  | "SETTLEMENT";
 
 export interface AdminTransaction {
   _id: string;
@@ -104,6 +105,9 @@ export interface AdminTransaction {
   balanceBefore?: number;
   balanceAfter?: number;
   payee?: {
+    name?: string;
+    mobile?: string;
+    shopName?: string;
     bankName?: string;
     aadharNumber?: string;
     accountNumber?: string;

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
-import { getBankList, type Bank } from "../../../../services/api/retailer/retailerAuthApi";
+import { getSettlementBankList, type SettlementBank } from "../../../../services/api/retailer/retailerAuthApi";
 import type {
   RetailerBank,
   RetailerFullProfile,
@@ -44,7 +44,9 @@ export default function BankModal({
   const isEdit = Boolean(bankToEdit);
 
   const [bankName, setBankName] = useState(bankToEdit?.name || "");
-  const [bank_id, setBankId] = useState<string | number | undefined>(bankToEdit?.bank_id);
+  const [bank_id, setBankId] = useState<string | number | undefined>(
+    bankToEdit?.bank_code || bankToEdit?.bank_id
+  );
   const [accountNumber, setAccountNumber] = useState(bankToEdit?.accountNumber || "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState(
     bankToEdit?.accountNumber || ""
@@ -55,7 +57,7 @@ export default function BankModal({
     Boolean(bankToEdit?.isPrimary) || isOnlyBank
   );
 
-  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+  const [availableBanks, setAvailableBanks] = useState<SettlementBank[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -71,7 +73,7 @@ export default function BankModal({
     if (!open) return;
 
     let ignore = false;
-    getBankList(1, BANKS_PER_PAGE)
+    getSettlementBankList(1, BANKS_PER_PAGE)
       .then((res) => {
         if (ignore) return;
         if (res?.success && res.data) {
@@ -114,11 +116,11 @@ export default function BankModal({
       setCurrentPage(nextPage);
       setLoadingMore(true);
       try {
-        const res = await getBankList(nextPage, BANKS_PER_PAGE);
+        const res = await getSettlementBankList(nextPage, BANKS_PER_PAGE);
         if (res?.success && res.data) {
           setAvailableBanks((prev) => {
-            const existing = new Set(prev.map((b) => b.id || b.name));
-            const next = res.data.filter((b) => !existing.has(b.id || b.name));
+            const existing = new Set(prev.map((b) => b.code));
+            const next = res.data.filter((b) => !existing.has(b.code));
             return [...prev, ...next];
           });
           const meta = res.meta as unknown as { totalPages?: number } | undefined;
@@ -134,16 +136,17 @@ export default function BankModal({
     }
   };
 
-  const handleBankSelect = (bank: Bank) => {
-    setBankName(bank.name);
-    setBankId(bank.bank_id);
+  const handleBankSelect = (bank: SettlementBank) => {
+    setBankName(bank.description);
+    setBankId(bank.code);
     setIsDropdownOpen(false);
     setBankSearch("");
     setError(null);
   };
 
   const filteredBanks = availableBanks.filter((b) =>
-    b.name.toLowerCase().includes(bankSearch.toLowerCase())
+    b.description.toLowerCase().includes(bankSearch.toLowerCase()) ||
+    b.code.toLowerCase().includes(bankSearch.toLowerCase())
   );
 
   if (!open) return null;
@@ -179,16 +182,18 @@ export default function BankModal({
     try {
       setIsSubmitting(true);
 
-      const effectiveBankId =
+      const effectiveBankCode =
         bank_id !== undefined && bank_id !== null && bank_id !== ""
           ? String(bank_id)
-          : availableBanks.find((b) => b.name.toLowerCase() === bankName.trim().toLowerCase())?.bank_id;
+          : availableBanks.find(
+              (b) => b.description.toLowerCase() === bankName.trim().toLowerCase()
+            )?.code;
 
       const payload: Record<string, unknown> = {
         action: isEdit ? "EDIT_BANK" : "ADD_BANK",
         bankId: bankToEdit?._id,
         bankName: bankName.trim(),
-        bank_id: effectiveBankId ? String(effectiveBankId) : undefined,
+        bank_code: effectiveBankCode ? String(effectiveBankCode) : undefined,
         accountNumber: accountNumber.trim(),
         confirmAccountNumber: confirmAccountNumber.trim(),
         ifscCode: ifscCode.trim().toUpperCase(),
@@ -326,20 +331,20 @@ export default function BankModal({
                   <div className="max-h-52 overflow-y-auto">
                     {filteredBanks.map((bank) => (
                       <button
-                        key={bank.id || bank.bank_id || bank.name}
+                        key={bank.code || bank.description}
                         type="button"
                         onClick={() => handleBankSelect(bank)}
                         className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-xs font-medium transition ${
-                          bankName === bank.name
+                          bankName === bank.description
                             ? "bg-purple-50 text-[#7c3aed] font-bold"
                             : "text-slate-700 hover:bg-slate-50"
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
                           <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{bank.name}</span>
+                          <span className="truncate">{bank.description}</span>
                         </div>
-                        {bankName === bank.name && (
+                        {bankName === bank.description && (
                           <Check className="h-3.5 w-3.5 text-[#7c3aed] shrink-0" strokeWidth={2.5} />
                         )}
                       </button>
