@@ -1,5 +1,5 @@
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardList,
   Headphones,
+  Loader2,
   Mail,
   MessageCircle,
   Paperclip,
@@ -15,21 +16,30 @@ import {
   Send,
   X,
 } from "lucide-react";
+import {
+  createSupportTicket,
+  getRetailerSupportTickets,
+  type SupportTicket,
+} from "../../../services/api/retailer/supportApi";
 
 /* ============================================================
    TYPES
 ============================================================ */
 
-type TicketStatus = "Resolved" | "In Progress";
+type TicketStatus = "Resolved" | "In Progress" | "Open" | "Pending";
 
 type Ticket = {
   id: string;
+  ticketNumber: string;
   status: TicketStatus;
   title: string;
   category: string;
+  otherCategory?: string;
   preview: string;
   issue: string;
-  response: string;
+  response?: string;
+  priority: string;
+  createdAt: string;
 };
 
 type FaqCategory =
@@ -38,6 +48,21 @@ type FaqCategory =
   | "DMT Transfer"
   | "CMS Flow";
 
+/* ============================================================
+   MAP API STATUS TO UI STATUS
+============================================================ */
+
+const mapApiStatusToUiStatus = (apiStatus: string): TicketStatus => {
+  const statusMap: Record<string, TicketStatus> = {
+    resolved: "Resolved",
+    in_progress: "In Progress",
+    open: "Open",
+    pending: "Pending",
+  };
+
+  return statusMap[apiStatus.toLowerCase()] || "Open";
+};
+
 type FaqItem = {
   id: number;
   category: Exclude<FaqCategory, "All">;
@@ -45,36 +70,7 @@ type FaqItem = {
   answer: string;
 };
 
-/* ============================================================
-   SAMPLE TICKETS
-============================================================ */
 
-const tickets: Ticket[] = [
-  {
-    id: "HP-TIC-49210",
-    status: "Resolved",
-    title: "Cholamandalam Finance deposit acknowledgment",
-    category: "CMS Cash Drop",
-    preview:
-      "Deposited ₹49,813 for vehicle finance. Receipt generated successfully.",
-    issue:
-      "Deposited ₹49,813 for vehicle finance. Receipt generated successfully.",
-    response:
-      "Transaction confirmed with Cholamandalam Finance pool ledger. Commission credited to wallet.",
-  },
-  {
-    id: "HP-TIC-51829",
-    status: "In Progress",
-    title: "Withdrawal timeout - SBI customer account debited",
-    category: "AEPS / Aadhaar ATM",
-    preview:
-      "Customer withdrawal of ₹2,500 timed out due to NPCI switch delay.",
-    issue:
-      "Customer withdrawal of ₹2,500 timed out due to NPCI switch delay.",
-    response:
-      "NPCI reconciliation switch is processing auto-reversal. Expected credit back to customer within 24-48 hours.",
-  },
-];
 
 /* ============================================================
    FAQ DATA
@@ -221,9 +217,25 @@ const StatusBadge = ({
     );
   }
 
+  if (status === "In Progress") {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-lg bg-[#fff0d9] px-3 py-1.5 text-xs font-bold text-[#e59a20]">
+        In Progress
+      </span>
+    );
+  }
+
+  if (status === "Open") {
+    return (
+      <span className="inline-flex shrink-0 items-center rounded-lg bg-[#e4ebfc] px-3 py-1.5 text-xs font-bold text-[#7c3aed]">
+        Open
+      </span>
+    );
+  }
+
   return (
-    <span className="inline-flex shrink-0 items-center rounded-lg bg-[#fff0d9] px-3 py-1.5 text-xs font-bold text-[#e59a20]">
-      In Progress
+    <span className="inline-flex shrink-0 items-center rounded-lg bg-[#f3f4f6] px-3 py-1.5 text-xs font-bold text-[#6b7280]">
+      Pending
     </span>
   );
 };
@@ -260,7 +272,7 @@ const TicketCard = ({
           </h3>
 
           <p className="mt-1.5 line-clamp-1 text-sm leading-5 text-[#5d626d]">
-            {ticket.category} • {ticket.preview}
+            {ticket.otherCategory ? ticket.otherCategory : ticket.category} • {ticket.preview}
           </p>
         </div>
 
@@ -312,6 +324,14 @@ const HelpSupport = () => {
   const navigate = useNavigate();
 
   /* ==========================================================
+     TICKETS STATE
+  ========================================================== */
+
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(true);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+
+  /* ==========================================================
      TICKET DETAIL MODAL
   ========================================================== */
 
@@ -339,6 +359,12 @@ const HelpSupport = () => {
 
   const [ticketFile, setTicketFile] =
     useState<File | null>(null);
+
+  const [submittingTicket, setSubmittingTicket] =
+    useState(false);
+
+  const [submitError, setSubmitError] =
+    useState<string | null>(null);
 
   /* ==========================================================
      FAQ
@@ -376,6 +402,46 @@ const HelpSupport = () => {
   }, [searchQuery, selectedCategory]);
 
   /* ==========================================================
+     FETCH TICKETS
+  ========================================================== */
+
+  useEffect(() => {
+    const fetchTickets = async () => {
+      try {
+        setTicketsLoading(true);
+        setTicketsError(null);
+
+        const response = await getRetailerSupportTickets();
+
+        const transformedTickets: Ticket[] = response.data.map(
+          (ticket: SupportTicket) => ({
+            id: ticket.ticketNumber,
+            ticketNumber: ticket.ticketNumber,
+            status: mapApiStatusToUiStatus(ticket.status),
+            title: ticket.subject,
+            category: ticket.category,
+            otherCategory: ticket.otherCategory,
+            preview: ticket.description.substring(0, 100),
+            issue: ticket.description,
+            response: undefined,
+            priority: ticket.priority,
+            createdAt: ticket.createdAt,
+          })
+        );
+
+        setTickets(transformedTickets);
+      } catch (error) {
+        console.error("Failed to fetch tickets:", error);
+        setTicketsError("Failed to load tickets. Please try again.");
+      } finally {
+        setTicketsLoading(false);
+      }
+    };
+
+    fetchTickets();
+  }, []);
+
+  /* ==========================================================
      CLOSE TICKET DETAIL
   ========================================================== */
 
@@ -395,19 +461,77 @@ const HelpSupport = () => {
      SUBMIT SUPPORT TICKET
   ========================================================== */
 
-  const handleSubmitTicket = () => {
-    /*
-     * UI only for now.
-     * Backend/API integration can be added later.
-     */
+  const handleSubmitTicket = async () => {
+    if (!ticketSubject.trim() || !ticketDescription.trim()) {
+      setSubmitError("Subject and description are required");
+      return;
+    }
 
-    setShowRaiseTicketModal(false);
+    try {
+      setSubmittingTicket(true);
+      setSubmitError(null);
 
-    setIssueCategory("AEPS / Aadhaar ATM");
-    setTransactionReference("");
-    setTicketSubject("");
-    setTicketDescription("");
-    setTicketFile(null);
+      const formData = new FormData();
+
+      formData.append("subject", ticketSubject.trim());
+      formData.append("category", mapUiCategoryToApiCategory(issueCategory));
+      formData.append("description", ticketDescription.trim());
+
+      if (transactionReference.trim()) {
+        formData.append("relatedTransactionId", transactionReference.trim());
+      }
+
+      if (ticketFile) {
+        formData.append("attachments", ticketFile);
+      }
+
+      const response = await createSupportTicket(formData);
+
+      const newTicket: Ticket = {
+        id: response.data.ticketNumber,
+        ticketNumber: response.data.ticketNumber,
+        status: mapApiStatusToUiStatus(response.data.status),
+        title: response.data.subject,
+        category: response.data.category,
+        otherCategory: response.data.otherCategory,
+        preview: response.data.description.substring(0, 100),
+        issue: response.data.description,
+        response: undefined,
+        priority: response.data.priority,
+        createdAt: response.data.createdAt,
+      };
+
+      setTickets((prev) => [newTicket, ...prev]);
+
+      setShowRaiseTicketModal(false);
+
+      setIssueCategory("AEPS / Aadhaar ATM");
+      setTransactionReference("");
+      setTicketSubject("");
+      setTicketDescription("");
+      setTicketFile(null);
+    } catch (error) {
+      console.error("Failed to submit ticket:", error);
+      setSubmitError("Failed to submit ticket. Please try again.");
+    } finally {
+      setSubmittingTicket(false);
+    }
+  };
+
+  /* ==========================================================
+     MAP UI CATEGORY TO API CATEGORY
+  ========================================================== */
+
+  const mapUiCategoryToApiCategory = (uiCategory: string): string => {
+    const categoryMap: Record<string, string> = {
+      "AEPS / Aadhaar ATM": "AEPS",
+      "DMT Transfer": "DMT",
+      "CMS Flow": "CMS",
+      "Wallet / Settlement": "WALLET",
+      "Other": "OTHER",
+    };
+
+    return categoryMap[uiCategory] || "OTHER";
   };
 
   return (
@@ -551,15 +675,35 @@ const HelpSupport = () => {
 
             <div className="mt-5 space-y-4">
 
-              {tickets.map((ticket) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  onClick={() =>
-                    setSelectedTicket(ticket)
-                  }
-                />
-              ))}
+              {ticketsLoading ? (
+                <div className="flex items-center justify-center rounded-2xl border border-[#d1d3d8] bg-white px-5 py-10">
+                  <Loader2 className="h-6 w-6 animate-spin text-[#7c3aed]" />
+                </div>
+              ) : ticketsError ? (
+                <div className="rounded-2xl border border-[#d1d3d8] bg-white px-5 py-10 text-center">
+                  <p className="text-sm text-[#687286]">{ticketsError}</p>
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="rounded-2xl border border-[#d1d3d8] bg-white px-5 py-10 text-center">
+                  <ClipboardList className="mx-auto h-8 w-8 text-[#98a1b1]" />
+                  <p className="mt-3 text-base font-semibold text-[#172033]">
+                    No tickets found
+                  </p>
+                  <p className="mt-1 text-sm text-[#687286]">
+                    Create your first support ticket to get started.
+                  </p>
+                </div>
+              ) : (
+                tickets.map((ticket) => (
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    onClick={() =>
+                      setSelectedTicket(ticket)
+                    }
+                  />
+                ))
+              )}
 
             </div>
           </section>
@@ -772,6 +916,12 @@ const HelpSupport = () => {
                 2 working hours.
               </p>
 
+              {submitError && (
+                <div className="mt-4 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-3">
+                  <p className="text-sm text-[#dc2626]">{submitError}</p>
+                </div>
+              )}
+
               {/* ==================================================
                   ISSUE CATEGORY
               ================================================== */}
@@ -797,23 +947,23 @@ const HelpSupport = () => {
                     }
                     className="h-[104px] w-full appearance-none rounded-2xl border border-[#d6d9df] bg-[#f8f9fb] px-16 pr-14 text-base font-bold text-[#172033] outline-none focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/10 sm:text-lg"
                   >
-                    <option>
+                    <option value="AEPS / Aadhaar ATM">
                       AEPS / Aadhaar ATM
                     </option>
 
-                    <option>
+                    <option value="DMT Transfer">
                       DMT Transfer
                     </option>
 
-                    <option>
+                    <option value="CMS Flow">
                       CMS Flow
                     </option>
 
-                    <option>
+                    <option value="Wallet / Settlement">
                       Wallet / Settlement
                     </option>
 
-                    <option>
+                    <option value="Other">
                       Other
                     </option>
                   </select>
@@ -941,11 +1091,16 @@ const HelpSupport = () => {
               <button
                 type="button"
                 onClick={handleSubmitTicket}
-                className="mt-7 flex h-[80px] w-full items-center justify-center gap-4 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-[0_5px_12px_rgba(49,91,209,0.25)] transition hover:bg-[#6d28d9] sm:h-[88px] sm:text-xl"
+                disabled={submittingTicket}
+                className="mt-7 flex h-[80px] w-full items-center justify-center gap-4 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-[0_5px_12px_rgba(49,91,209,0.25)] transition hover:bg-[#6d28d9] disabled:cursor-not-allowed disabled:opacity-50 sm:h-[88px] sm:text-xl"
               >
-                <Send className="h-7 w-7 fill-current" />
+                {submittingTicket ? (
+                  <Loader2 className="h-7 w-7 animate-spin" />
+                ) : (
+                  <Send className="h-7 w-7 fill-current" />
+                )}
 
-                Submit Ticket
+                {submittingTicket ? "Submitting..." : "Submit Ticket"}
               </button>
 
             </div>
@@ -1008,7 +1163,7 @@ const HelpSupport = () => {
               ================================================== */}
 
               <p className="mt-2 text-sm text-[#667185] sm:text-base">
-                Category: {selectedTicket.category}
+                Category: {selectedTicket.otherCategory ? selectedTicket.otherCategory : selectedTicket.category}
               </p>
 
               {/* ==================================================
@@ -1037,17 +1192,35 @@ const HelpSupport = () => {
                   SUPPORT RESPONSE
               ================================================== */}
 
-              <h4 className="mt-6 text-lg font-bold text-[#20a873]">
-                Support Team Response
-              </h4>
+              {selectedTicket.response ? (
+                <>
+                  <h4 className="mt-6 text-lg font-bold text-[#20a873]">
+                    Support Team Response
+                  </h4>
 
-              <div className="mt-5 rounded-[20px] border border-[#b9e8d4] bg-[#eefbf5] px-6 py-6 sm:px-7 sm:py-7">
+                  <div className="mt-5 rounded-[20px] border border-[#b9e8d4] bg-[#eefbf5] px-6 py-6 sm:px-7 sm:py-7">
 
-                <p className="text-sm leading-6 text-[#172033] sm:text-base">
-                  {selectedTicket.response}
-                </p>
+                    <p className="text-sm leading-6 text-[#172033] sm:text-base">
+                      {selectedTicket.response}
+                    </p>
 
-              </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h4 className="mt-6 text-lg font-bold text-[#687286]">
+                    Support Team Response
+                  </h4>
+
+                  <div className="mt-5 rounded-[20px] border border-[#e4e6eb] bg-[#f8f9fb] px-6 py-6 sm:px-7 sm:py-7">
+
+                    <p className="text-sm leading-6 text-[#687286] sm:text-base">
+                      No response yet. Our team is working on your ticket.
+                    </p>
+
+                  </div>
+                </>
+              )}
 
               {/* ==================================================
                   CLOSE

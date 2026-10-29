@@ -236,6 +236,7 @@ export interface UpdateShopDetailsResult {
   latitude: number;
   longitude: number;
   city: string;
+  state: string;
   pincode: string;
   shopInsidePhoto: string;
   shopOutsidePhoto: string;
@@ -254,6 +255,7 @@ export interface UpdateShopDetailsPayload {
   propertyType: string;
   address: string;
   city: string;
+  state: string;
   pincode: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -275,6 +277,7 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   fd.append("propertyType", payload.propertyType);
   fd.append("address", payload.address);
   fd.append("city", payload.city);
+  fd.append("state", payload.state);
   fd.append("pincode", payload.pincode);
   if (payload.latitude != null) fd.append("latitude", String(payload.latitude));
   if (payload.longitude != null)
@@ -292,6 +295,12 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
     fd.append("businessProofDocument", payload.businessProofDocument);
   if (payload.panDocument)
     fd.append("panDocument", payload.panDocument);
+
+  // Debug: Log FormData contents
+  console.log("FormData being sent:");
+  for (const [key, value] of fd.entries()) {
+    console.log(`${key}:`, value instanceof File ? `File: ${value.name} (${value.size} bytes)` : value);
+  }
 
   return api.patch<ApiEnvelope<UpdateShopDetailsResult>>("/api/v1/auth/registration/shop-details", fd).then(unwrap);
 }

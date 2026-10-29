@@ -323,7 +323,7 @@ const RetailerRegister = ({
                       Secure
                     </span>
                   </div>
-                
+
                 </div>
 
               </div>

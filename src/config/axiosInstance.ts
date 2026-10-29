@@ -31,13 +31,10 @@ api.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+        // Remove Content-Type header if FormData is being sent
+        // This allows axios to automatically set the correct multipart/form-data boundary
         if (config.data instanceof FormData) {
-            delete config.headers["Content-Type"];
-            delete config.headers["content-type"];
-            if (typeof config.headers.delete === "function") {
-                config.headers.delete("Content-Type");
-                config.headers.delete("content-type");
-            }
+            delete config.headers['Content-Type'];
         }
         return config;
     },
