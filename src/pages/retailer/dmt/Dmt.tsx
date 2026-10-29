@@ -227,14 +227,14 @@ const Dmt = () => {
         const list = Array.isArray(rawData?.beneficiary)
           ? rawData.beneficiary
           : Array.isArray(rawData?.beneficiaries)
-          ? rawData.beneficiaries
-          : Array.isArray(rawData)
-          ? rawData
-          : Array.isArray(res.data?.beneficiary)
-          ? res.data.beneficiary
-          : Array.isArray(res.data?.beneficiaries)
-          ? res.data.beneficiaries
-          : [];
+            ? rawData.beneficiaries
+            : Array.isArray(rawData)
+              ? rawData
+              : Array.isArray(res.data?.beneficiary)
+                ? res.data.beneficiary
+                : Array.isArray(res.data?.beneficiaries)
+                  ? res.data.beneficiaries
+                  : [];
 
         // Map to Beneficiary type
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -421,7 +421,7 @@ const Dmt = () => {
 
   const [availableBalance, setAvailableBalance] = useState<number>(0);
   const [customerName, setCustomerName] = useState("VERIFIED SENDER");
-  
+
   const fetchWallet = useCallback(async () => {
     try {
       const res = await getWalletBalanceApi();
@@ -442,8 +442,8 @@ const Dmt = () => {
       const rawList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.data)
-        ? res.data.data
-        : [];
+          ? res.data.data
+          : [];
 
       if (rawList.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -479,8 +479,8 @@ const Dmt = () => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWallet();
     fetchAllBanks();
-    
-  }, [fetchWallet,fetchAllBanks]);
+
+  }, [fetchWallet, fetchAllBanks]);
 
   /* =========================
      HELPERS
@@ -1378,14 +1378,14 @@ const Dmt = () => {
       };
 
       const res = await executeTransactionApi(payload);
-      
+
       const isSuccess = res?.success !== false && res?.status !== false && res?.status !== "FAILED";
-      
+
       if (!isSuccess) {
-         toast.error(res?.message || res?.msg || "Transfer failed");
-         return;
+        toast.error(res?.message || res?.msg || "Transfer failed");
+        return;
       }
-      
+
       const txnId = res?.data?.txnid || res?.data?.reference_id || clientTxnId;
       setTransactionId(txnId);
       setShowTxnOtpModal(false);
@@ -1823,8 +1823,8 @@ const Dmt = () => {
                     {isLoadingBanks
                       ? "Loading bank list..."
                       : liveBanks.length === 0
-                      ? "No banks available"
-                      : "Select Bank"}
+                        ? "No banks available"
+                        : "Select Bank"}
                   </option>
 
                   {liveBanks.map((bank) => (
@@ -1894,8 +1894,8 @@ const Dmt = () => {
             <div className="mt-4 rounded-xl border border-[#e1e4e9] bg-[#f5f6f8] p-4">
               <label
                 className={`flex items-start gap-4 ${canVerifyAccount
-                    ? "cursor-pointer"
-                    : "cursor-not-allowed"
+                  ? "cursor-pointer"
+                  : "cursor-not-allowed"
                   }`}
               >
                 <input
@@ -2406,9 +2406,8 @@ const Dmt = () => {
                                 setSelectedDeviceName(device.name);
                                 setIsDeviceDropdownOpen(false);
                               }}
-                              className={`w-full border-b border-slate-50 px-3.5 py-2.5 text-left text-xs transition-colors last:border-0 hover:bg-slate-50 ${
-                                selectedDevicePort === device.port ? "bg-purple-50/70 font-bold text-purple-700" : "font-medium text-slate-700"
-                              }`}
+                              className={`w-full border-b border-slate-50 px-3.5 py-2.5 text-left text-xs transition-colors last:border-0 hover:bg-slate-50 ${selectedDevicePort === device.port ? "bg-purple-50/70 font-bold text-purple-700" : "font-medium text-slate-700"
+                                }`}
                             >
                               <div className="flex flex-col gap-0.5">
                                 <div className="font-semibold text-slate-800">{device.name}</div>
@@ -2428,11 +2427,10 @@ const Dmt = () => {
                   {/* Fingerprint Scanner Visual */}
                   <div className="my-5 flex flex-col items-center text-center">
                     <div
-                      className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 ${
-                        isCapturingBiometric
-                          ? "bg-purple-100 text-[#7c3aed] ring-4 ring-purple-200 animate-pulse"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
+                      className={`relative flex h-20 w-20 items-center justify-center rounded-full transition-all duration-300 ${isCapturingBiometric
+                        ? "bg-purple-100 text-[#7c3aed] ring-4 ring-purple-200 animate-pulse"
+                        : "bg-slate-100 text-slate-600"
+                        }`}
                     >
                       <Fingerprint className="h-10 w-10" />
                     </div>
@@ -2576,8 +2574,8 @@ const Dmt = () => {
                   setTransferMode("IMPS")
                 }
                 className={`rounded-xl border p-4 text-center transition ${transferMode === "IMPS"
-                    ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-lg"
-                    : "border-slate-200 bg-white text-[#172033]"
+                  ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-lg"
+                  : "border-slate-200 bg-white text-[#172033]"
                   }`}
               >
                 <p className="text-lg font-bold">
@@ -2586,8 +2584,8 @@ const Dmt = () => {
 
                 <p
                   className={`mt-1 text-sm ${transferMode === "IMPS"
-                      ? "text-white/80"
-                      : "text-[#555b67]"
+                    ? "text-white/80"
+                    : "text-[#555b67]"
                     }`}
                 >
                   Instant • 24x7
@@ -2601,8 +2599,8 @@ const Dmt = () => {
                   setTransferMode("NEFT")
                 }
                 className={`rounded-xl border p-4 text-center transition ${transferMode === "NEFT"
-                    ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-lg"
-                    : "border-slate-200 bg-white text-[#172033]"
+                  ? "border-[#7c3aed] bg-[#7c3aed] text-white shadow-lg"
+                  : "border-slate-200 bg-white text-[#172033]"
                   }`}
               >
                 <p className="text-lg font-bold">
@@ -2611,8 +2609,8 @@ const Dmt = () => {
 
                 <p
                   className={`mt-1 text-sm ${transferMode === "NEFT"
-                      ? "text-white/80"
-                      : "text-[#555b67]"
+                    ? "text-white/80"
+                    : "text-[#555b67]"
                     }`}
                 >
                   Batch • Mon–Sat

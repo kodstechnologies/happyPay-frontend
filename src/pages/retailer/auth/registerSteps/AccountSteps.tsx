@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   Phone,
   ShieldCheck,
@@ -13,7 +14,6 @@ import {
   resendRetailerRegisterOtp,
   verifyRetailerRegisterOtp,
 } from "../../../../services/api/retailer/retailerAuthApi";
-import { toast } from "react-toastify";
 
 type AccountStepProps = {
   distributorId?: string;
@@ -21,6 +21,62 @@ type AccountStepProps = {
   initialMobile?: string;
   initialVerified?: boolean;
   userId?: string;
+};
+
+interface ApiErrorData {
+  message?: string;
+  msg?: string;
+  error?: string;
+  statusCode?: number;
+  data?: {
+    message?: string;
+    msg?: string;
+  } | null;
+}
+
+interface ApiErrorResponse {
+  response?: {
+    status?: number;
+    data?: string | ApiErrorData;
+  };
+  statusCode?: number;
+  message?: string;
+}
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error === "object" && error !== null) {
+    const apiError = error as ApiErrorResponse;
+    const resData = apiError.response?.data;
+
+    if (typeof resData === "string" && resData.trim()) {
+      return resData;
+    }
+
+    if (typeof resData === "object" && resData !== null) {
+      const msg = resData.message || resData.data?.message || resData.msg || resData.error;
+      if (typeof msg === "string" && msg.trim()) {
+        return msg;
+      }
+    }
+
+    if (
+      typeof apiError.message === "string" &&
+      apiError.message.trim() &&
+      !apiError.message.toLowerCase().startsWith("request failed with status code")
+    ) {
+      return apiError.message;
+    }
+  }
+
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.toLowerCase().startsWith("request failed with status code")
+  ) {
+    return error.message;
+  }
+
+  return fallback;
 };
 
 const AccountStep = ({
@@ -34,8 +90,9 @@ const AccountStep = ({
   const [mobile, setMobile] = useState(initialMobile || "");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
-  const [otpVerified, setOtpVerified] = useState(initialVerified || false);
-  const [userId, setUserId] = useState<string>(userIdProp || "");
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [userId, setUserId] = useState<string>("");
+
   const [error, setError] = useState("");
   const [isExistingAccount, setIsExistingAccount] = useState(false);
   const [sending, setSending] = useState(false);
@@ -91,11 +148,11 @@ const AccountStep = ({
   // ==========================================================
 
   const handleSendOtp = async () => {
-    setError("");
     setIsExistingAccount(false);
 
     if (mobile.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number.");
+      const msg = "Please enter a valid 10-digit mobile number.";
+      toast.error(msg);
       return;
     }
 
@@ -106,19 +163,22 @@ const AccountStep = ({
       console.log(res);
       setOtpSent(true);
       setResendTimer(60);
+      toast.success(res.message || "OTP sent successfully!");
       localStorage.setItem("pendingRetailerMobile", mobile);
     } catch (err: unknown) {
-      const errorObj = err as { message?: string; statusCode?: number } | undefined;
-      const msg = errorObj?.message || "Failed to send OTP";
+      const errorObj = err as ApiErrorResponse | undefined;
+      const statusCode = errorObj?.response?.status || errorObj?.statusCode;
+      const msg = getApiErrorMessage(err, "Failed to send OTP");
+
       if (
-        errorObj?.statusCode === 409 ||
+        statusCode === 409 ||
         msg.toLowerCase().includes("already registered") ||
         msg.toLowerCase().includes("already exists")
       ) {
         setIsExistingAccount(true);
-        setError("Account already exists. Please login.");
+        toast.warning("Account already exists. Please login.");
       } else {
-        setError(msg);
+        toast.error(msg);
       }
     } finally {
       setSending(false);
@@ -154,10 +214,9 @@ const AccountStep = ({
   // ==========================================================
 
   const handleVerifyOtp = async () => {
-    setError("");
-
     if (otp.length !== 4) {
-      setError("Please enter the 4-digit OTP.");
+      const msg = "Please enter the 4-digit OTP.";
+      toast.error(msg);
       return;
     }
 
@@ -172,6 +231,7 @@ const AccountStep = ({
       const id = res.data.user._id;
       setUserId(id);
       setOtpVerified(true);
+      toast.success(res.message || "OTP verified successfully!");
 
       if (!distributorId) {
         localStorage.setItem("retailerUserId", id);
@@ -182,8 +242,8 @@ const AccountStep = ({
 
       onAccountCreated?.(id);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "OTP verification failed";
-      setError(msg);
+      const msg = getApiErrorMessage(err, "OTP verification failed");
+      toast.error(msg);
       setOtpVerified(false);
     } finally {
       setVerifying(false);
@@ -259,8 +319,8 @@ const AccountStep = ({
         </div>
       </div>
 
-      {/* Existing Account Notice or Error */}
-      {isExistingAccount ? (
+      {/* Existing Account Notice */}
+      {isExistingAccount && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-[14px] font-bold text-amber-900">
             Account already exists
@@ -276,12 +336,6 @@ const AccountStep = ({
             Go to Login
           </button>
         </div>
-      ) : (
-        error && (
-          <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-            <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
-          </div>
-        )
       )}
 
       {/* Send OTP */}
@@ -321,7 +375,6 @@ const AccountStep = ({
               onClick={() => {
                 setOtpSent(false);
                 setOtp("");
-                setError("");
                 setResendSuccess("");
                 setResendTimer(0);
               }}

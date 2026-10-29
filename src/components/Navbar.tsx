@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Headphones, Menu } from "lucide-react";
+import { Bell, Menu } from "lucide-react";
 import { getNotifications } from "../apis/notifications.apis";
 
 interface NavbarProps {
@@ -64,20 +64,6 @@ const Navbar = ({ onOpenSidebar, UserName = "Retailer" }: NavbarProps) => {
       {/* RIGHT ACTIONS */}
       <div className="flex shrink-0 items-center gap-2">
         {/* LIVE STATUS */}
-        <span className="hidden items-center gap-1.5 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 sm:inline-flex">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-          Live
-        </span>
-
-        {/* SUPPORT */}
-        <button
-          type="button"
-          onClick={() => navigate("/retailer/profile/support")}
-          className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-[#f8f5ff] hover:text-[#7c3aed]"
-          aria-label="Support"
-        >
-          <Headphones className="h-[18px] w-[18px]" />
-        </button>
 
         {/* NOTIFICATIONS */}
         <button
@@ -112,8 +98,8 @@ const Navbar = ({ onOpenSidebar, UserName = "Retailer" }: NavbarProps) => {
           </div>
         </div>
 
-      
-       
+
+
       </div>
     </header>
   );

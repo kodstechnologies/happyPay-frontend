@@ -113,7 +113,7 @@ export default function AdminRetailers() {
       let filteredItems = [...DUMMY_RETAILERS];
       if (debouncedSearch) {
         const query = debouncedSearch.toLowerCase();
-        filteredItems = filteredItems.filter(item => 
+        filteredItems = filteredItems.filter(item =>
           item.fullName?.toLowerCase().includes(query) ||
           item.email?.toLowerCase().includes(query) ||
           item.mobile?.includes(query) ||
@@ -165,16 +165,16 @@ export default function AdminRetailers() {
       if (newStatus) {
         await updateAdminRetailerAccountStatus(id, newStatus);
       }
-      setItems((prevItems) => 
-        prevItems.map((item) => 
+      setItems((prevItems) =>
+        prevItems.map((item) =>
           item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
         )
       );
     } catch (err) {
       console.warn("Could not persist status update to backend, updating locally:", err);
       updateDummyRetailerStatus(id, newStatus);
-      setItems((prevItems) => 
-        prevItems.map((item) => 
+      setItems((prevItems) =>
+        prevItems.map((item) =>
           item.id === id ? ({ ...item, status: newStatus } as AdminRetailer) : item
         )
       );
@@ -275,11 +275,10 @@ export default function AdminRetailers() {
                 setRoleTab("all");
                 setPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                roleTab === "all"
-                  ? "bg-white text-[#315bd1] shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${roleTab === "all"
+                ? "bg-white text-[#315bd1] shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               <Users className="h-3.5 w-3.5" />
               <span>All</span>
@@ -291,11 +290,10 @@ export default function AdminRetailers() {
                 setRoleTab("distributor");
                 setPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                roleTab === "distributor"
-                  ? "bg-indigo-600 text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${roleTab === "distributor"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               <Layers className="h-3.5 w-3.5" />
               <span>Distributor</span>
@@ -307,11 +305,10 @@ export default function AdminRetailers() {
                 setRoleTab("retailer");
                 setPage(1);
               }}
-              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                roleTab === "retailer"
-                  ? "bg-[#315bd1] text-white shadow-xs"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${roleTab === "retailer"
+                ? "bg-[#315bd1] text-white shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+                }`}
             >
               <Store className="h-3.5 w-3.5" />
               <span>Retailer</span>
@@ -372,7 +369,7 @@ export default function AdminRetailers() {
                     >
                       <td className="px-5 py-4 font-bold text-slate-800">
                         <div className="flex items-center gap-2">
-                          <span>{item.fullName || "Unnamed retailer"}</span>
+                          <span>{item.fullName || "-"}</span>
                         </div>
                       </td>
                       <td className="px-5 py-4">

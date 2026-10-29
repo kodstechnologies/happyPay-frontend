@@ -12,6 +12,7 @@ import {
   X,
 } from "lucide-react";
 
+import { toast } from "react-toastify";
 import {
   updateRetailerBankDetails,
   getSettlementBankList,
@@ -40,7 +41,6 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     const [ifscCode, setIfscCode] = useState("");
     const [accountNumber, setAccountNumber] = useState("");
     const [confirmAccountNumber, setConfirmAccountNumber] = useState("");
-    const [error, setError] = useState("");
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -138,7 +138,6 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       setBankId(bank.code);
       setIsDropdownOpen(false);
       setBankSearch("");
-      setError("");
     };
 
     const filteredBanks = banks.filter((b) =>
@@ -183,30 +182,28 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
     accountNumber === confirmAccountNumber;
 
   const handleSubmit = async (): Promise<boolean> => {
-    setError("");
-
     if (!userId) {
-      setError("User not registered. Please complete step 1.");
+      toast.error("User not registered. Please complete step 1.");
       return false;
     }
     if (!bankName) {
-      setError("Bank name is required.");
+      toast.error("Bank name is required.");
       return false;
     }
     if (!ifscCode) {
-      setError("IFSC code is required.");
+      toast.error("IFSC code is required.");
       return false;
     }
     if (ifscCode.length !== 11) {
-      setError("Please enter a valid 11-character IFSC code.");
+      toast.error("Please enter a valid 11-character IFSC code.");
       return false;
     }
     if (!accountNumber) {
-      setError("Account number is required.");
+      toast.error("Account number is required.");
       return false;
     }
     if (accountNumber !== confirmAccountNumber) {
-      setError("Account numbers do not match.");
+      toast.error("Account numbers do not match.");
       return false;
     }
 
@@ -258,12 +255,12 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         return true;
       }
       */
-      
+
       // Directly complete registration without eKYC check
       onRegistrationComplete?.();
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save bank details");
+      toast.error(err instanceof Error ? err.message : "Failed to save bank details");
       return false;
     } finally {
       setSubmitting(false);
@@ -515,13 +512,6 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
             </p>
           )}
       </div>
-
-      {/* ERROR */}
-      {error && (
-        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
-        </div>
-      )}
 
       {/* Submitting indicator */}
       {submitting && (

@@ -25,12 +25,85 @@ import {
   type CurrentRegistrationStepResult,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
+import { toast } from "react-toastify";
 import {
   getCategories,
   getPropertyTypes,
   getProofTypes,
   type MasterDataItem,
 } from "../../../../services/api/masterData/masterDataApi";
+
+interface ApiErrorData {
+  message?: string;
+  msg?: string;
+  error?: string;
+  errors?: string[] | Record<string, string>;
+  statusCode?: number;
+  data?: {
+    message?: string;
+    msg?: string;
+    errors?: string[];
+  } | null;
+}
+
+interface ApiErrorResponse {
+  response?: {
+    status?: number;
+    data?: string | ApiErrorData;
+  };
+  statusCode?: number;
+  message?: string;
+}
+
+const getApiErrorMessage = (error: unknown, fallback: string): string => {
+  if (typeof error === "object" && error !== null) {
+    const apiError = error as ApiErrorResponse;
+    const resData = apiError.response?.data;
+
+    if (typeof resData === "string" && resData.trim()) {
+      return resData;
+    }
+
+    if (typeof resData === "object" && resData !== null) {
+      if (Array.isArray(resData.errors) && resData.errors.length > 0) {
+        const firstErr = resData.errors[0];
+        if (typeof firstErr === "string" && firstErr.trim()) {
+          return firstErr;
+        }
+      }
+
+      const msg = resData.message || resData.data?.message || resData.msg || resData.error;
+      if (typeof msg === "string" && msg.trim()) {
+        return msg;
+      }
+
+      if (Array.isArray(resData.data?.errors) && resData.data.errors.length > 0) {
+        const firstErr = resData.data.errors[0];
+        if (typeof firstErr === "string" && firstErr.trim()) {
+          return firstErr;
+        }
+      }
+    }
+
+    if (
+      typeof apiError.message === "string" &&
+      apiError.message.trim() &&
+      !apiError.message.toLowerCase().startsWith("request failed with status code")
+    ) {
+      return apiError.message;
+    }
+  }
+
+  if (
+    error instanceof Error &&
+    error.message &&
+    !error.message.toLowerCase().startsWith("request failed with status code")
+  ) {
+    return error.message;
+  }
+
+  return fallback;
+};
 
 type ShopDetailsStepProps = {
   userId?: string;
@@ -60,6 +133,7 @@ const ShopDetailsStep = ({
   const [emailVerified, setEmailVerified] = useState(false);
   const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
   const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
+  const [emailOtpError, setEmailOtpError] = useState("");
 
   // -------- Shop details phase --------
   const [shopName, setShopName] = useState("");
@@ -67,6 +141,7 @@ const ShopDetailsStep = ({
   const [propertyType, setPropertyType] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
+  const [state, setState] = useState("");
   const [pincode, setPincode] = useState("");
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState("");
@@ -100,7 +175,6 @@ const ShopDetailsStep = ({
   const [proofTypes, setProofTypes] = useState<MasterDataItem[]>([]);
   const [masterDataLoading, setMasterDataLoading] = useState(true);
 
-  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   // ========================================
@@ -199,9 +273,10 @@ const ShopDetailsStep = ({
         setCategories(categoriesRes.filter(item => item.isActive));
         setPropertyTypes(propertyTypesRes.filter(item => item.isActive));
         setProofTypes(proofTypesRes.filter(item => item.isActive));
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Error fetching master data:", err);
-        setError("Failed to load form options. Please refresh the page.");
+        const msg = getApiErrorMessage(err, "Failed to load form options. Please refresh the page.");
+        toast.error(msg);
       } finally {
         setMasterDataLoading(false);
       }
@@ -215,16 +290,26 @@ const ShopDetailsStep = ({
   // EMAIL OTP — send
   // ==========================================================
   const handleSendEmailOtp = async () => {
-    setError("");
-    if (!userId) return setError("User not registered. Please complete step 1.");
-    if (!email.trim()) return setError("Please enter your email.");
+    setEmailOtpError("");
+    if (!userId) {
+      const msg = "User not registered. Please complete step 1.";
+      toast.error(msg);
+      return;
+    }
+    if (!email.trim()) {
+      const msg = "Please enter your email.";
+      toast.error(msg);
+      return;
+    }
 
     setSendingEmailOtp(true);
     try {
-      await sendRetailerEmailOtp({ userId, email: email.trim() });
+      const res = await sendRetailerEmailOtp({ userId, email: email.trim() });
       setEmailOtpSent(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send email OTP");
+      toast.success(res?.message || "OTP sent to your email!");
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, "Failed to send email OTP");
+      toast.error(msg);
     } finally {
       setSendingEmailOtp(false);
     }
@@ -234,21 +319,40 @@ const ShopDetailsStep = ({
   // EMAIL OTP — verify
   // ==========================================================
   const handleVerifyEmailOtp = async () => {
-    setError("");
-    if (!userId) return setError("User not registered.");
-    if (emailOtp.length !== 4 && emailOtp.length !== 6)
-      return setError("Please enter a valid OTP.");
+    setEmailOtpError("");
+    if (!userId) {
+      const msg = "User not registered.";
+      setEmailOtpError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (!emailOtp.trim()) {
+      const msg = "Please enter the OTP.";
+      setEmailOtpError(msg);
+      toast.error(msg);
+      return;
+    }
+    if (emailOtp.length !== 4 && emailOtp.length !== 6) {
+      const msg = "Please enter a valid OTP.";
+      setEmailOtpError(msg);
+      toast.error(msg);
+      return;
+    }
 
     setVerifyingEmailOtp(true);
     try {
-      await verifyRetailerEmailOtp({
+      const res = await verifyRetailerEmailOtp({
         userId,
         email: email.trim(),
         otp: emailOtp.trim(),
       });
       setEmailVerified(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Email verification failed");
+      setEmailOtpError("");
+      toast.success(res?.message || "Email verified successfully");
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, "Email verification failed");
+      setEmailOtpError(msg);
+      toast.error(msg);
     } finally {
       setVerifyingEmailOtp(false);
     }
@@ -259,7 +363,7 @@ const ShopDetailsStep = ({
   // ==========================================================
   const handleLocation = () => {
     if (!navigator.geolocation) {
-      setError("Geolocation not supported by this browser.");
+      toast.error("Geolocation not supported by this browser.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -267,7 +371,7 @@ const ShopDetailsStep = ({
         setLatitude(pos.coords.latitude);
         setLongitude(pos.coords.longitude);
       },
-      (err) => setError("Location error: " + err.message),
+      (err) => toast.error("Location error: " + err.message),
     );
   };
 
@@ -338,13 +442,18 @@ const ShopDetailsStep = ({
           if (loc.city && (!city.trim() || city === pincodeInfo?.city)) {
             setCity(loc.city);
           }
+
+          // Auto-fill state if empty or matching previous auto-filled state
+          if (loc.state && (!state.trim() || state === pincodeInfo?.state)) {
+            setState(loc.state);
+          }
         } else {
           setPincodeValid(false);
           setPincodeError(res.message || "Invalid pincode. No records found.");
         }
       } catch (err: unknown) {
         setPincodeValid(false);
-        const msg = err instanceof Error ? err.message : "Invalid postal pincode";
+        const msg = getApiErrorMessage(err, "Invalid postal pincode");
         setPincodeError(msg);
       } finally {
         setPincodeLoading(false);
@@ -356,28 +465,24 @@ const ShopDetailsStep = ({
   // SUBMIT FULL SHOP DETAILS
   // ==========================================================
   const handleSubmit = async () => {
-    setError("");
-    if (!userId) return setError("User not registered.");
-    if (!emailVerified) return setError("Please verify your email first.");
-    if (!pan) return setError("PAN number is required.");
-    if (!panFile && !existingPanDoc) return setError("PAN document is required.");
-    if (!shopName.trim()) return setError("Shop name is required.");
-    if (!category) return setError("Shop category is required.");
-    if (!propertyType) return setError("Property type is required.");
-    if (!address.trim()) return setError("Shop address is required.");
-    if (!city.trim()) return setError("City is required.");
-    if (!pincode.trim()) return setError("Pincode is required.");
-    if (pincode.length !== 6) return setError("Pincode must be exactly 6 digits.");
-    if (pincodeError) return setError(pincodeError);
-    if (!businessProof) return setError("Business proof type is required.");
-    if (!businessProofFile && !existingBusinessProof) return setError("Business proof document is required.");
-    if (!insideShopFile && !existingInsideShop) return setError("Inside shop photo is required.");
-    if (!outsideShopFile && !existingOutsideShop) return setError("Outside shop photo is required.");
-    if (!shopLocationFile && !existingShopLocation) return setError("Shop location photo is required.");
-    if (latitude == null || isNaN(latitude)) return setError("Latitude is required.");
-    if (longitude == null || isNaN(longitude)) return setError("Longitude is required.");
-    if (latitude < -90 || latitude > 90) return setError("Latitude must be between -90 and 90.");
-    if (longitude < -180 || longitude > 180) return setError("Longitude must be between -180 and 180.");
+    if (!userId) return toast.error("User not registered.");
+    if (!emailVerified) return toast.error("Please verify your email first.");
+    if (!pan) return toast.error("PAN number is required.");
+    if (!panFile) return toast.error("PAN document is required.");
+    if (!shopName.trim()) return toast.error("Shop name is required.");
+    if (!category) return toast.error("Shop category is required.");
+    if (!propertyType) return toast.error("Property type is required.");
+    if (!address.trim()) return toast.error("Shop address is required.");
+    if (!city.trim()) return toast.error("City is required.");
+    if (!state.trim()) return toast.error("State is required.");
+    if (!pincode.trim()) return toast.error("Pincode is required.");
+    if (pincode.length !== 6) return toast.error("Pincode must be exactly 6 digits.");
+    if (pincodeError) return toast.error(pincodeError);
+    if (!businessProof) return toast.error("Business proof type is required.");
+    if (latitude == null || isNaN(latitude)) return toast.error("Latitude is required.");
+    if (longitude == null || isNaN(longitude)) return toast.error("Longitude is required.");
+    if (latitude < -90 || latitude > 90) return toast.error("Latitude must be between -90 and 90.");
+    if (longitude < -180 || longitude > 180) return toast.error("Longitude must be between -180 and 180.");
 
     setSubmitting(true);
     try {
@@ -403,10 +508,9 @@ const ShopDetailsStep = ({
       });
 
       onShopDetailsSaved?.();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to save shop details",
-      );
+    } catch (err: unknown) {
+      const msg = getApiErrorMessage(err, "Failed to save shop details");
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -508,14 +612,24 @@ const ShopDetailsStep = ({
           <input
             type="text"
             value={emailOtp}
-            onChange={(e) =>
-              setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
+            onChange={(e) => {
+              setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6));
+              setEmailOtpError("");
+            }}
             placeholder="Enter OTP"
             maxLength={6}
             inputMode="numeric"
-            className="mt-3 h-[54px] w-full rounded-xl border border-[#dfe3e9] bg-white px-4 text-center text-[18px] font-bold tracking-[0.4em] text-[#172033] outline-none focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+            className={`mt-3 h-[54px] w-full rounded-xl border bg-white px-4 text-center text-[18px] font-bold tracking-[0.4em] text-[#172033] outline-none transition-all ${
+              emailOtpError
+                ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
+                : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+            }`}
           />
+          {emailOtpError && (
+            <p className="mt-2 text-center text-[13px] font-semibold text-[#d85b5b]">
+              {emailOtpError}
+            </p>
+          )}
           <button
             type="button"
             onClick={handleVerifyEmailOtp}
@@ -693,22 +807,9 @@ const ShopDetailsStep = ({
           </div>
         </div>
 
-        {/* City + Pincode */}
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <div>
-            <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-              City
-            </label>
-            <input
-              type="text"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="Enter city"
-              className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 text-[14px] font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${city ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-                }`}
-            />
-          </div>
-          <div>
+        {/* City + State + Pincode */}
+        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
+             <div>
             <div className="mb-2.5 flex items-center justify-between">
               <label
                 htmlFor="shop-pincode"
@@ -760,6 +861,33 @@ const ShopDetailsStep = ({
               </p>
             )}
           </div>
+          <div>
+            <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
+              City
+            </label>
+            <input
+              type="text"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="Enter city"
+              className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 text-[14px] font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${city ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+                }`}
+            />
+          </div>
+          <div>
+            <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
+              State
+            </label>
+            <input
+              type="text"
+              value={state}
+              onChange={(e) => setState(e.target.value)}
+              placeholder="Enter state"
+              className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 text-[14px] font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${state ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+                }`}
+            />
+          </div>
+       
         </div>
 
         {/* Shop Location (lat/lng input fields) */}
@@ -937,13 +1065,6 @@ const ShopDetailsStep = ({
           {submitting ? "SAVING..." : "SAVE SHOP DETAILS"}
         </button>
       </fieldset>
-
-      {/* Error */}
-      {error && (
-        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
-        </div>
-      )}
 
       <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-[#9aa1ae]">
         <ShieldCheck className="h-3.5 w-3.5 text-[#7c3aed]" strokeWidth={2} />

@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+import { toast } from "react-toastify";
 import {
   updateRetailerAboutDetails,
   type CurrentRegistrationStepResult,
@@ -54,7 +55,6 @@ const AboutRetailerStep = forwardRef<
   const [education, setEducation] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
 
-  const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const [prevInitialData, setPrevInitialData] = useState(initialData);
@@ -126,39 +126,37 @@ const AboutRetailerStep = forwardRef<
   // SUBMIT (called by parent's Continue button)
   // ==========================================================
   const handleSubmit = async (): Promise<boolean> => {
-    setError("");
-
     if (!userId) {
-      setError("User not registered. Please complete step 1.");
+      toast.error("User not registered. Please complete step 1.");
       return false;
     }
     if (!fullName.trim()) {
-      setError("Full name is required.");
+      toast.error("Full name is required.");
       return false;
     }
     if (!dateOfBirth) {
-      setError("Date of birth is required.");
+      toast.error("Date of birth is required.");
       return false;
     }
     const isoDob = toIsoDob(dateOfBirth);
     if (!isoDob) {
-      setError("Please enter a valid date of birth (DD/MM/YYYY).");
+      toast.error("Please enter a valid date of birth (DD/MM/YYYY).");
       return false;
     }
     if (!gender) {
-      setError("Gender is required.");
+      toast.error("Gender is required.");
       return false;
     }
     if (!maritalStatus) {
-      setError("Marital status is required.");
+      toast.error("Marital status is required.");
       return false;
     }
     if (!education.trim()) {
-      setError("Educational qualification is required.");
+      toast.error("Educational qualification is required.");
       return false;
     }
-    if (!selfie && !existingSelfie) {
-      setError("Selfie is required.");
+    if (!selfie) {
+      toast.error("Selfie is required.");
       return false;
     }
 
@@ -178,7 +176,7 @@ const AboutRetailerStep = forwardRef<
 
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save details");
+      toast.error(err instanceof Error ? err.message : "Failed to save details");
       return false;
     } finally {
       setSubmitting(false);
@@ -346,13 +344,6 @@ const AboutRetailerStep = forwardRef<
           />
         </div>
       </div>
-
-      {/* ERROR */}
-      {error && (
-        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
-        </div>
-      )}
 
       {/* Submitting indicator — parent button stays clickable */}
       {submitting && (
