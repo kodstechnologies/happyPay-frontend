@@ -110,7 +110,6 @@ export default function AdminSupport() {
         const apiStatus = mapUiStatusToApiStatus(value);
         await updateTicketStatus(selectedTicket.id, apiStatus);
       } else if (field === "assignee") {
-        setAssigning(true);
         if (value !== "Unassigned" && selectedTicket.assigneeId) {
           await assignTicket(selectedTicket.id, selectedTicket.assigneeId);
         }
@@ -137,7 +136,6 @@ export default function AdminSupport() {
       alert("Failed to update ticket. Please try again.");
     } finally {
       setUpdatingStatus(false);
-      setAssigning(false);
     }
   };
 

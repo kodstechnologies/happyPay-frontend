@@ -6,12 +6,16 @@ export interface PricingSlab {
   minAmount: number;
   maxAmount: number | null;
   value?: number;
+  adminAmount?: number | null;
+  distributorAmount?: number | null;
+  retailerAmount?: number | null;
 }
 
 // Pricing
 export interface Pricing {
   _id?: string;
   type: "COMMISSION" | "CHARGE";
+  calculationType: "FIXED" | "PERCENTAGE";
   slabs: PricingSlab[];
 }
 
@@ -37,8 +41,6 @@ export interface Plan {
   description: string;
   services: PlanService[];
   status: "ACTIVE" | "INACTIVE";
-  effectiveFrom: string | null;
-  effectiveTo: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -92,12 +94,6 @@ function planFormData(data: Partial<PlanFormData>, image?: File | null) {
   if (data.name !== undefined) body.append("name", data.name);
   if (data.description !== undefined) body.append("description", data.description);
   if (data.status !== undefined) body.append("status", data.status);
-  if (data.effectiveFrom !== undefined && data.effectiveFrom !== null) {
-    body.append("effectiveFrom", data.effectiveFrom);
-  }
-  if (data.effectiveTo !== undefined && data.effectiveTo !== null) {
-    body.append("effectiveTo", data.effectiveTo);
-  }
 
   // Append image if provided
   if (image) {
