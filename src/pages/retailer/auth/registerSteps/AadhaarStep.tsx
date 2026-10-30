@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import { toast } from "react-toastify";
 
 import {
   updateRetailerAadhaarDetails,
@@ -110,8 +111,14 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
         });
 
         return true;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save Aadhaar details");
+      } catch (err: unknown) {
+        // Extract error message from API response
+        const errorMessage = (err as Error & { response?: { data?: { message?: string; errors?: string[] } } })?.response?.data?.message || 
+                          (err as Error & { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ||
+                          (err as Error)?.message ||
+                          "Failed to save Aadhaar details";
+        setError(errorMessage);
+        toast.error(errorMessage);
         return false;
       } finally {
         setSubmitting(false);

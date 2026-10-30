@@ -155,6 +155,7 @@ export interface CurrentRegistrationStepResult {
     fullName?: string | null;
     name?: string | null;
     fatherName?: string | null;
+    motherName?: string | null;
     selfie: string | null;
     gender: string | null;
     maritalStatus: string | null;
@@ -337,6 +338,7 @@ export interface UpdateAboutResult {
   educationalQualification: string | null;
   panDocument: string;
   fatherName: string | null;
+  motherName: string | null;
   aadhaarDocument: string | null;
   shopInsidePhoto: string | null;
   shopOutsidePhoto: string | null;
@@ -360,6 +362,8 @@ export interface UpdateAboutPayload {
   gender: "M" | "F" | "T";   // ← narrowed
   maritalStatus: string;
   educationalQualification: string;
+  fatherName?: string;
+  motherName?: string;
   selfie?: File | string | null;
 }
 
@@ -371,6 +375,8 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   fd.append("gender", payload.gender);
   fd.append("maritalStatus", payload.maritalStatus);
   fd.append("educationalQualification", payload.educationalQualification);
+  if (payload.fatherName) fd.append("fatherName", payload.fatherName);
+  if (payload.motherName) fd.append("motherName", payload.motherName);
   if (payload.selfie) fd.append("selfie", payload.selfie);
 
   return api.patch<ApiEnvelope<UpdateAboutResult>>("/api/v1/auth/registration/about", fd).then(unwrap);
@@ -427,6 +433,7 @@ export interface UpdateAadhaarResult {
   educationalQualification: string | null;
   panDocument: string;
   fatherName: string | null;
+  motherName: string | null;
   shopInsidePhoto: string | null;
   shopOutsidePhoto: string | null;
   shopLocationPhoto: string | null;
@@ -493,6 +500,7 @@ export interface UpdateBankDetailsResult {
   educationalQualification: string | null;
   panDocument: string;
   fatherName: string | null;
+  motherName: string | null;
   aadhaarDocument: string | null;
   shopInsidePhoto: string | null;
   shopOutsidePhoto: string | null;
@@ -688,6 +696,7 @@ export interface RetailerFullProfile {
   currentRegistrationStep?: string;
   fullName: string;
   fatherName?: string;
+  motherName?: string;
   gender?: string;
   maritalStatus?: string;
   educationalQualification?: string;

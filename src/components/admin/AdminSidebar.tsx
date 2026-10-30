@@ -1,4 +1,4 @@
-import { Activity, CircleDollarSign, FileClock, Headphones, LayoutDashboard, LogOut, Settings, Store, Users, X, Bell } from "lucide-react";
+import { Activity, CircleDollarSign, FileClock, Headphones, LayoutDashboard, LogOut, Settings, Store, Users, X, Bell, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
@@ -6,7 +6,7 @@ interface Props { collapsed: boolean; mobileOpen: boolean; onToggle: () => void;
 const groups = [
   { label: "Overview", items: [{ label: "Dashboard", icon: LayoutDashboard, to: "/admin/dashboard" }] },
   { label: "Management", items: [{ label: "Retailers", icon: Store, to: "/admin/retailers" }, { label: "Transactions", icon: Activity, to: "/admin/transactions" }, { label: "Customers", icon: Users, to: "/admin/customers" }] },
-  { label: "Configuration", items: [{ label: "CMS Configuration", icon: Settings, to: "/admin/cms" }, { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" }, { label: "Banners", icon: Bell, to: "/admin/banners" }] },
+  { label: "Configuration", items: [{ label: "CMS Configuration", icon: Settings, to: "/admin/cms" }, { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" }, { label: "Banners", icon: Bell, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }] },
   { label: "System", items: [{ label: "Audit Logs", icon: FileClock, to: "/admin/audit-logs" }, { label: "Support", icon: Headphones, to: "/admin/support" }] },
 ];
 

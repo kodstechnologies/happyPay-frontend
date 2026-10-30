@@ -33,6 +33,7 @@ import SecuritySettings from "../pages/retailer/profile/SecuritySettings";
 import HelpSupport from "../pages/retailer/profile/HelpSupport";
 import Wallet from "../pages/retailer/wallet/Wallet";
 import RetailerNotifications from "../pages/retailer/notifications/RetailerNotifications";
+import RetailerPlans from "../pages/retailer/plans/RetailerPlans";
 import AdminLogin from "../pages/admin/auth/AdminLogin";
 import ForgotPassword from "../pages/admin/auth/ForgotPassword";
 import ResetPassword from "../pages/admin/auth/ResetPassword";
@@ -50,6 +51,10 @@ import AdminCommissions from "../pages/admin/commissions/AdminCommissions";
 import AdminCmsConfig from "../pages/admin/cms/AdminCmsConfig";
 import AdminNotifications from "../pages/admin/notifications/AdminNotifications";
 import AdminBanners from "../pages/admin/banners/AdminBanners";
+import AdminPlanManagement from "../pages/admin/plan-management/AdminPlanManagement";
+import CreatePlan from "../pages/admin/plan-management/CreatePlan";
+import EditPlan from "../pages/admin/plan-management/EditPlan";
+import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
 
 import Fingerprint from "../pages/dev/fingerPrint";
 
@@ -103,6 +108,10 @@ const Router: RouteObject[] = [
           { path: "support", element: <AdminSupport /> },
           { path: "audit-logs", element: <AdminAuditLogs /> },
           { path: "notifications", element: <AdminNotifications /> },
+          { path: "plan-management", element: <AdminPlanManagement /> },
+          { path: "plan-management/create", element: <CreatePlan /> },
+          { path: "plan-management/view/:id", element: <ViewPlanDetails /> },
+          { path: "plan-management/edit/:id", element: <EditPlan /> },
         ],
       },
     ],
@@ -230,6 +239,12 @@ const Router: RouteObject[] = [
           {
             path: "notifications",
             element: <RetailerNotifications />,
+          },
+
+          // PLANS
+          {
+            path: "plans",
+            element: <RetailerPlans />,
           },
         ],
       },

@@ -248,11 +248,15 @@ const RetailerRegister = ({
     }
   };
 
-  const previousStep = () => {
+  const previousStep = async () => {
     if (currentStep > 0) {
       setCurrentStep((prev) => prev - 1);
-
       scrollToTop();
+
+      // Reload registration data when going back to ensure fields are pre-filled with latest data
+      if (retailerUserId) {
+        await loadRegistrationData(retailerUserId);
+      }
 
       return;
     }

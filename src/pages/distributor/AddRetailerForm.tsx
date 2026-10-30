@@ -187,6 +187,7 @@ export default function AddRetailerForm({
   // ==========================================================
   const [fullName, setFullName] = useState("");
   const [fatherName, setFatherName] = useState("");
+  const [motherName, setMotherName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState<"M" | "F" | "T">("M");
   const [maritalStatus, setMaritalStatus] = useState("Single");
@@ -548,6 +549,8 @@ export default function AddRetailerForm({
       await updateRetailerAboutDetails({
         userId,
         fullName: fullName.trim(),
+        fatherName: fatherName.trim(),
+        motherName: motherName.trim(),
         dateOfBirth,
         gender,
         maritalStatus,
@@ -1412,13 +1415,27 @@ export default function AddRetailerForm({
             {/* Father's Name */}
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
-                Father / Guardian Name (Optional)
+                Father / Guardian Name
               </label>
               <input
                 type="text"
                 value={fatherName}
                 onChange={(e) => setFatherName(e.target.value)}
                 placeholder="Father's full name"
+                className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white"
+              />
+            </div>
+
+            {/* Mother's Name */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                Mother Name
+              </label>
+              <input
+                type="text"
+                value={motherName}
+                onChange={(e) => setMotherName(e.target.value)}
+                placeholder="Mother's full name"
                 className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 text-sm font-semibold text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white"
               />
             </div>
@@ -1922,6 +1939,15 @@ export default function AddRetailerForm({
                   setMobileOtp(["", "", "", ""]);
                   setIsMobileOtpSent(false);
                   setIsMobileVerified(false);
+                  setFullName("");
+                  setFatherName("");
+                  setMotherName("");
+                  setDateOfBirth("");
+                  setGender("M");
+                  setMaritalStatus("Single");
+                  setEducationalQualification("Graduate");
+                  setSelfieFile(null);
+                  setSelfiePreview(null);
                 }}
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-50"
               >
