@@ -1,13 +1,24 @@
 import api from "../../../config/axiosInstance";
 import type { AxiosResponse } from "axios";
 
-interface Envelope<T> {
-  success?: boolean;
-  message?: string;
-  data: T;
+export interface BankListMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
-const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data;
+export interface Envelope<T, M = BankListMeta> {
+  success?: boolean;
+  status?: string;
+  statusCode?: number;
+  message?: string;
+  msg?: string;
+  data: T;
+  meta?: M;
+}
+
+const unwrap = <T, M = BankListMeta>(response: AxiosResponse<Envelope<T, M>>) => response.data;
 
 export interface BiometricPayload {
   userId?: string;
@@ -48,14 +59,6 @@ export interface TfaPayload extends Omit<BiometricPayload, "referenceKey"> {
   ts: string;
 }
 
-interface Envelope<T> {
-  success?: boolean;
-  status?: string;
-  statusCode?: number;
-  message?: string;
-  msg?: string;
-  data: T;
-}
 
 function attr(element: Element | null, name: string) {
   return element?.getAttribute(name) || "";
@@ -363,7 +366,7 @@ export interface CashWithdrawalPayload extends AepsServicePayload {
 
 export interface SendAepsOtpPayload {
   outlet_id: string;
-  referenceKey: string;
+  referenceKey:string;
   latitude: string;
   longitude: string;
   aadhaar: string;
@@ -423,12 +426,12 @@ export function sendAepsOtp(payload: SendAepsOtpPayload) {
 }
 
 export interface Bank {
-  id?: number | string;
-  bank_id?: number | string;
+  id: number;
+  bank_id: number;
   name: string;
   iin: string;
-  aeps_enabled?: number;
-  aadhaarpay_enabled?: number;
+  aeps_enabled: number;
+  aadhaarpay_enabled: number;
   aeps_failure_rate?: string;
   aadhaarpay_failure_rate?: string;
   activeFlag?: number | string | boolean;
@@ -437,12 +440,6 @@ export interface Bank {
   [key: string]: unknown;
 }
 
-export interface BankListMeta {
-  total: number;
-  page: number;
-  limit: number;
-  totalPages: number;
-}
 
 export function getBankList(page?: number, limit?: number, search?: string) {
   const params: { page?: number; limit?: number; search?: string } = {};

@@ -125,8 +125,6 @@ export interface InitiateSettlementPayload {
   accountType: string;
   branchName: string;
   benMobile: string;
-  code: string;
-  bank_code?: string;
   bank_name: string;
   beneficiary_name: string;
   ifsc: string;

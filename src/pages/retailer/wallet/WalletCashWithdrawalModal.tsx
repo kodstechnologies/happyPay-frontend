@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   X,
   Fingerprint,
@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Loader2,
   LockKeyhole,
+  ChevronDown,
 } from "lucide-react";
 import { rdService, type ActiveDevice } from "../../../utils/rdService";
 import {
@@ -48,22 +49,22 @@ type ModalStep = "form" | "otp" | "scanning" | "processing" | "receipt";
 const PRESET_AMOUNTS = [500, 1000, 2000, 5000, 10000];
 
 const DEFAULT_POPULAR_BANKS: Bank[] = [
-  { bank_id: 1, name: "State Bank of India", iin: "607094" },
-  { bank_id: 2, name: "Punjab National Bank", iin: "508505" },
-  { bank_id: 3, name: "Bank of Baroda", iin: "606985" },
-  { bank_id: 4, name: "Canara Bank", iin: "607152" },
-  { bank_id: 5, name: "Union Bank of India", iin: "607161" },
-  { bank_id: 6, name: "HDFC Bank", iin: "607153" },
-  { bank_id: 7, name: "ICICI Bank", iin: "508534" },
-  { bank_id: 8, name: "Axis Bank", iin: "607153" },
-  { bank_id: 9, name: "Bank of India", iin: "508501" },
-  { bank_id: 10, name: "Central Bank of India", iin: "607100" },
-  { bank_id: 11, name: "Indian Bank", iin: "607105" },
-  { bank_id: 12, name: "Kotak Mahindra Bank", iin: "990309" },
-  { bank_id: 13, name: "Airtel Payments Bank", iin: "990320" },
-  { bank_id: 14, name: "Paytm Payments Bank", iin: "608032" },
-  { bank_id: 15, name: "India Post Payments Bank", iin: "608117" },
-  { bank_id: 16, name: "Fino Payments Bank", iin: "608001" },
+  { id: 1, bank_id: 1, name: "State Bank of India", iin: "607094", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 2, bank_id: 2, name: "Punjab National Bank", iin: "508505", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 3, bank_id: 3, name: "Bank of Baroda", iin: "606985", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 4, bank_id: 4, name: "Canara Bank", iin: "607152", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 5, bank_id: 5, name: "Union Bank of India", iin: "607161", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 6, bank_id: 6, name: "HDFC Bank", iin: "607153", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 7, bank_id: 7, name: "ICICI Bank", iin: "508534", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 8, bank_id: 8, name: "Axis Bank", iin: "607153", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 9, bank_id: 9, name: "Bank of India", iin: "508501", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 10, bank_id: 10, name: "Central Bank of India", iin: "607100", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 11, bank_id: 11, name: "Indian Bank", iin: "607105", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 12, bank_id: 12, name: "Kotak Mahindra Bank", iin: "990309", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 13, bank_id: 13, name: "Airtel Payments Bank", iin: "990320", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 14, bank_id: 14, name: "Paytm Payments Bank", iin: "608032", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 15, bank_id: 15, name: "India Post Payments Bank", iin: "608117", aeps_enabled: 1, aadhaarpay_enabled: 1 },
+  { id: 16, bank_id: 16, name: "Fino Payments Bank", iin: "608001", aeps_enabled: 1, aadhaarpay_enabled: 1 },
 ];
 
 export default function WalletCashWithdrawalModal({
@@ -83,7 +84,24 @@ export default function WalletCashWithdrawalModal({
   const [banks, setBanks] = useState<Bank[]>(DEFAULT_POPULAR_BANKS);
   const [selectedBank, setSelectedBank] = useState<Bank | null>(DEFAULT_POPULAR_BANKS[0]);
   const [bankSearch, setBankSearch] = useState<string>("");
-  const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(false);
+  const [isLoadingBanks, setIsLoadingBanks] = useState<boolean>(() => open);
+  const [isBankDropdownOpen, setIsBankDropdownOpen] = useState<boolean>(false);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const BANKS_PER_PAGE = 50;
+  const bankDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close bank dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (bankDropdownRef.current && !bankDropdownRef.current.contains(e.target as Node)) {
+        setIsBankDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Biometric Device State
   const [devices, setDevices] = useState<ActiveDevice[]>([]);
@@ -177,17 +195,46 @@ export default function WalletCashWithdrawalModal({
       setReceipt(null);
       setOtp("");
       setOtpReferenceKey("");
+      setCurrentPage(1);
+      setIsLoadingBanks(true);
     }
   }
+
+  const handleLoadMoreBanks = async () => {
+    if (currentPage < totalPages && !loadingMore) {
+      const nextPage = currentPage + 1;
+      setCurrentPage(nextPage);
+      setLoadingMore(true);
+      try {
+        const response = await getBankList(nextPage, BANKS_PER_PAGE);
+        if (response && response.success && Array.isArray(response.data)) {
+          setBanks((prev) => {
+            const existing = new Set(prev.map((b) => b.iin || b.bank_id || b.name));
+            const newUnique = response.data.filter((b) => !existing.has(b.iin || b.bank_id || b.name));
+            return [...prev, ...newUnique];
+          });
+
+          if (response.meta && typeof response.meta === "object" && "totalPages" in response.meta) {
+            setTotalPages(Number(response.meta.totalPages) || 1);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load more banks:", err);
+      } finally {
+        setLoadingMore(false);
+      }
+    }
+  };
 
   // Fetch banks & scan devices when opened
   useEffect(() => {
     if (!open) return;
     let isMounted = true;
 
-    getBankList(1, 100)
+    getBankList(1, BANKS_PER_PAGE)
       .then((response) => {
-        if (isMounted && response && response.success && Array.isArray(response.data)) {
+        if (!isMounted) return;
+        if (response && response.success && Array.isArray(response.data)) {
           setBanks(response.data);
           const sbi = response.data.find(
             (b) =>
@@ -199,13 +246,19 @@ export default function WalletCashWithdrawalModal({
           } else if (response.data.length > 0) {
             setSelectedBank(response.data[0]);
           }
+
+          if (response.meta && typeof response.meta === "object" && "totalPages" in response.meta) {
+            setTotalPages(Number(response.meta.totalPages) || 1);
+          }
         }
       })
       .catch((err) => {
         console.error("Failed to load bank list:", err);
       })
       .finally(() => {
-        if (isMounted) setIsLoadingBanks(false);
+        if (isMounted) {
+          setIsLoadingBanks(false);
+        }
       });
 
     rdService.scanAllDevices()
@@ -229,19 +282,17 @@ export default function WalletCashWithdrawalModal({
     return () => {
       isMounted = false;
     };
-  }, [open]);
+  }, [open, BANKS_PER_PAGE]);
 
-  // Filtered Banks based on search
+  // Filtered Banks based on search (shows full bank list when search is empty)
   const filteredBanks = useMemo(() => {
-    if (!bankSearch.trim()) return banks.slice(0, 10);
+    if (!bankSearch.trim()) return banks;
     const query = bankSearch.toLowerCase().trim();
-    return banks
-      .filter(
-        (b) =>
-          b.name.toLowerCase().includes(query) ||
-          (b.iin && b.iin.includes(query))
-      )
-      .slice(0, 15);
+    return banks.filter(
+      (b) =>
+        b.name.toLowerCase().includes(query) ||
+        (b.iin && b.iin.includes(query))
+    );
   }, [banks, bankSearch]);
 
   // Top Popular Banks
@@ -269,6 +320,11 @@ export default function WalletCashWithdrawalModal({
     setStep("form");
     setErrorMessage("");
     setReceipt(null);
+    setIsBankDropdownOpen(false);
+    setBankSearch("");
+    setCurrentPage(1);
+    setIsLoadingBanks(false);
+    setLoadingMore(false);
     onClose();
   };
 
@@ -387,7 +443,7 @@ export default function WalletCashWithdrawalModal({
 
       const payload: CashWithdrawalPayload = {
         outlet_id: outletId,
-        referenceKey: finalRefKey,
+        referenceKey: numericAmount <= 5000 ? null : finalRefKey,
         latitude: coords.latitude,
         longitude: coords.longitude,
         aadhaar: cleanAadhaar,
@@ -577,9 +633,13 @@ export default function WalletCashWithdrawalModal({
                   <div className="mb-2 flex flex-wrap gap-1.5">
                     {popularBanks.map((bank) => (
                       <button
-                        key={bank.id || bank.iin}
+                        key={bank.id || bank.iin || bank.name}
                         type="button"
-                        onClick={() => setSelectedBank(bank)}
+                        onClick={() => {
+                          setSelectedBank(bank);
+                          setIsBankDropdownOpen(false);
+                          setBankSearch("");
+                        }}
                         className={`rounded-lg border px-2.5 py-1 text-[11px] font-medium transition ${
                           selectedBank?.iin === bank.iin
                             ? "border-[#7c3aed] bg-purple-50 text-[#7c3aed] font-bold shadow-xs"
@@ -592,40 +652,53 @@ export default function WalletCashWithdrawalModal({
                   </div>
                 )}
 
-                {/* Bank Search Input */}
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                    <Search className="h-4 w-4 text-slate-400" />
+                {/* Bank Search Input & Dropdown Container */}
+                <div className="relative" ref={bankDropdownRef}>
+                  <div
+                    className="relative cursor-pointer"
+                    onClick={() => setIsBankDropdownOpen((prev) => !prev)}
+                  >
+                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                      <Search className="h-4 w-4 text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      value={bankSearch}
+                      onFocus={() => setIsBankDropdownOpen(true)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsBankDropdownOpen(true);
+                      }}
+                      onChange={(e) => {
+                        setBankSearch(e.target.value);
+                        setIsBankDropdownOpen(true);
+                      }}
+                      placeholder={
+                        isLoadingBanks
+                          ? "Loading available banks..."
+                          : selectedBank
+                          ? `Selected: ${selectedBank.name}`
+                          : "Search or select customer bank..."
+                      }
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20"
+                    />
+                    <ChevronDown
+                      className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 transition-transform ${
+                        isBankDropdownOpen ? "rotate-180 text-[#7c3aed]" : ""
+                      }`}
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={bankSearch}
-                    onChange={(e) => setBankSearch(e.target.value)}
-                    placeholder={
-                      isLoadingBanks
-                        ? "Loading available banks..."
-                        : selectedBank
-                        ? `Selected: ${selectedBank.name} (Search other bank)`
-                        : "Search customer bank by name or IIN..."
-                    }
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20"
-                  />
-                </div>
 
-                {/* Dropdown list when searching */}
-                {bankSearch.trim() && (
-                  <div className="mt-1 max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
-                    {filteredBanks.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-slate-500">
-                        No matching banks found
-                      </div>
-                    ) : (
-                      filteredBanks.map((bank) => (
+                  {/* Dropdown list - Opens immediately on click or focus */}
+                  {isBankDropdownOpen && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 z-50 max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl divide-y divide-slate-50">
+                      {filteredBanks.map((bank) => (
                         <button
-                          key={bank.id || bank.iin}
+                          key={bank.id || bank.iin || bank.name}
                           type="button"
                           onClick={() => {
                             setSelectedBank(bank);
+                            setIsBankDropdownOpen(false);
                             setBankSearch("");
                           }}
                           className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition ${
@@ -638,14 +711,42 @@ export default function WalletCashWithdrawalModal({
                             <Building2 className="h-4 w-4 text-slate-400" />
                             <span>{bank.name}</span>
                           </div>
-                          <span className="font-mono text-[10px] text-slate-400">
-                            IIN: {bank.iin}
-                          </span>
+                         
                         </button>
-                      ))
-                    )}
-                  </div>
-                )}
+                      ))}
+
+                      {filteredBanks.length === 0 && (
+                        <div className="p-3 text-center text-xs text-slate-500">
+                          No matching banks found {bankSearch ? `for "${bankSearch}"` : ""}
+                        </div>
+                      )}
+
+                      {/* Pagination Option - Directly after the last bank */}
+                      {currentPage < totalPages && (
+                        <div className="p-2 text-center bg-slate-50/80 border-t border-slate-100">
+                          <button
+                            type="button"
+                            onClick={handleLoadMoreBanks}
+                            disabled={loadingMore}
+                            className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-xs font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
+                          >
+                            {loadingMore ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                <span>Loading more banks...</span>
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="h-3.5 w-3.5" />
+                                <span>Load more banks ({banks.length} loaded · Page {currentPage}/{totalPages})</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Aadhaar Number & Mobile Grid */}

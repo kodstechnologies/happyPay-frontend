@@ -166,19 +166,15 @@ export default function SettlementToBank() {
     }
   };
 
-  const [transferError, setTransferError] = useState<string | null>(null);
-
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTransferError(null);
-
     if (!retailer?.isKycApproved) {
-      alert("Your KYC is not yet approved. Settlements are disabled until approval.");
+      toast.error("Your KYC is not yet approved. Settlements are disabled until approval.");
       return;
     }
 
     if (!selectedBank) {
-      alert("Please select a destination bank account");
+      toast.error("Please select a destination bank account");
       return;
     }
 
@@ -186,36 +182,31 @@ export default function SettlementToBank() {
     const maxAmt = limits.maxSettlementPerTxn || 50000;
 
     if (numAmount < minAmt) {
-      alert(`Minimum settlement amount is ₹${minAmt}`);
+      toast.error(`Minimum settlement amount is ₹${minAmt}`);
       return;
     }
     if (numAmount > maxAmt) {
-      alert(`Maximum settlement amount per transaction is ₹${maxAmt}`);
+      toast.error(`Maximum settlement amount per transaction is ₹${maxAmt}`);
       return;
     }
     if (numAmount > balance) {
-      alert("Insufficient wallet balance for settlement");
+      toast.error("Insufficient wallet balance for settlement");
       return;
     }
     if (mpin.length < 4) {
-      alert("Please enter a valid 4-digit MPIN");
+      toast.error("Please enter a valid 4-digit MPIN");
       return;
     }
 
     setIsProcessing(true);
     try {
       const coords = await getGeolocationCoordinates();
-      const bankCode = String(selectedBank.bank_code || "").trim();
-      const bankName = String(selectedBank.bank_name || selectedBank.name || "").trim();
 
-      // Required fields: accountType, branchName, benMobile, bank_code, bank_name, beneficiary_name, ifsc, account_number, amount, mode, lat, long, mpin
       const payload: InitiateSettlementPayload = {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
-        bank_code: bankCode,
-        code: bankCode,
-        bank_name: bankName,
+        bank_name: selectedBank.bank_code || selectedBank.bank_name || selectedBank.name || "",
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
         account_number: selectedBank.accountNumber,
@@ -254,7 +245,6 @@ export default function SettlementToBank() {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         (err instanceof Error ? err.message : "Settlement payout failed. Please try again.");
-      setTransferError(msg);
       toast.error(msg);
     } finally {
       setIsProcessing(false);
@@ -264,7 +254,6 @@ export default function SettlementToBank() {
   const handleReset = () => {
     setAmount("");
     setMpin("");
-    setTransferError(null);
     setIsSuccess(false);
     setTxnDetails(null);
   };
@@ -666,14 +655,6 @@ export default function SettlementToBank() {
                       </button>
                     </div>
                   </div>
-
-                  {transferError && (
-                    <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">
-                      <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                      <span>{transferError}</span>
-                    </div>
-                  )}
-
                   {/* Submit Button */}
                   <button
                     type="submit"

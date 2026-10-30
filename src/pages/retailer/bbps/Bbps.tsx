@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   Banknote,
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   CreditCard,
   Droplets,
+  Edit3,
   Flame,
   Fuel,
   GraduationCap,
@@ -296,6 +298,7 @@ const BBPS: React.FC = () => {
   const [consumerValues, setConsumerValues] = useState<Record<string, string>>({});
   const [billDetails, setBillDetails] = useState<BillDetails | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMode, setPaymentMode] = useState<"full" | "custom">("full");
   const [consent, setConsent] = useState(false);
   const [screen, setScreen] = useState<"form" | "bill" | "success">("form");
   const [isFetching, setIsFetching] = useState(false);
@@ -395,6 +398,7 @@ const BBPS: React.FC = () => {
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
+    setPaymentMode("full");
     setConsent(false);
     setScreen("form");
 
@@ -409,6 +413,7 @@ const BBPS: React.FC = () => {
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
+    setPaymentMode("full");
     setConsent(false);
     setScreen("form");
   };
@@ -438,6 +443,12 @@ const BBPS: React.FC = () => {
   }, [selectedCategory, selectedBiller]);
 
   // Lookup logged-in retailer email from in-memory session as a fallback
+  // Computed numeric payment amount
+  const numericPaymentAmount = useMemo(() => {
+    const parsed = parseFloat(paymentAmount);
+    return isNaN(parsed) || parsed < 0 ? 0 : parsed;
+  }, [paymentAmount]);
+
   const storedRetailerEmail = useMemo(() => {
     return getAuthUser()?.email || "";
   }, []);
@@ -662,6 +673,7 @@ const BBPS: React.FC = () => {
       });
 
       setPaymentAmount(amount > 0 ? amount.toFixed(2) : "");
+      setPaymentMode(amount > 0 ? "full" : "custom");
       toast.success(res?.message || "Bill details fetched successfully!");
       setScreen("bill");
     } catch (err: unknown) {
@@ -685,9 +697,9 @@ const BBPS: React.FC = () => {
       return;
     }
 
-    const payValue = parseFloat(paymentAmount);
+    const payValue = Math.round((parseFloat(paymentAmount) || 0) * 100) / 100;
     if (isNaN(payValue) || payValue <= 0) {
-      toast.error("Please enter a valid payment amount.");
+      toast.error("Please enter a valid payment amount greater than ₹0.");
       return;
     }
 
@@ -815,6 +827,38 @@ const BBPS: React.FC = () => {
     }
   };
 
+  // Helper to determine if biller supports partial payment
+  const isPartialPaySupported = useMemo(() => {
+    if (!billDetails?.partialPayAllow) return null;
+    const val = String(billDetails.partialPayAllow).trim().toUpperCase();
+    if (val === "Y" || val === "YES" || val === "TRUE" || val === "1") return true;
+    if (val === "N" || val === "NO" || val === "FALSE" || val === "0") return false;
+    return null;
+  }, [billDetails?.partialPayAllow]);
+
+  const handleSelectFullPayment = () => {
+    setPaymentMode("full");
+    if (billDetails) {
+      setPaymentAmount(billDetails.amount > 0 ? billDetails.amount.toFixed(2) : "");
+    }
+  };
+
+  const handleSelectCustomPayment = () => {
+    setPaymentMode("custom");
+  };
+
+  const handleCustomAmountChange = (val: string) => {
+    if (val === "" || /^\d*\.?\d{0,2}$/.test(val)) {
+      setPaymentAmount(val);
+    }
+  };
+
+  const handleApplyPresetPercentage = (percentage: number) => {
+    if (!billDetails || billDetails.amount <= 0) return;
+    const calculated = Math.round(billDetails.amount * (percentage / 100) * 100) / 100;
+    setPaymentAmount(calculated.toFixed(2));
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -823,6 +867,7 @@ const BBPS: React.FC = () => {
     setConsumerValues({});
     setBillDetails(null);
     setPaymentAmount("");
+    setPaymentMode("full");
     setConsent(false);
     setScreen("form");
   };
@@ -1290,9 +1335,197 @@ const BBPS: React.FC = () => {
                         </div>
                       )}
                       <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
-                        <span className="text-sm font-bold text-slate-800">Total Payable Amount</span>
+                        <span className="text-sm font-bold text-slate-800">Total Billed Dues</span>
                         <span className="text-xl font-black text-blue-700">
                           {formatCurrency(billDetails.amount)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Payment Mode Selection Card */}
+                    <div className="rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                            Choose Payment Option
+                          </label>
+                          {isPartialPaySupported === true && (
+                            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+                              Partial Pay Supported
+                            </span>
+                          )}
+                          {isPartialPaySupported === false && (
+                            <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-800">
+                              Full Payment Required
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Choose whether to pay the full invoice amount or enter a custom partial amount.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Option 1: Full Amount */}
+                        <button
+                          type="button"
+                          onClick={handleSelectFullPayment}
+                          className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                            paymentMode === "full"
+                              ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20 shadow-xs"
+                              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/60"
+                          }`}
+                        >
+                          <div
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full mt-0.5 border ${
+                              paymentMode === "full"
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {paymentMode === "full" && <Check size={12} strokeWidth={3} />}
+                          </div>
+                          <div>
+                            <span className="block text-xs font-bold text-slate-900">
+                              Pay Full Bill
+                            </span>
+                            <span className="block text-sm font-black text-blue-700 mt-0.5">
+                              {formatCurrency(billDetails.amount)}
+                            </span>
+                            <span className="block text-[11px] text-slate-500 mt-0.5">
+                              Settle entire bill dues
+                            </span>
+                          </div>
+                        </button>
+
+                        {/* Option 2: Custom Amount */}
+                        <button
+                          type="button"
+                          onClick={handleSelectCustomPayment}
+                          className={`flex items-start gap-3 rounded-xl border p-3.5 text-left transition-all ${
+                            paymentMode === "custom"
+                              ? "border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20 shadow-xs"
+                              : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/60"
+                          }`}
+                        >
+                          <div
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full mt-0.5 border ${
+                              paymentMode === "custom"
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {paymentMode === "custom" && <Check size={12} strokeWidth={3} />}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-slate-900">
+                                Pay Custom Amount
+                              </span>
+                              <Edit3 size={12} className="text-blue-600" />
+                            </div>
+                            <span className="block text-sm font-black text-slate-900 mt-0.5">
+                              {paymentMode === "custom" && numericPaymentAmount > 0
+                                ? formatCurrency(numericPaymentAmount)
+                                : "Custom / Partial"}
+                            </span>
+                            <span className="block text-[11px] text-slate-500 mt-0.5">
+                              Enter any payment amount
+                            </span>
+                          </div>
+                        </button>
+                      </div>
+
+                      {/* Custom Amount Input & Quick Chips */}
+                      {paymentMode === "custom" && (
+                        <div className="pt-2 border-t border-slate-100 space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                              Enter Payment Amount (₹)
+                            </label>
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none text-slate-400 font-bold text-base">
+                                ₹
+                              </div>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={paymentAmount}
+                                onChange={(e) => handleCustomAmountChange(e.target.value)}
+                                placeholder="0.00"
+                                className="h-12 w-full rounded-xl border border-slate-300 bg-slate-50/60 pl-9 pr-4 text-base font-bold text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-3 focus:ring-blue-500/10"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Quick Percentage Chips if bill dues > 0 */}
+                          {billDetails.amount > 0 && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <span className="text-[11px] font-semibold text-slate-500 mr-1">
+                                Quick Pick:
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyPresetPercentage(25)}
+                                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 transition"
+                              >
+                                25% ({formatCurrency(billDetails.amount * 0.25)})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyPresetPercentage(50)}
+                                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 transition"
+                              >
+                                50% ({formatCurrency(billDetails.amount * 0.5)})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyPresetPercentage(75)}
+                                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 transition"
+                              >
+                                75% ({formatCurrency(billDetails.amount * 0.75)})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleApplyPresetPercentage(100)}
+                                className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-700 hover:border-blue-300 hover:bg-blue-50/60 hover:text-blue-700 transition"
+                              >
+                                Full ({formatCurrency(billDetails.amount)})
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Biller Warning for Disallowed Partial Pay */}
+                          {isPartialPaySupported === false && (
+                            <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-xs text-amber-800">
+                              <AlertCircle size={15} className="shrink-0 mt-0.5 text-amber-600" />
+                              <p className="leading-relaxed">
+                                <strong>Notice:</strong> This utility operator indicates partial payment may not be accepted. Paying less than the full amount may be declined by the biller's network.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Wallet Warning */}
+                          {numericPaymentAmount > walletBalance && (
+                            <div className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50/80 p-3 text-xs text-rose-800">
+                              <AlertCircle size={15} className="shrink-0 mt-0.5 text-rose-600" />
+                              <p className="leading-relaxed">
+                                <strong>Insufficient Wallet Balance:</strong> You need{" "}
+                                {formatCurrency(numericPaymentAmount)}, but your current balance is{" "}
+                                {formatCurrency(walletBalance)}. Please recharge your wallet.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Final Payable Amount Display */}
+                      <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
+                        <span className="text-xs font-bold text-slate-700">
+                          Amount to be debited from wallet:
+                        </span>
+                        <span className="text-lg font-black text-emerald-700">
+                          {formatCurrency(numericPaymentAmount)}
                         </span>
                       </div>
                     </div>
@@ -1314,9 +1547,9 @@ const BBPS: React.FC = () => {
 
                     <button
                       type="button"
-                      disabled={isPaying || !consent}
+                      disabled={isPaying || !consent || numericPaymentAmount <= 0 || numericPaymentAmount > walletBalance}
                       onClick={handlePayBill}
-                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-sm font-bold text-white shadow-md shadow-emerald-500/20 transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50"
+                      className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-sm font-bold text-white shadow-md shadow-emerald-500/20 transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isPaying ? (
                         <>
@@ -1324,7 +1557,7 @@ const BBPS: React.FC = () => {
                         </>
                       ) : (
                         <>
-                          Pay {formatCurrency(parseFloat(paymentAmount) || billDetails.amount)} Now
+                          Pay {formatCurrency(numericPaymentAmount)} Now
                         </>
                       )}
                     </button>
@@ -1374,7 +1607,7 @@ const BBPS: React.FC = () => {
                     <div className="border-t border-slate-200 pt-2.5 flex justify-between items-center">
                       <span className="text-sm font-bold text-slate-800">Amount Paid</span>
                       <span className="text-lg font-black text-emerald-600">
-                        {formatCurrency(parseFloat(paymentAmount) || billDetails.amount)}
+                        {formatCurrency(numericPaymentAmount || billDetails.amount)}
                       </span>
                     </div>
                   </div>

@@ -126,6 +126,62 @@ const processCallbackData = (
   }
 };
 
+// Helper to extract gateway redirection URL and error message with multi-key gateway resilience
+const resolveGatewayUrl = (
+  response: unknown
+): { targetUrl: string; errorMsg: string | null } => {
+  const respObj = (response && typeof response === "object"
+    ? response
+    : {}) as Record<string, unknown>;
+  const resData = (respObj.data && typeof respObj.data === "object"
+    ? respObj.data
+    : respObj) as Record<string, unknown>;
+  const innerData = (resData?.data && typeof resData.data === "object"
+    ? resData.data
+    : {}) as Record<string, unknown>;
+
+  const targetUrl =
+    (resData?.redirectionUrl as string) ||
+    (resData?.redirectUrl as string) ||
+    (resData?.redirection_url as string) ||
+    (resData?.redirect_url as string) ||
+    (resData?.url as string) ||
+    (innerData?.redirectionUrl as string) ||
+    (innerData?.redirectUrl as string) ||
+    (innerData?.redirection_url as string) ||
+    (innerData?.redirect_url as string) ||
+    (innerData?.url as string) ||
+    (respObj?.redirectionUrl as string) ||
+    "";
+
+  const status =
+    (resData?.status as string) ||
+    (innerData?.status as string) ||
+    (respObj?.success ? "SUCCESS" : "");
+
+  const msg =
+    (resData?.msg as string) ||
+    (resData?.message as string) ||
+    (respObj?.message as string) ||
+    "";
+
+  const isSuccess =
+    status === "SUCCESS" ||
+    String(status).toLowerCase() === "success" ||
+    respObj?.success === true;
+
+  if (targetUrl && isSuccess) {
+    return { targetUrl, errorMsg: null };
+  }
+  if (targetUrl) {
+    return { targetUrl, errorMsg: null };
+  }
+  return {
+    targetUrl: "",
+    errorMsg: msg || "Airtel CMS redirection URL not returned from server.",
+  };
+};
+
 export default function Cms() {
   const navigate = useNavigate();
 
@@ -143,18 +199,22 @@ export default function Cms() {
 
   // Helper to append callback parameters to the URL returned by initiateCMSPayment
   const buildUrlWithCallback = useCallback((baseUrl: string): string => {
+    const apiBase = (import.meta.env.VITE_API_URL || "https://apis.happypayfintech.com").replace(/\/+$/, "");
+    const serverCallbackUrl = `${apiBase}/api/v1/cms/callback`;
+    const frontendReturnUrl = `${window.location.origin}/retailer/cms`;
+
     try {
       const urlObj = new URL(baseUrl);
       if (!urlObj.searchParams.has("callback")) {
-        urlObj.searchParams.set("callback", "https://partner.subhearndigital.tech");
+        urlObj.searchParams.set("callback", serverCallbackUrl);
       }
       if (!urlObj.searchParams.has("callback_url")) {
-        urlObj.searchParams.set("callback_url", window.location.origin + "/retailer/cms");
+        urlObj.searchParams.set("callback_url", frontendReturnUrl);
       }
       return urlObj.toString();
     } catch {
       const sep = baseUrl.includes("?") ? "&" : "?";
-      return `${baseUrl}${sep}callback=${encodeURIComponent("https://partner.subhearndigital.tech")}&callback_url=${encodeURIComponent(window.location.origin + "/retailer/cms")}`;
+      return `${baseUrl}${sep}callback=${encodeURIComponent(serverCallbackUrl)}&callback_url=${encodeURIComponent(frontendReturnUrl)}`;
     }
   }, []);
 
@@ -162,56 +222,28 @@ export default function Cms() {
     cmsCompanies.find((company) => company.id === selectedCompanyId) ?? null;
 
   /* =========================================================
-     1. FETCH CMS REDIRECTION URL AT COMPONENT MOUNT
+     1. FETCH CMS REDIRECTION URL AT COMPONENT MOUNT & RETRY
   ========================================================= */
   const loadRedirectionUrl = useCallback(async () => {
     try {
       setIsFetchingUrl(true);
       setFetchError(null);
 
-      // 1. Fetch real geolocation coordinates safely
       const coords = await getGeolocationCoordinates();
-
-      // 2. Call backend POST /api/v1/cms/initiate-payment
       const response = await initiateCmsPaymentApi({
         amount: 10,
         latitude: coords.latitude,
         longitude: coords.longitude,
       });
 
-      // 3. Extract redirectionUrl safely from response
-      const resData = (response?.data || response) as Record<string, unknown>;
-      const targetUrl =
-        (resData?.redirectionUrl as string) ||
-        ((resData?.data as Record<string, unknown>)?.redirectionUrl as string) ||
-        ((response as unknown as Record<string, unknown>)?.redirectionUrl as string) ||
-        "";
-
-      const status =
-        (resData?.status as string) ||
-        ((resData?.data as Record<string, unknown>)?.status as string) ||
-        (response?.success ? "SUCCESS" : "");
-
-      const msg =
-        (resData?.msg as string) ||
-        (resData?.message as string) ||
-        response?.message ||
-        "";
-
-      const isSuccess =
-        status === "SUCCESS" ||
-        String(status).toLowerCase() === "success" ||
-        response?.success === true;
-
-      if (targetUrl && isSuccess) {
-        setRedirectionUrl(targetUrl);
-      } else if (targetUrl) {
+      const { targetUrl, errorMsg } = resolveGatewayUrl(response);
+      if (targetUrl) {
         setRedirectionUrl(targetUrl);
       } else {
-        const errorMsg =
-          msg || "Airtel CMS redirection URL not returned from server.";
-        setFetchError(errorMsg);
-        toast.error(errorMsg);
+        const fallbackMsg =
+          errorMsg || "Airtel CMS redirection URL not returned from server.";
+        setFetchError(fallbackMsg);
+        toast.error(fallbackMsg);
       }
     } catch (err: unknown) {
       console.error("Error retrieving CMS redirection URL:", err);
@@ -234,53 +266,28 @@ export default function Cms() {
   useEffect(() => {
     let ignore = false;
 
-    getGeolocationCoordinates()
-      .then((coords) => {
-        if (ignore) return null;
-        return initiateCmsPaymentApi({
+    const initGatewaySession = async () => {
+      try {
+        const coords = await getGeolocationCoordinates();
+        if (ignore) return;
+
+        const response = await initiateCmsPaymentApi({
           amount: 10,
           latitude: coords.latitude,
           longitude: coords.longitude,
         });
-      })
-      .then((response) => {
-        if (ignore || !response) return;
+        if (ignore) return;
 
-        const resData = (response?.data || response) as Record<string, unknown>;
-        const targetUrl =
-          (resData?.redirectionUrl as string) ||
-          ((resData?.data as Record<string, unknown>)?.redirectionUrl as string) ||
-          ((response as unknown as Record<string, unknown>)?.redirectionUrl as string) ||
-          "";
-
-        const status =
-          (resData?.status as string) ||
-          ((resData?.data as Record<string, unknown>)?.status as string) ||
-          (response?.success ? "SUCCESS" : "");
-
-        const msg =
-          (resData?.msg as string) ||
-          (resData?.message as string) ||
-          response?.message ||
-          "";
-
-        const isSuccess =
-          status === "SUCCESS" ||
-          String(status).toLowerCase() === "success" ||
-          response?.success === true;
-
-        if (targetUrl && isSuccess) {
-          setRedirectionUrl(targetUrl);
-        } else if (targetUrl) {
+        const { targetUrl, errorMsg } = resolveGatewayUrl(response);
+        if (targetUrl) {
           setRedirectionUrl(targetUrl);
         } else {
-          const errorMsg =
-            msg || "Airtel CMS redirection URL not returned from server.";
-          setFetchError(errorMsg);
-          toast.error(errorMsg);
+          const fallbackMsg =
+            errorMsg || "Airtel CMS redirection URL not returned from server.";
+          setFetchError(fallbackMsg);
+          toast.error(fallbackMsg);
         }
-      })
-      .catch((err: unknown) => {
+      } catch (err: unknown) {
         if (!ignore) {
           console.error("Error retrieving CMS redirection URL:", err);
           const errorObj = err as {
@@ -295,12 +302,14 @@ export default function Cms() {
           setFetchError(errorMsg);
           toast.error(errorMsg);
         }
-      })
-      .finally(() => {
+      } finally {
         if (!ignore) {
           setIsFetchingUrl(false);
         }
-      });
+      }
+    };
+
+    void initGatewaySession();
 
     return () => {
       ignore = true;
