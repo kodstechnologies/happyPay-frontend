@@ -22,7 +22,7 @@ export interface Pricing {
 // Plan Category
 export interface PlanCategory {
   _id?: string;
-  categoryId: string;
+  categoryName: string;
   pricing: Pricing[];
 }
 
@@ -31,6 +31,7 @@ export interface PlanService {
   _id?: string;
   serviceId: string;
   categories: PlanCategory[];
+  pricing?: Pricing[];
 }
 
 // Plan
@@ -39,10 +40,13 @@ export interface Plan {
   name: string;
   image: string;
   description: string;
+  validityPeriod: number;
+  validityUnit: "DAYS" | "MONTHS" | "YEARS";
   services: PlanService[];
   status: "ACTIVE" | "INACTIVE";
   createdAt?: string;
   updatedAt?: string;
+  isSubscribed?: boolean;
 }
 
 // Form data types (without _id, createdAt, updatedAt)
@@ -53,6 +57,8 @@ export interface PlanListFilters {
   status?: "ACTIVE" | "INACTIVE";
   page?: number;
   limit?: number;
+  search?: string;
+  sortBy?: "newest" | "oldest" | "name" | "validity";
 }
 
 interface Envelope<T> {
@@ -66,7 +72,19 @@ interface Envelope<T> {
   };
 }
 
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
 const unwrap = <T,>(response: AxiosResponse<Envelope<T>>) => response.data.data;
+
+// Custom unwrap for paginated list responses where data is nested
+const unwrapList = <T,>(response: AxiosResponse<Envelope<{ data: T; pagination: PaginationMeta }>>) => response.data.data.data;
 
 // GET /api/v1/pricing - Get all plans
 export function getPlans(filters: PlanListFilters = {}) {
@@ -78,7 +96,7 @@ export function getPlans(filters: PlanListFilters = {}) {
   });
   const queryString = params.toString();
   const endpoint = `/api/v1/pricing${queryString ? `?${queryString}` : ""}`;
-  return api.get<Envelope<Plan[]>>(endpoint).then(unwrap);
+  return api.get<Envelope<{ data: Plan[]; pagination: PaginationMeta }>>(endpoint).then(unwrapList);
 }
 
 // GET /api/v1/pricing/:id - Get plan by ID
@@ -95,21 +113,24 @@ function planFormData(data: Partial<PlanFormData>, image?: File | null) {
   if (data.description !== undefined) body.append("description", data.description);
   if (data.status !== undefined) body.append("status", data.status);
 
+  // Append validity period fields
+  if (data.validityPeriod !== undefined) {
+    body.append("validityPeriod", String(data.validityPeriod));
+  }
+  if (data.validityUnit !== undefined) {
+    body.append("validityUnit", data.validityUnit);
+  }
+
   // Append image if provided
   if (image) {
     body.append("image", image);
   }
 
-  // Append services as JSON string
-  if (data.services !== undefined) {
-    body.append("services", JSON.stringify(data.services));
-  }
-
   return body;
 }
 
-// POST /api/v1/pricing - Create plan (with image upload)
-export function createPlan(data: Partial<PlanFormData>, image: File) {
+// POST /api/v1/pricing - Create plan (with optional image upload)
+export function createPlan(data: Partial<PlanFormData>, image?: File | null) {
   return api.post<Envelope<Plan>>(
     `/api/v1/pricing`,
     planFormData(data, image)
@@ -136,3 +157,61 @@ export function configurePlanServices(id: string, services: PlanService[]) {
     { services }
   ).then(unwrap);
 }
+
+// Subscription interface
+export interface UserSubscription {
+  _id: string;
+  planId: Plan | string;
+  userId: string;
+  subscribedAt: string;
+  cancelledAt: string | null;
+  expiresAt: string;
+  isExpired: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// PATCH /api/v1/pricing/:id/subscribe - Subscribe to a plan
+export function subscribeToPlan(planId: string) {
+  return api.patch<Envelope<UserSubscription>>(
+    `/api/v1/pricing/${planId}/subscribe`
+  ).then(unwrap);
+}
+
+// Query params for subscribed plans
+export interface SubscribedPlansFilters {
+  activeOnly?: boolean;
+  status?: "ACTIVE" | "EXPIRED" | "CANCELLED";
+  page?: number;
+  limit?: number;
+  search?: string;
+  sortBy?: "newest" | "oldest" | "expiry" | "planName";
+}
+
+// GET /api/v1/pricing/subscribed-plans - Get subscribed plans for the authenticated user
+export function getSubscribedPlans(filters: SubscribedPlansFilters = {}) {
+  const params = new URLSearchParams();
+  if (filters.activeOnly) {
+    params.set("activeOnly", "true");
+  }
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.search) {
+    params.set("search", filters.search);
+  }
+  if (filters.sortBy) {
+    params.set("sortBy", filters.sortBy);
+  }
+  if (filters.page) {
+    params.set("page", String(filters.page));
+  }
+  if (filters.limit) {
+    params.set("limit", String(filters.limit));
+  }
+  const queryString = params.toString();
+  const endpoint = `/api/v1/pricing/subscribed-plans${queryString ? `?${queryString}` : ""}`;
+  return api.get<Envelope<UserSubscription[]>>(endpoint).then(unwrap);
+}
+
+

@@ -54,6 +54,8 @@ const AboutRetailerStep = forwardRef<
   const [maritalStatus, setMaritalStatus] = useState("");
   const [education, setEducation] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
+  const [fatherName, setFatherName] = useState("");
+  const [motherName, setMotherName] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -90,6 +92,14 @@ const AboutRetailerStep = forwardRef<
 
       if (initialData.educationalQualification) {
         setEducation(initialData.educationalQualification);
+      }
+
+      if (initialData.fatherName) {
+        setFatherName(initialData.fatherName);
+      }
+
+      if (initialData.motherName) {
+        setMotherName(initialData.motherName);
       }
 
       if (initialData.selfie) {
@@ -171,6 +181,8 @@ const AboutRetailerStep = forwardRef<
         gender: genderCode,
         maritalStatus,
         educationalQualification: education.trim(),
+        fatherName: fatherName.trim(),
+        motherName: motherName.trim(),
         selfie: selfie || existingSelfie,
       });
 
@@ -214,6 +226,60 @@ const AboutRetailerStep = forwardRef<
             placeholder="Enter your full name"
             className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
               fullName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* FATHER'S NAME */}
+      <div>
+        <label
+          htmlFor="retailer-father-name"
+          className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
+        >
+          Father's Name
+        </label>
+        <div className="relative">
+          <UserRound
+            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
+            strokeWidth={2}
+          />
+          <input
+            id="retailer-father-name"
+            name="fatherName"
+            type="text"
+            value={fatherName}
+            onChange={(e) => setFatherName(e.target.value)}
+            placeholder="Enter your father's name"
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
+              fatherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* MOTHER'S NAME */}
+      <div>
+        <label
+          htmlFor="retailer-mother-name"
+          className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
+        >
+          Mother's Name
+        </label>
+        <div className="relative">
+          <UserRound
+            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
+            strokeWidth={2}
+          />
+          <input
+            id="retailer-mother-name"
+            name="motherName"
+            type="text"
+            value={motherName}
+            onChange={(e) => setMotherName(e.target.value)}
+            placeholder="Enter your mother's name"
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
+              motherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
             }`}
           />
         </div>

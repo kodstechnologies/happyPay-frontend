@@ -214,6 +214,7 @@ const ShopDetailsStep = ({
           if (addr) setAddress(addr);
 
           if (fd.shop.address?.city) setCity(fd.shop.address.city);
+          if (fd.shop.address?.state) setState(fd.shop.address.state);
           if (fd.shop.address?.pincode) {
             setPincode(fd.shop.address.pincode);
           }

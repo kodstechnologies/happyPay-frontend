@@ -19,6 +19,7 @@ import {
   ArrowRightLeft,
   ChevronDown,
   Bell,
+  Crown,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -200,7 +201,12 @@ const SidebarContent = ({
 
         {/* MANAGEMENT */}
         <SidebarSection title="Management">
-
+          <SidebarItem
+            label="Plans"
+            icon={<Crown />}
+            active={location.pathname.startsWith("/retailer/plans")}
+            onClick={() => goTo("/retailer/plans")}
+          />
 
           <SidebarItem
             label="Profile"
