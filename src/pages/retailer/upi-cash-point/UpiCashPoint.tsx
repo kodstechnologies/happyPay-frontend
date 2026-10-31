@@ -203,7 +203,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     .padStart(2, "0")}`;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
+    <div className="mx-auto w-full space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
         {onBack && (
