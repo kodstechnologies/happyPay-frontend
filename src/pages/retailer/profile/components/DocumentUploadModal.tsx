@@ -1,5 +1,6 @@
+import { showToast } from "../../../../utils/toast";
 import { useState, useRef } from "react";
-import { Upload, FileText, AlertCircle } from "lucide-react";
+import { Upload, FileText } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
 import type { RetailerFullProfile } from "../../../../types/retailer/profile";
@@ -24,15 +25,15 @@ export default function DocumentUploadModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!open) return null;
 
   const handleFileSelect = (file: File) => {
-    setError(null);
+    
     if (file.size > 10 * 1024 * 1024) {
-      setError("File size cannot exceed 10 MB.");
+      showToast("error", "File size cannot exceed 10 MB.");
       return;
     }
 
@@ -44,7 +45,7 @@ export default function DocumentUploadModal({
       "application/pdf",
     ];
     if (!validTypes.includes(file.type)) {
-      setError("Only JPG, PNG, WEBP, or PDF files are supported.");
+      showToast("error", "Only JPG, PNG, WEBP, or PDF files are supported.");
       return;
     }
 
@@ -66,13 +67,13 @@ export default function DocumentUploadModal({
 
   const handleUpload = async () => {
     if (!selectedFile) {
-      setError("Please select a file to upload.");
+      showToast("error", "Please select a file to upload.");
       return;
     }
 
     try {
       setIsUploading(true);
-      setError(null);
+      
 
       const formData = new FormData();
       formData.append(documentKey, selectedFile);
@@ -85,12 +86,7 @@ export default function DocumentUploadModal({
         throw new Error("Failed to upload document.");
       }
     } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-            "An error occurred while uploading. Please try again.";
-      setError(errorMsg);
+      showToast("error", err, "Failed to upload document.");
     } finally {
       setIsUploading(false);
     }
@@ -99,7 +95,7 @@ export default function DocumentUploadModal({
   const handleClose = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
-    setError(null);
+    
     onClose();
   };
 
@@ -117,13 +113,6 @@ export default function DocumentUploadModal({
       onSubmit={handleUpload}
     >
       <div className="space-y-4">
-        {error && (
-          <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-100">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-            <span>{error}</span>
-          </div>
-        )}
-
           {/* Hidden File Input */}
           <input
             ref={fileInputRef}

@@ -27,6 +27,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { DUMMY_RETAILERS, DUMMY_SUB_RETAILERS } from "./mockRetailers";
 import Pagination from "../../../components/common/Pagination";
+import { showToast } from "../../../utils/toast";
 import {
   getAdminRetailer,
   getAdminRetailerTransactions,
@@ -83,21 +84,21 @@ export default function AdminRetailerDetails() {
     if (liveRetailer.role === "distributor") return true;
     const anyRoles = (liveRetailer as unknown as { roles?: unknown[] }).roles;
     if (Array.isArray(anyRoles)) {
-      return anyRoles.some((r: unknown) =>
-        typeof r === "object" && r !== null
+      return anyRoles.some((r: unknown) => {
+        return typeof r === "object" && r !== null
           ? (r as { slug?: string; name?: string; code?: string }).slug === "distributor" ||
             (r as { slug?: string; name?: string; code?: string }).code === "distributor" ||
             (r as { slug?: string; name?: string; code?: string }).name?.toLowerCase() === "distributor"
-          : String(r) === "distributor"
-      );
+          : String(r) === "distributor";
+      });
     }
     if (Array.isArray(liveRetailer.role)) {
-      return (liveRetailer.role as unknown[]).some((r: unknown) =>
-        typeof r === "object" && r !== null
+      return (liveRetailer.role as unknown[]).some((r: unknown) => {
+        return typeof r === "object" && r !== null
           ? (r as { slug?: string; name?: string }).slug === "distributor" ||
             (r as { slug?: string; name?: string }).name?.toLowerCase() === "distributor"
-          : String(r) === "distributor"
-      );
+          : String(r) === "distributor";
+      });
     }
     return false;
   }, [liveRetailer]);
@@ -105,7 +106,7 @@ export default function AdminRetailerDetails() {
   const [retailerError, setRetailerError] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [processingDocId, setProcessingDocId] = useState<string | null>(null);
-  const [actionFeedback, setActionFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
 
   // Document viewer modal
   const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
@@ -498,27 +499,17 @@ export default function AdminRetailerDetails() {
     }
   }, [rejectingDoc, isRejectingRetailer]);
 
-  // Clear feedback timer
-  useEffect(() => {
-    if (!actionFeedback) return;
-    const timer = setTimeout(() => setActionFeedback(null), 4000);
-    return () => clearTimeout(timer);
-  }, [actionFeedback]);
 
   // Approve Entire Retailer
   const handleApproveRetailer = async () => {
     if (!id || actionLoading) return;
 
     if (!areAllDocumentsApproved) {
-      setActionFeedback({
-        type: "error",
-        message: `All ${TOTAL_REQUIRED_DOCUMENTS} KYC documents must be approved before approving the retailer (${docCounts.approved}/${TOTAL_REQUIRED_DOCUMENTS} approved).`,
-      });
+      showToast("error", `All ${TOTAL_REQUIRED_DOCUMENTS} KYC documents must be approved before approving the retailer (${docCounts.approved}/${TOTAL_REQUIRED_DOCUMENTS} approved).`);
       return;
     }
 
     setActionLoading(true);
-    setActionFeedback(null);
 
     try {
       await updateAdminRetailerAccountStatus(id, "approved");
@@ -552,10 +543,10 @@ export default function AdminRetailerDetails() {
         };
       });
       void loadRetailer(false);
-      setActionFeedback({ type: "success", message: "Retailer approved successfully!" });
+      showToast("success", "Retailer approved successfully!");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to approve retailer.";
-      setActionFeedback({ type: "error", message: msg });
+      showToast("error", err, msg);
       void loadRetailer(false);
     } finally {
       setActionLoading(false);
@@ -597,12 +588,12 @@ export default function AdminRetailerDetails() {
           documentField: docId,
           action: "approve",
         });
-        setActionFeedback({ type: "success", message: "Document verified and approved." });
+        showToast("success", "Document verified and approved.");
         await loadRetailer(false);
       } catch (e: unknown) {
         const errMessage = e instanceof Error ? e.message : (e as { message?: string })?.message || "Could not approve document.";
         console.warn("Could not sync document approval to backend:", e);
-        setActionFeedback({ type: "error", message: errMessage });
+        showToast("error", e, errMessage);
         await loadRetailer(false);
       } finally {
         setProcessingDocId(null);
@@ -664,7 +655,7 @@ export default function AdminRetailerDetails() {
           });
           await loadRetailer(false);
         }
-        setActionFeedback({ type: "success", message: `Document '${rejectingDoc.label}' rejected.` });
+        showToast("success", `Document '${rejectingDoc.label}' rejected.`);
       } else if (isRejectingRetailer) {
         // Overall Retailer rejection
         if (id) {
@@ -684,7 +675,7 @@ export default function AdminRetailerDetails() {
               : prev
           );
         }
-        setActionFeedback({ type: "success", message: "Retailer application rejected." });
+        showToast("success", "Retailer application rejected.");
       }
 
       setRejectingDoc(null);
@@ -693,7 +684,7 @@ export default function AdminRetailerDetails() {
       setRejectionReasonError("");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to process rejection.";
-      setActionFeedback({ type: "error", message: msg });
+      showToast("error", err, msg);
     } finally {
       setActionLoading(false);
       setProcessingDocId(null);
@@ -884,20 +875,6 @@ export default function AdminRetailerDetails() {
   return (
     <div className="mx-auto w-full space-y-6">
       {/* Toast Feedback */}
-      {actionFeedback && (
-        <div
-          className={`p-3 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm animate-fadeIn ${
-            actionFeedback.type === "success"
-              ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              : "bg-rose-50 text-rose-800 border border-rose-200"
-          }`}
-        >
-          <span>{actionFeedback.message}</span>
-          <button onClick={() => setActionFeedback(null)} className="ml-2 hover:opacity-75">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

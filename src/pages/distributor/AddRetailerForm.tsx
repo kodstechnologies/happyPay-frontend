@@ -1,3 +1,4 @@
+import { showToast } from "../../utils/toast";
 import React, { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
@@ -269,7 +270,7 @@ export default function AddRetailerForm({
   const handleSendMobileOtp = async () => {
     setError("");
     if (mobile.length !== 10) {
-      setError("Please enter a valid 10-digit mobile number.");
+      showToast("error", "Please enter a valid 10-digit mobile number.");
       return;
     }
     setIsSubmitting(true);
@@ -277,15 +278,15 @@ export default function AddRetailerForm({
       await sendRetailerRegisterOtp(mobile);
       setIsMobileOtpSent(true);
       setOtpTimer(45);
-      setSuccessMsg("OTP has been sent to +91 " + mobile);
+      showToast("success", "OTP has been sent to +91 " + mobile);
       // Focus first OTP field
       setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
     } catch (err: unknown) {
       const e = err as { message?: string; statusCode?: number };
       if (e?.statusCode === 409 || e?.message?.includes("already registered")) {
-        setError("This mobile number is already registered. Please use another number.");
+        showToast("error", "This mobile number is already registered. Please use another number.");
       } else {
-        setError(e?.message || "Failed to send OTP. Please try again.");
+        showToast("error", err, "Failed to send OTP. Please try again.");
       }
     } finally {
       setIsSubmitting(false);
@@ -314,7 +315,7 @@ export default function AddRetailerForm({
     setError("");
     const fullOtp = mobileOtp.join("");
     if (fullOtp.length !== 4) {
-      setError("Please enter the complete 4-digit OTP.");
+      showToast("error", "Please enter the complete 4-digit OTP.");
       return;
     }
     setIsSubmitting(true);
@@ -332,15 +333,14 @@ export default function AddRetailerForm({
       setUserId(newUserId);
       localStorage.setItem("subRetailerUserId", newUserId);
       setIsMobileVerified(true);
-      setSuccessMsg("Mobile verified successfully!");
+      showToast("success", "Mobile verified successfully!");
 
       // Advance to step 2
       setTimeout(() => {
         setCurrentStep(2);
       }, 600);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Invalid OTP entered. Please check and try again.");
+      showToast("error", err, "Invalid OTP entered. Please check and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -363,10 +363,9 @@ export default function AddRetailerForm({
     try {
       await sendRetailerEmailOtp({ userId, email: email.trim() });
       setIsEmailOtpSent(true);
-      setSuccessMsg("Verification OTP sent to " + email);
+      showToast("success", "Verification OTP sent to " + email);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Failed to send email OTP.");
+      showToast("error", err, "Failed to send email OTP.");
     } finally {
       setSendingEmailOtp(false);
     }
@@ -386,10 +385,9 @@ export default function AddRetailerForm({
         otp: emailOtp.trim(),
       });
       setIsEmailVerified(true);
-      setSuccessMsg("Email successfully verified!");
+      showToast("success", "Email successfully verified!");
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Invalid email OTP. Please verify again.");
+      showToast("error", err, "Invalid email OTP. Please verify again.");
     } finally {
       setVerifyingEmailOtp(false);
     }
@@ -516,11 +514,10 @@ export default function AddRetailerForm({
         businessProofDocument: businessProofFile,
       });
 
-      setSuccessMsg("Shop details saved successfully!");
+      showToast("success", "Shop details saved successfully!");
       setTimeout(() => setCurrentStep(3), 500);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Failed to save shop details. Please check all fields.");
+      showToast("error", err, "Failed to save shop details. Please check all fields.");
     } finally {
       setIsSubmitting(false);
     }
@@ -558,11 +555,10 @@ export default function AddRetailerForm({
         selfie: selfieFile,
       });
 
-      setSuccessMsg("Personal details saved successfully!");
+      showToast("success", "Personal details saved successfully!");
       setTimeout(() => setCurrentStep(4), 500);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Failed to save personal details.");
+      showToast("error", err, "Failed to save personal details.");
     } finally {
       setIsSubmitting(false);
     }
@@ -598,11 +594,10 @@ export default function AddRetailerForm({
         aadhaarMobileLinked: aadhaarMobileLinked === "yes",
       });
 
-      setSuccessMsg("Aadhaar KYC verified and saved!");
+      showToast("success", "Aadhaar KYC verified and saved!");
       setTimeout(() => setCurrentStep(5), 500);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Failed to save Aadhaar details.");
+      showToast("error", err, "Failed to save Aadhaar details.");
     } finally {
       setIsSubmitting(false);
     }
@@ -645,8 +640,7 @@ export default function AddRetailerForm({
       localStorage.removeItem("subRetailerUserId");
       setIsCompletedModalOpen(true);
     } catch (err: unknown) {
-      const e = err as { message?: string };
-      setError(e?.message || "Failed to complete retailer registration. Please try again.");
+      showToast("error", err, "Failed to complete retailer registration. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

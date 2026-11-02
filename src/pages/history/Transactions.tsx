@@ -1,3 +1,4 @@
+import { showToast } from "../../utils/toast";
 import { useState, useEffect, useCallback, useId } from "react";
 import {
   Activity,
@@ -5,7 +6,7 @@ import {
   Eye,
   X,
   CheckCircle2,
-  AlertTriangle,
+
   XCircle,
   Clock,
   Printer,
@@ -146,7 +147,7 @@ export default function Transactions() {
 
   // UI States
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [errorMsg, setErrorMsg] = useState<string>("");
+  
   const [selectedTxn, setSelectedTxn] = useState<TransactionItem | null>(null);
 
   // Debounce search input with 500ms delay
@@ -164,7 +165,7 @@ export default function Transactions() {
   const fetchPage = useCallback(
     async (pageToFetch: number) => {
       setIsLoading(true);
-      setErrorMsg("");
+      
       try {
         const response = await getTransactionsApi({
           page: pageToFetch,
@@ -189,18 +190,10 @@ export default function Transactions() {
               hasPrevPage: false,
             }
           );
-        } else {
-          setErrorMsg(response?.message || "Failed to load transactions.");
         }
       } catch (err: unknown) {
         console.error("Error fetching transactions:", err);
-        const axiosErr = err as { response?: { data?: { message?: string; errors?: string[] } } };
-        const backendErr = axiosErr?.response?.data;
-        setErrorMsg(
-          backendErr?.message ||
-            (Array.isArray(backendErr?.errors) ? backendErr.errors.join(", ") : "") ||
-            "Unable to load transactions. Please verify your connection."
-        );
+        showToast("error", err, "Unable to load transactions. Please verify your connection.");
       } finally {
         setIsLoading(false);
       }
@@ -221,7 +214,7 @@ export default function Transactions() {
 
     const loadInitialPage = async () => {
       setIsLoading(true);
-      setErrorMsg("");
+      
       try {
         const response = await getTransactionsApi({
           page: 1,
@@ -247,20 +240,12 @@ export default function Transactions() {
                 hasPrevPage: false,
               }
             );
-          } else {
-            setErrorMsg(response?.message || "Failed to load transactions.");
           }
         }
       } catch (err: unknown) {
         if (isMounted) {
           console.error("Error fetching transactions:", err);
-          const axiosErr = err as { response?: { data?: { message?: string; errors?: string[] } } };
-          const backendErr = axiosErr?.response?.data;
-          setErrorMsg(
-            backendErr?.message ||
-              (Array.isArray(backendErr?.errors) ? backendErr.errors.join(", ") : "") ||
-              "Unable to load transactions. Please verify your connection."
-          );
+          showToast("error", err, "Unable to load transactions. Please verify your connection.");
         }
       } finally {
         if (isMounted) {
@@ -456,22 +441,6 @@ export default function Transactions() {
           </div>
         </div>
 
-        {/* Error State */}
-        {errorMsg && (
-          <div className="m-4 flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
-            <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-rose-600" />
-              <span>{errorMsg}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => fetchPage(pagination.page)}
-              className="font-bold underline hover:text-rose-950"
-            >
-              Retry
-            </button>
-          </div>
-        )}
 
         {/* Loading State */}
         {isLoading ? (

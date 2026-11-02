@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { showToast } from "../../../utils/toast";
 import { useNavigate } from "react-router-dom";
 import {
   Building2,
@@ -70,7 +71,6 @@ export default function Profile() {
     currentUrl?: string | null;
   }>({ open: false, key: "", title: "" });
 
-  const [successToast, setSuccessToast] = useState<string | null>(null);
 
   // Fetch full profile (for manual retry)
   const fetchProfileData = useCallback(async () => {
@@ -129,12 +129,6 @@ export default function Profile() {
     };
   }, []);
 
-  const showToast = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => {
-      setSuccessToast(null);
-    }, 4000);
-  };
 
   // Silent background refresh that synchronizes canonical profile without full-page spinner flicker
   const refreshProfile = useCallback(async () => {
@@ -154,7 +148,7 @@ export default function Profile() {
     } else {
       refreshProfile();
     }
-    showToast("Profile details updated successfully!");
+    showToast("success", "Profile details updated successfully!");
   };
 
   const handleDocumentUpdated = (updated?: RetailerFullProfile) => {
@@ -163,7 +157,7 @@ export default function Profile() {
     } else {
       refreshProfile();
     }
-    showToast("Document uploaded successfully and submitted for review!");
+    showToast("success", "Document uploaded successfully and submitted for review!");
   };
 
   // Bank modal & primary bank action states
@@ -189,8 +183,7 @@ export default function Profile() {
     } else {
       refreshProfile();
     }
-    showToast(
-      bankModalState.bankToEdit
+    showToast("success", bankModalState.bankToEdit
         ? "Bank account details updated successfully."
         : "New settlement bank account added successfully."
     );
@@ -212,18 +205,13 @@ export default function Profile() {
         } else {
           await refreshProfile();
         }
-        showToast(`${bank.name || "Bank account"} is now set as your primary settlement account.`);
+        showToast("success", `${bank.name || "Bank account"} is now set as your primary settlement account.`);
       } else {
         throw new Error(res?.message || "Failed to update primary bank.");
       }
     } catch (err: unknown) {
       console.error("Failed to set primary bank:", err);
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data
-              ?.message || "Failed to set primary bank. Please try again.";
-      showToast(errorMsg);
+      showToast("error", err, "Failed to update primary bank.");
     } finally {
       setSettingPrimaryBankId(null);
     }
@@ -245,19 +233,14 @@ export default function Profile() {
         } else {
           await refreshProfile();
         }
-        showToast(`${deletingBank.name || "Bank account"} deleted successfully.`);
+        showToast("success", `${deletingBank.name || "Bank account"} deleted successfully.`);
         setDeletingBank(null);
       } else {
         throw new Error(res?.message || "Failed to delete bank account.");
       }
     } catch (err: unknown) {
       console.error("Failed to delete bank account:", err);
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data
-              ?.message || "Failed to delete bank account. Please try again.";
-      showToast(errorMsg);
+      showToast("error", err, "Failed to delete bank account.");
     } finally {
       setIsDeletingBank(false);
     }
@@ -405,13 +388,6 @@ export default function Profile() {
   return (
     <div className="">
       <div className="w-full">
-        {/* Toast Notification */}
-        {successToast && (
-          <div className="fixed top-5 right-5 z-50 flex items-center gap-2.5 rounded-xl bg-emerald-600 px-4 py-3 text-white shadow-xl animate-fade-in">
-            <CheckCircle2 className="h-5 w-5" />
-            <span className="text-xs font-semibold">{successToast}</span>
-          </div>
-        )}
 
         {/* Top Header */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-4">

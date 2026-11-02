@@ -1,3 +1,4 @@
+import { showToast } from "../../utils/toast";
 import { useState, useEffect, useCallback } from "react";
 import {
   Fingerprint,
@@ -108,12 +109,6 @@ const Dashboard = () => {
 
   const [addMoneyAmount, setAddMoneyAmount] =
     useState("500");
-
-  const [showMoneyAddedToast, setShowMoneyAddedToast] =
-    useState(false);
-
-  const [lastAddedAmount, setLastAddedAmount] =
-    useState(0);
 
   const [showComingSoonModal, setShowComingSoonModal] =
     useState(false);
@@ -315,14 +310,14 @@ const Dashboard = () => {
     try {
       const isLoaded = await loadRazorpayScript();
       if (!isLoaded) {
-        alert("Failed to load Razorpay SDK. Please check your internet connection.");
+        showToast("error", "Failed to load Razorpay SDK. Please check your internet connection.");
         setIsAddingMoney(false);
         return;
       }
 
       const initiateRes = await initiatePaymentApi(numericAmount, "add_wallet");
       if (!initiateRes.success) {
-        alert(initiateRes.message || "Failed to initiate payment");
+        showToast("error", initiateRes.message || "Failed to initiate payment");
         setIsAddingMoney(false);
         return;
       }
@@ -359,22 +354,16 @@ const Dashboard = () => {
             );
 
             if (verifyRes.success) {
-              setLastAddedAmount(numericAmount);
               setShowAddMoneyModal(false);
               setAddMoneyAmount("500");
-              setShowMoneyAddedToast(true);
+              showToast("success", `₹${numericAmount.toLocaleString("en-IN")} added to wallet successfully!`);
               await fetchLiveBalance(false);
-              window.setTimeout(() => {
-                setShowMoneyAddedToast(false);
-              }, 3500);
             } else {
-              alert(verifyRes.message || "Payment verification failed");
+              showToast("error", verifyRes.message || "Payment verification failed");
             }
           } catch (error: unknown) {
             console.error("Payment verification error:", error);
-            const axiosErr = error as { response?: { data?: { message?: string } } };
-            const backendErr = axiosErr?.response?.data;
-            alert(backendErr?.message || "Error verifying payment with server.");
+            showToast("error", error, "Error verifying payment with server.");
           }
         },
         prefill: {
@@ -403,14 +392,12 @@ const Dashboard = () => {
         } catch (failErr) {
           console.error("Failed to report payment failure:", failErr);
         }
-        alert(reason);
+        showToast("error", reason);
       });
       rzp.open();
     } catch (error: unknown) {
       console.error("Add money flow error:", error);
-      const axiosErr = error as { response?: { data?: { message?: string } } };
-      const backendErr = axiosErr?.response?.data;
-      alert(backendErr?.message || "Something went wrong during payment initiation.");
+      showToast("error", error, "Something went wrong during payment initiation.");
     } finally {
       setIsAddingMoney(false);
     }
@@ -503,29 +490,6 @@ const Dashboard = () => {
   return (
     <div className="min-h-full bg-transparent">
 
-      {showMoneyAddedToast && (
-        <div className="fixed right-4 top-4 z-[100] animate-in slide-in-from-right-5 duration-300 sm:right-6 sm:top-6">
-          <div className="flex items-center gap-3 rounded-2xl border border-[#dfe1e6] bg-white px-4 py-3.5 shadow-[0_18px_45px_-25px_rgba(23,32,51,0.35)]">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#eef1ff]">
-              <WalletCards className="h-5 w-5 text-[#315bd1]" />
-            </div>
-
-            <div>
-              <p className="text-sm font-bold text-[#172033]">
-                Money Added!
-              </p>
-
-              <p className="text-xs text-[#8992a3]">
-                ₹
-                {lastAddedAmount.toLocaleString(
-                  "en-IN",
-                )}{" "}
-                added to your wallet.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <main className="">
         <div className="mx-auto w-full ">

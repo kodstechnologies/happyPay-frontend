@@ -1,27 +1,34 @@
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
-import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { type FormEvent, useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { saveAdminSession } from "../../../utils/adminAuth";
 import { loginAdmin } from "../../../apis/adminAuth.apis";
 import { getFCMToken } from "../../../config/firebase";
 import { useAdminAuth } from "../../../context/AdminAuthContext";
+import { showToast } from "../../../utils/toast";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAdminAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    const stateMessage = (location.state as { message?: string } | null)?.message;
+    if (stateMessage) {
+      showToast("success", stateMessage);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setError("");
 
     if (!email.trim() || !password) {
-      setError("Enter your email and password.");
+      showToast("error", "Enter your email and password.");
       return;
     }
 
@@ -63,13 +70,13 @@ export default function AdminLogin() {
         if (adminUser) {
           login(adminUser);
         }
+        showToast("success", "Signed in successfully!");
         navigate("/admin/dashboard", { replace: true });
         return;
       }
       throw new Error("No access token received from server");
     } catch (err: unknown) {
-      const errObj = err as { message?: string };
-      setError(errObj?.message || "Invalid email or password.");
+      showToast("error", err, "Invalid email or password.");
     } finally {
       setIsSubmitting(false);
     }
@@ -157,8 +164,6 @@ export default function AdminLogin() {
                   </button>
                 </div>
               </div>
-
-              {error && <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">{error}</p>}
 
               <div className="flex items-center justify-between gap-3">
                 <label className="flex items-center gap-2 text-sm text-slate-600">

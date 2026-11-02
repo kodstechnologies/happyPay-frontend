@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -363,7 +364,7 @@ const HelpSupport = () => {
   const [submittingTicket, setSubmittingTicket] =
     useState(false);
 
-  const [submitError, setSubmitError] =
+  // submitError removed
     useState<string | null>(null);
 
   /* ==========================================================
@@ -432,6 +433,7 @@ const HelpSupport = () => {
         setTickets(transformedTickets);
       } catch (error) {
         console.error("Failed to fetch tickets:", error);
+        showToast("error", error, "Failed to load tickets. Please try again.");
         setTicketsError("Failed to load tickets. Please try again.");
       } finally {
         setTicketsLoading(false);
@@ -463,13 +465,14 @@ const HelpSupport = () => {
 
   const handleSubmitTicket = async () => {
     if (!ticketSubject.trim() || !ticketDescription.trim()) {
-      setSubmitError("Subject and description are required");
+      showToast("error", "Subject and description are required");
+      
       return;
     }
 
     try {
       setSubmittingTicket(true);
-      setSubmitError(null);
+      
 
       const formData = new FormData();
 
@@ -502,6 +505,7 @@ const HelpSupport = () => {
       };
 
       setTickets((prev) => [newTicket, ...prev]);
+      showToast("success", "Support ticket submitted successfully!");
 
       setShowRaiseTicketModal(false);
 
@@ -512,7 +516,8 @@ const HelpSupport = () => {
       setTicketFile(null);
     } catch (error) {
       console.error("Failed to submit ticket:", error);
-      setSubmitError("Failed to submit ticket. Please try again.");
+      showToast("error", error, "Failed to submit ticket. Please try again.");
+      
     } finally {
       setSubmittingTicket(false);
     }
@@ -916,11 +921,6 @@ const HelpSupport = () => {
                 2 working hours.
               </p>
 
-              {submitError && (
-                <div className="mt-4 rounded-xl border border-[#fecaca] bg-[#fef2f2] px-4 py-3">
-                  <p className="text-sm text-[#dc2626]">{submitError}</p>
-                </div>
-              )}
 
               {/* ==================================================
                   ISSUE CATEGORY

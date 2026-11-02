@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import { useState } from "react";
 import { rdService } from "../../../utils/rdService";
 import { miniStatement, parsePidXml } from "../../../services/api/retailer/aepsApi";
@@ -195,9 +196,12 @@ const MiniStatement = ({
       setTransactions(parsedTxns);
       setStatementData(resultData as MiniStatementData);
       setShowReceipt(true);
+      showToast("success", "Mini statement fetched successfully!");
     } catch (err) {
       console.error("Mini statement execution failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch mini statement from bank");
+      const errMsg = err instanceof Error ? err.message : "Failed to fetch mini statement from bank";
+      setError(errMsg);
+      showToast("error", err, errMsg);
     } finally {
       setIsProcessing(false);
       setIsFetchingApi(false);

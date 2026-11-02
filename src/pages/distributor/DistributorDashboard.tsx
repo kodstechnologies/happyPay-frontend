@@ -1,3 +1,4 @@
+import { showToast } from "../../utils/toast";
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -29,7 +30,6 @@ export default function DistributorDashboard() {
 
   const [retailers, setRetailers] = useState<DownlineRetailer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [isRegisterOpen, setIsRegisterOpen] = useState(false);
 
   // Pagination state
@@ -49,7 +49,7 @@ export default function DistributorDashboard() {
   // Fetch downline retailers
   const fetchRetailers = useCallback(async () => {
     setLoading(true);
-    setError("");
+    
     try {
       const res = await getDownlineRetailersApi({
         page,
@@ -79,7 +79,8 @@ export default function DistributorDashboard() {
       }
     } catch (err) {
       console.error("Failed to fetch downline retailers:", err);
-      setError(err instanceof Error ? err.message : "Failed to load retailers");
+      showToast("error", err, "Failed to load retailers");
+      
     } finally {
       setLoading(false);
     }
@@ -245,13 +246,6 @@ export default function DistributorDashboard() {
           </div>
         </div>
       </div>
-
-      {/* ERROR MESSAGE */}
-      {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
-          {error}
-        </div>
-      )}
 
       {/* RETAILERS TABLE / LIST VIEW */}
       <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

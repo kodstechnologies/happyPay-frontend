@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import { Eye, RefreshCw, Search, Store, Ban, CheckCircle, Users, Layers } from "lucide-react";
 import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
@@ -44,7 +45,7 @@ export default function AdminRetailers() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [usingMockFallback, setUsingMockFallback] = useState(false);
   const PAGE_SIZE = 10;
@@ -83,14 +84,13 @@ export default function AdminRetailers() {
         return;
       }
 
-      setError(message);
+      showToast("error", message);
     },
     [navigate],
   );
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
 
     try {
       const res = await getAdminRetailers({
@@ -316,11 +316,6 @@ export default function AdminRetailers() {
           </div>
         </div>
 
-        {error && (
-          <div className="m-5 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            {error}
-          </div>
-        )}
 
         {loading ? (
           <div className="space-y-3 p-5">

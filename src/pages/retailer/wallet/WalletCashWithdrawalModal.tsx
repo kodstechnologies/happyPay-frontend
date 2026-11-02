@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   X,
@@ -5,7 +6,7 @@ import {
   Search,
   Building2,
   CheckCircle2,
-  AlertCircle,
+
   RefreshCw,
   Printer,
   ArrowRight,
@@ -115,7 +116,6 @@ export default function WalletCashWithdrawalModal({
   // Transaction Processing & Error State
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [processingMessage, setProcessingMessage] = useState<string>("");
-  const [errorMessage, setErrorMessage] = useState<string>("");
 
   // Receipt State
   const [receipt, setReceipt] = useState<WithdrawalSuccessData | null>(null);
@@ -191,7 +191,7 @@ export default function WalletCashWithdrawalModal({
     setPrevOpen(open);
     if (open) {
       setStep("form");
-      setErrorMessage("");
+      
       setReceipt(null);
       setOtp("");
       setOtpReferenceKey("");
@@ -318,7 +318,7 @@ export default function WalletCashWithdrawalModal({
   const handleClose = () => {
     if (isProcessing) return;
     setStep("form");
-    setErrorMessage("");
+    
     setReceipt(null);
     setIsBankDropdownOpen(false);
     setBankSearch("");
@@ -330,32 +330,32 @@ export default function WalletCashWithdrawalModal({
 
   // Perform Cash Withdrawal Transaction
   const executeWithdrawal = async (verifiedOtp?: string) => {
-    setErrorMessage("");
+    
     const numericAmount = Number(amount);
     const cleanAadhaar = aadhaar.replace(/\D/g, "");
     const cleanMobile = mobile.replace(/\D/g, "");
 
     // Validation
     if (!selectedBank) {
-      setErrorMessage("Please select a customer bank.");
+      showToast("error", "Please select a customer bank.");
       return;
     }
     if (cleanAadhaar.length !== 12) {
-      setErrorMessage("Please enter a valid 12-digit Aadhaar number.");
+      showToast("error", "Please enter a valid 12-digit Aadhaar number.");
       return;
     }
     if (cleanMobile.length !== 10) {
-      setErrorMessage("Please enter a valid 10-digit mobile number.");
+      showToast("error", "Please enter a valid 10-digit mobile number.");
       return;
     }
     if (!numericAmount || numericAmount <= 0) {
-      setErrorMessage("Please enter a valid withdrawal amount.");
+      showToast("error", "Please enter a valid withdrawal amount.");
       return;
     }
 
     const outletId = getOutletId();
     if (!outletId) {
-      setErrorMessage("Outlet ID not found. Please ensure your AEPS merchant profile is onboarded.");
+      showToast("error", "Outlet ID not found. Please ensure your AEPS merchant profile is onboarded.");
       return;
     }
 
@@ -403,8 +403,8 @@ export default function WalletCashWithdrawalModal({
         setStep("otp");
       } catch (err: unknown) {
         console.error("OTP send failed:", err);
-        const errObj = err as { message?: string };
-        setErrorMessage(errObj.message || "Failed to send OTP. Please check customer mobile.");
+        
+        showToast("error", err, "Failed to send OTP. Please check customer mobile.");
       } finally {
         setIsProcessing(false);
       }
@@ -516,16 +516,7 @@ export default function WalletCashWithdrawalModal({
       onSuccess(receiptData);
     } catch (err: unknown) {
       console.error("Withdrawal flow error:", err);
-      const errObj = err as {
-        response?: { data?: { message?: string; msg?: string } };
-        message?: string;
-      };
-      const apiMsg =
-        errObj.response?.data?.message ||
-        errObj.response?.data?.msg ||
-        errObj.message ||
-        "Transaction failed. Please try again.";
-      setErrorMessage(apiMsg);
+      showToast("error", err, "Transaction failed. Please try again.");
       setStep("form");
     } finally {
       setIsProcessing(false);
@@ -568,27 +559,6 @@ export default function WalletCashWithdrawalModal({
 
         {/* Modal Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          {/* Global Error Banner */}
-          {errorMessage && (
-            <div
-              role="alert"
-              className="flex items-start gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs font-medium text-rose-800 animate-in fade-in duration-150"
-            >
-              <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
-              <div className="flex-1">
-                <p className="font-bold">Transaction Alert</p>
-                <p className="mt-0.5 text-rose-700">{errorMessage}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setErrorMessage("")}
-                className="text-rose-400 hover:text-rose-700"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          )}
-
           {/* STEP: FORM ENTRY */}
           {step === "form" && (
             <div className="space-y-4">

@@ -19,7 +19,7 @@ import {
   AlertTriangle,
   FolderOpen,
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import { getPlans, deletePlan, type Plan } from "../../../apis/pricingApi";
 
 const AdminPlanManagement = () => {
@@ -47,7 +47,7 @@ const AdminPlanManagement = () => {
       setPlans(Array.isArray(plansData) ? plansData : []);
     } catch (error) {
       console.error("Failed to fetch plans:", error);
-      toast.error("Failed to load plans. Please try again.");
+      showToast("error", error, "Failed to load plans. Please try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -109,13 +109,13 @@ const AdminPlanManagement = () => {
     setDeleting(true);
     try {
       await deletePlan(planToDelete._id);
-      toast.success(`Plan "${planToDelete.name}" deleted successfully`);
+      showToast("success", `Plan "${planToDelete.name}" deleted successfully`);
       setPlans((prev) => prev.filter((p) => p._id !== planToDelete._id));
       setDeleteModalOpen(false);
       setPlanToDelete(null);
     } catch (error) {
       console.error("Failed to delete plan:", error);
-      toast.error("Failed to delete plan. Please try again.");
+      showToast("error", error, "Failed to delete plan. Please try again.");
     } finally {
       setDeleting(false);
     }

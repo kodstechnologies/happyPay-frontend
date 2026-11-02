@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { showToast } from "../../../utils/toast";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -112,8 +113,8 @@ const SecuritySettings = () => {
   const [maskedMobile, setMaskedMobile] = useState("");
 
   const [isSubmittingPin, setIsSubmittingPin] = useState(false);
-  const [pinMessage, setPinMessage] = useState("");
-  const [isPinMessageError, setIsPinMessageError] = useState(false);
+  
+  
 
   // Synchronize MPIN status from profile
   useEffect(() => {
@@ -167,32 +168,37 @@ const SecuritySettings = () => {
   ========================= */
 
   const handleSendOtp = async () => {
-    setPinMessage("");
-    setIsPinMessageError(false);
+    
+    
 
     if (pinMode === "change" && !currentPin) {
-      setPinMessage("Please enter your current 4-digit MPIN first.");
-      setIsPinMessageError(true);
+      showToast("error", "Please enter your current 4-digit MPIN first.");
+      
+      
       return;
     }
     if (pinMode === "change" && !/^\d{4}$/.test(currentPin)) {
-      setPinMessage("Current MPIN must be exactly 4 numeric digits.");
-      setIsPinMessageError(true);
+      showToast("error", "Current MPIN must be exactly 4 numeric digits.");
+      
+      
       return;
     }
     if (newPin && !/^\d{4}$/.test(newPin)) {
-      setPinMessage("New MPIN must contain exactly 4 numeric digits.");
-      setIsPinMessageError(true);
+      showToast("error", "New MPIN must contain exactly 4 numeric digits.");
+      
+      
       return;
     }
     if (confirmPin && !/^\d{4}$/.test(confirmPin)) {
-      setPinMessage("Confirm MPIN must contain exactly 4 numeric digits.");
-      setIsPinMessageError(true);
+      showToast("error", "Confirm MPIN must contain exactly 4 numeric digits.");
+      
+      
       return;
     }
     if (newPin && confirmPin && newPin !== confirmPin) {
-      setPinMessage("New MPIN and confirm MPIN do not match.");
-      setIsPinMessageError(true);
+      showToast("error", "New MPIN and confirm MPIN do not match.");
+      
+      
       return;
     }
 
@@ -204,51 +210,53 @@ const SecuritySettings = () => {
       if (res.data?.mobileMasked) {
         setMaskedMobile(res.data.mobileMasked);
       }
-      setPinMessage(res.message || "OTP sent successfully to your registered mobile.");
-      setIsPinMessageError(false);
+      showToast("success", res.message || "OTP sent successfully to your registered mobile.");
+      
+      
     } catch (err: unknown) {
       console.error("Failed to send MPIN OTP:", err);
-      const errorMsg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        (err instanceof Error ? err.message : "Failed to send OTP. Please try again.");
-      setPinMessage(errorMsg);
-      setIsPinMessageError(true);
+      showToast("error", err, "Failed to send OTP. Please try again.");
     } finally {
       setIsSendingOtp(false);
     }
   };
 
   const handlePinSubmit = async () => {
-    setPinMessage("");
-    setIsPinMessageError(false);
+    
+    
 
     if (pinMode === "change" && !currentPin) {
-      setPinMessage("Please enter your current 4-digit MPIN.");
-      setIsPinMessageError(true);
+      showToast("error", "Please enter your current 4-digit MPIN.");
+      
+      
       return;
     }
 
     if (!newPin || !confirmPin) {
-      setPinMessage("Please fill in all MPIN fields.");
-      setIsPinMessageError(true);
+      showToast("error", "Please fill in all MPIN fields.");
+      
+      
       return;
     }
 
     if (!/^\d{4}$/.test(newPin) || !/^\d{4}$/.test(confirmPin)) {
-      setPinMessage("MPIN must contain exactly 4 numeric digits.");
-      setIsPinMessageError(true);
+      showToast("error", "MPIN must contain exactly 4 numeric digits.");
+      
+      
       return;
     }
 
     if (newPin !== confirmPin) {
-      setPinMessage("New MPIN and confirm MPIN do not match.");
-      setIsPinMessageError(true);
+      showToast("error", "New MPIN and confirm MPIN do not match.");
+      
+      
       return;
     }
 
     if (!otp || !/^\d{4}$/.test(otp)) {
-      setPinMessage("Please enter the 4-digit OTP sent to your registered mobile.");
-      setIsPinMessageError(true);
+      showToast("error", "Please enter the 4-digit OTP sent to your registered mobile.");
+      
+      
       return;
     }
 
@@ -271,8 +279,9 @@ const SecuritySettings = () => {
         });
       }
 
-      setPinMessage(res.message || "Transaction MPIN updated successfully!");
-      setIsPinMessageError(false);
+      showToast("success", res.message || "Transaction MPIN updated successfully!");
+      
+      
       setIsMpinConfigured(true);
 
       if (refreshUser) {
@@ -287,15 +296,11 @@ const SecuritySettings = () => {
 
       setTimeout(() => {
         setShowPinForm(false);
-        setPinMessage("");
+        
       }, 2500);
     } catch (err: unknown) {
       console.error("Failed to update MPIN:", err);
-      const errorMsg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        (err instanceof Error ? err.message : "Failed to update MPIN. Please try again.");
-      setPinMessage(errorMsg);
-      setIsPinMessageError(true);
+      showToast("error", err, "Failed to update MPIN. Please try again.");
     } finally {
       setIsSubmittingPin(false);
     }
@@ -413,8 +418,8 @@ const SecuritySettings = () => {
                   type="button"
                   onClick={() => {
                     setShowPinForm(false);
-                    setPinMessage("");
-                    setIsPinMessageError(false);
+                    
+                    
                     setOtpSent(false);
                     setOtp("");
                     setCurrentPin("");
@@ -430,8 +435,8 @@ const SecuritySettings = () => {
                     onClick={() => {
                       setPinMode("reset");
                       setShowPinForm(true);
-                      setPinMessage("");
-                      setIsPinMessageError(false);
+                      
+                      
                       setOtpSent(false);
                       setOtp("");
                       setCurrentPin("");
@@ -446,8 +451,8 @@ const SecuritySettings = () => {
                     onClick={() => {
                       setPinMode("change");
                       setShowPinForm(true);
-                      setPinMessage("");
-                      setIsPinMessageError(false);
+                      
+                      
                       setOtpSent(false);
                       setOtp("");
                     }}
@@ -462,8 +467,8 @@ const SecuritySettings = () => {
                   onClick={() => {
                     setPinMode("setup");
                     setShowPinForm(true);
-                    setPinMessage("");
-                    setIsPinMessageError(false);
+                    
+                    
                     setOtpSent(false);
                     setOtp("");
                   }}
@@ -487,8 +492,8 @@ const SecuritySettings = () => {
                       type="button"
                       onClick={() => {
                         setPinMode("change");
-                        setPinMessage("");
-                        setIsPinMessageError(false);
+                        
+                        
                       }}
                       className={`flex-1 rounded-lg px-4 py-2 text-xs font-semibold transition ${
                         pinMode === "change"
@@ -502,8 +507,8 @@ const SecuritySettings = () => {
                       type="button"
                       onClick={() => {
                         setPinMode("reset");
-                        setPinMessage("");
-                        setIsPinMessageError(false);
+                        
+                        
                         setCurrentPin("");
                       }}
                       className={`flex-1 rounded-lg px-4 py-2 text-xs font-semibold transition ${
@@ -689,32 +694,14 @@ const SecuritySettings = () => {
                   </ul>
                 </div>
 
-                {/* FEEDBACK MESSAGE */}
-                {pinMessage && (
-                  <div
-                    className={`mt-4 flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-medium ${
-                      isPinMessageError
-                        ? "border border-rose-200 bg-rose-50 text-rose-700"
-                        : "border border-emerald-200 bg-emerald-50 text-emerald-800"
-                    }`}
-                  >
-                    {isPinMessageError ? (
-                      <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
-                    )}
-                    <span>{pinMessage}</span>
-                  </div>
-                )}
-
                 {/* ACTION BUTTONS */}
                 <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                   <button
                     type="button"
                     onClick={() => {
                       setShowPinForm(false);
-                      setPinMessage("");
-                      setIsPinMessageError(false);
+                      
+                      
                       setOtpSent(false);
                     }}
                     className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"

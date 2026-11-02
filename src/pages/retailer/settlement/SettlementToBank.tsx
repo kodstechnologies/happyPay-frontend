@@ -16,7 +16,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import { setWalletBalance } from "../../../utils/wallet";
 
 import {
@@ -97,8 +97,8 @@ export default function SettlementToBank() {
       }
     } catch (err: unknown) {
       console.error("Settlement data fetch error:", err);
-      const msg = err instanceof Error ? err.message : "Failed to load settlement details. Please try again.";
-      setError(msg);
+        showToast("error", err, "Failed to load settlement details. Please try again.");
+        setError("Failed to load settlement details.");
     } finally {
       setLoading(false);
     }
@@ -137,8 +137,8 @@ export default function SettlementToBank() {
       .catch((err: unknown) => {
         if (ignore) return;
         console.error("Settlement data fetch error:", err);
-        const msg = err instanceof Error ? err.message : "Failed to load settlement details. Please try again.";
-        setError(msg);
+        showToast("error", err, "Failed to load settlement details. Please try again.");
+        setError("Failed to load settlement details.");
       })
       .finally(() => {
         if (!ignore) {
@@ -169,12 +169,12 @@ export default function SettlementToBank() {
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!retailer?.isKycApproved) {
-      toast.error("Your KYC is not yet approved. Settlements are disabled until approval.");
+      showToast("error", "Your KYC is not yet approved. Settlements are disabled until approval.");
       return;
     }
 
     if (!selectedBank) {
-      toast.error("Please select a destination bank account");
+      showToast("error", "Please select a destination bank account");
       return;
     }
 
@@ -182,19 +182,19 @@ export default function SettlementToBank() {
     const maxAmt = limits.maxSettlementPerTxn || 50000;
 
     if (numAmount < minAmt) {
-      toast.error(`Minimum settlement amount is ₹${minAmt}`);
+      showToast("error", `Minimum settlement amount is ₹${minAmt}`);
       return;
     }
     if (numAmount > maxAmt) {
-      toast.error(`Maximum settlement amount per transaction is ₹${maxAmt}`);
+      showToast("error", `Maximum settlement amount per transaction is ₹${maxAmt}`);
       return;
     }
     if (numAmount > balance) {
-      toast.error("Insufficient wallet balance for settlement");
+      showToast("error", "Insufficient wallet balance for settlement");
       return;
     }
     if (mpin.length < 4) {
-      toast.error("Please enter a valid 4-digit MPIN");
+      showToast("error", "Please enter a valid 4-digit MPIN");
       return;
     }
 
@@ -236,16 +236,16 @@ export default function SettlementToBank() {
         });
 
         setIsSuccess(true);
-        toast.success(`₹${formatAmount(payoutData.amount || numAmount)} settlement initiated successfully!`);
+        showToast("success", `₹${formatAmount(payoutData.amount || numAmount)} settlement initiated successfully!`);
       } else {
         throw new Error(res?.message || "Settlement payout failed");
       }
     } catch (err: unknown) {
       console.error("Settlement payout error:", err);
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        (err instanceof Error ? err.message : "Settlement payout failed. Please try again.");
-      toast.error(msg);
+      showToast("error", err, "Settlement payout failed. Please try again.");
+
+
+
     } finally {
       setIsProcessing(false);
     }

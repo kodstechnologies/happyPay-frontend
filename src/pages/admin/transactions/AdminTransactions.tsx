@@ -1,10 +1,10 @@
+import { showToast } from "../../../utils/toast";
 import { useState, useEffect, useCallback, useId } from "react";
 import {
   Activity,
   Search,
   Filter,
   RefreshCw,
-  AlertTriangle,
   X,
   Copy,
   Check,
@@ -165,7 +165,7 @@ export default function AdminTransactions() {
   // UI States
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
+
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedTxn, setSelectedTxn] = useState<AdminTransaction | null>(null);
 
@@ -182,7 +182,7 @@ export default function AdminTransactions() {
     async (pageToFetch: number, isManualRefresh = false) => {
       if (isManualRefresh) setIsRefreshing(true);
       else setIsLoading(true);
-      setErrorMsg("");
+
 
       try {
         const response = await getAllAdminTransactions({
@@ -198,6 +198,9 @@ export default function AdminTransactions() {
 
         if (response) {
           setTransactions(response.transactions || []);
+          if (isManualRefresh) {
+            showToast("success", "Transactions refreshed successfully");
+          }
           setPagination(
             response.pagination || {
               total: 0,
@@ -213,11 +216,7 @@ export default function AdminTransactions() {
         }
       } catch (err: unknown) {
         console.error("Failed to fetch admin transactions:", err);
-        const errorObj = err as { message?: string };
-        setErrorMsg(
-          errorObj?.message ||
-            "Unable to load transactions from backend. Please verify your connection."
-        );
+        showToast("error", err, "Unable to load transactions from backend.");
         setTransactions([]);
       } finally {
         setIsLoading(false);
@@ -248,6 +247,7 @@ export default function AdminTransactions() {
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
+    showToast("info", "Copied to clipboard");
     setCopiedId(text);
     setTimeout(() => setCopiedId(null), 2000);
   };
@@ -407,22 +407,7 @@ export default function AdminTransactions() {
         </div>
       </section>
 
-      {/* ── Error Banner ── */}
-      {errorMsg && (
-        <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-800">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" />
-            <span>{errorMsg}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => fetchTransactions(pagination.page)}
-            className="font-bold underline hover:text-rose-950"
-          >
-            Retry
-          </button>
-        </div>
-      )}
+
 
       {/* ── Transactions Table Card ── */}
       <section className="hp-card overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">

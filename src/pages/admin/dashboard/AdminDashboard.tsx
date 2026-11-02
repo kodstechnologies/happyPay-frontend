@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getAdminDashboard } from "../../../apis/adminDashboard.apis";
+import { showToast } from "../../../utils/toast";
 import type { AdminDashboardData } from "../../../types/admin/dashboard";
 
 const money = (value: number) => `₹${value.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
@@ -89,7 +90,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [data, setData] = useState<AdminDashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   const fetchDashboard = useCallback(async (showRefreshing = false) => {
@@ -98,13 +99,16 @@ export default function AdminDashboard() {
     } else {
       setLoading(true);
     }
-    setError(null);
+
     try {
       const response = await getAdminDashboard();
       setData(response);
+      if (showRefreshing) {
+        showToast("success", "Dashboard metrics refreshed");
+      }
     } catch (err: unknown) {
       console.error("Failed to load admin dashboard data:", err);
-      setError("Unable to load live dashboard metrics. Please check connection and try again.");
+      showToast("error", err, "Unable to load live dashboard metrics.");
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -123,7 +127,7 @@ export default function AdminDashboard() {
       .catch((err: unknown) => {
         if (isMounted) {
           console.error("Failed to load admin dashboard data:", err);
-          setError("Unable to load live dashboard metrics. Please check connection and try again.");
+          showToast("error", err, "Unable to load live dashboard metrics.");
           setLoading(false);
         }
       });
@@ -202,22 +206,7 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      {/* Error Banner */}
-      {error && (
-        <div className="flex items-center justify-between rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-xs font-semibold text-rose-700">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-rose-600" />
-            <span>{error}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => fetchDashboard()}
-            className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-rose-700"
-          >
-            Retry
-          </button>
-        </div>
-      )}
+
 
       {/* Top 5 Stat Cards */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

@@ -17,7 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-import { toast } from "react-toastify";
+import { showToast } from "../../../../utils/toast";
 import {
   updateRetailerAboutDetails,
   type CurrentRegistrationStepResult,
@@ -137,36 +137,36 @@ const AboutRetailerStep = forwardRef<
   // ==========================================================
   const handleSubmit = async (): Promise<boolean> => {
     if (!userId) {
-      toast.error("User not registered. Please complete step 1.");
+      showToast("error", "User not registered. Please complete step 1.");
       return false;
     }
     if (!fullName.trim()) {
-      toast.error("Full name is required.");
+      showToast("error", "Full name is required.");
       return false;
     }
     if (!dateOfBirth) {
-      toast.error("Date of birth is required.");
+      showToast("error", "Date of birth is required.");
       return false;
     }
     const isoDob = toIsoDob(dateOfBirth);
     if (!isoDob) {
-      toast.error("Please enter a valid date of birth (DD/MM/YYYY).");
+      showToast("error", "Please enter a valid date of birth (DD/MM/YYYY).");
       return false;
     }
     if (!gender) {
-      toast.error("Gender is required.");
+      showToast("error", "Gender is required.");
       return false;
     }
     if (!maritalStatus) {
-      toast.error("Marital status is required.");
+      showToast("error", "Marital status is required.");
       return false;
     }
     if (!education.trim()) {
-      toast.error("Educational qualification is required.");
+      showToast("error", "Educational qualification is required.");
       return false;
     }
     if (!selfie) {
-      toast.error("Selfie is required.");
+      showToast("error", "Selfie is required.");
       return false;
     }
 
@@ -188,7 +188,7 @@ const AboutRetailerStep = forwardRef<
 
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save details");
+      showToast("error", err, "Failed to save details");
       return false;
     } finally {
       setSubmitting(false);

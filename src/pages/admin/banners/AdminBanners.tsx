@@ -18,7 +18,7 @@ import {
   ArrowUpDown,
   Check
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import ModalWrapper from "../../../components/common/ModalWrapper";
 import ConfirmDeleteModal from "../../../components/common/ConfirmDeleteModal";
 import { 
@@ -88,12 +88,12 @@ export default function AdminBanners() {
       const res = await getAdminBanners();
       setBanners(extractBannerList(res));
       if (isManualRefresh) {
-        toast.success("Banners refreshed");
+        showToast("success", "Banners refreshed");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to load banners";
       setError(msg);
-      toast.error(msg);
+      showToast("error", err, msg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -112,7 +112,7 @@ export default function AdminBanners() {
         if (!ignore) {
           const msg = err instanceof Error ? err.message : "Failed to load banners";
           setError(msg);
-          toast.error(msg);
+          showToast("error", err, msg);
         }
       } finally {
         if (!ignore) {
@@ -147,14 +147,15 @@ export default function AdminBanners() {
         imageUrl: banner.imageUrl,
       });
 
-      toast.success(
+      showToast(
+        "success",
         `Banner "${banner.title || "Untitled"}" is now ${newStatus ? "Active" : "Inactive"}`
       );
     } catch (err: unknown) {
       // Revert optimistic update
       loadBanners();
       const msg = err instanceof Error ? err.message : "Failed to update banner status";
-      toast.error(msg);
+      showToast("error", err, msg);
     } finally {
       setTogglingId(null);
     }
@@ -166,12 +167,12 @@ export default function AdminBanners() {
     try {
       setIsDeleting(true);
       await deleteAdminBanner(deleteTarget._id);
-      toast.success("Banner deleted successfully");
+      showToast("success", "Banner deleted successfully");
       setDeleteTarget(null);
       loadBanners();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to delete banner";
-      toast.error(msg);
+      showToast("error", err, msg);
     } finally {
       setIsDeleting(false);
     }
@@ -218,13 +219,13 @@ export default function AdminBanners() {
 
     // Validate size (max 5MB per backend configuration)
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large. Maximum allowed size is 5MB.");
+      showToast("error", "File is too large. Maximum allowed size is 5MB.");
       return;
     }
 
     // Validate format
     if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      toast.error("Only JPEG, PNG, and WebP images are allowed.");
+      showToast("error", "Only JPEG, PNG, and WebP images are allowed.");
       return;
     }
 
@@ -236,7 +237,7 @@ export default function AdminBanners() {
     e.preventDefault();
 
     if (!editingId && !imageFile) {
-      toast.error("Please upload a banner image.");
+      showToast("error", "Please upload a banner image.");
       return;
     }
 
@@ -244,16 +245,18 @@ export default function AdminBanners() {
       setIsSubmitting(true);
       if (editingId) {
         await updateAdminBanner(editingId, formData, imageFile);
-        toast.success("Banner updated successfully");
+        showToast(
+        "success","Banner updated successfully");
       } else if (imageFile) {
         await createAdminBanner(formData, imageFile);
-        toast.success("Banner created successfully");
+        showToast(
+        "success","Banner created successfully");
       }
       setIsModalOpen(false);
       loadBanners();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to save banner";
-      toast.error(msg);
+      showToast("error", err, msg);
     } finally {
       setIsSubmitting(false);
     }

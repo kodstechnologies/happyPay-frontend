@@ -17,7 +17,7 @@ import {
   X,
 
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import {
   getPlans,
   getSubscribedPlans,
@@ -66,7 +66,7 @@ export default function RetailerPlans() {
       setSubscriptions(subsArray);
     } catch (error) {
       console.error("Failed to load plans data:", error);
-      toast.error("Could not load plans data. Please try again.");
+      showToast("error", error, "Could not load plans data. Please try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -127,15 +127,14 @@ export default function RetailerPlans() {
     setSubscribing(true);
     try {
       await subscribeToPlan(planToSubscribe._id);
-      toast.success(`Successfully subscribed to ${planToSubscribe.name}!`);
+      showToast("success", `Successfully subscribed to ${planToSubscribe.name}!`);
       setPlanToSubscribe(null);
       // Re-fetch to update state
       await fetchData(true);
       setActiveTab("subscribed");
     } catch (error: unknown) {
       console.error("Failed to subscribe:", error);
-      const msg = (error as Error & { response?: { data?: { message?: string } } })?.response?.data?.message || "Subscription failed. Please try again.";
-      toast.error(msg);
+      showToast("error", error, "Subscription failed. Please try again.");
     } finally {
       setSubscribing(false);
     }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "react-toastify";
+import { showToast, extractApiErrorMessage } from "../../../utils/toast";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
 import Input from "../../../components/common/Input";
@@ -336,17 +336,17 @@ const CashCollection = ({
 
       setTransactionId(String(generatedTxn));
       setScreen("receipt");
-      toast.success(response.message || "Cash Collection processed successfully!");
+      showToast("success", response.message || "Cash Collection processed successfully!");
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string; msg?: string } }; message?: string };
-      const msg =
-        errorObj?.response?.data?.message ||
-        errorObj?.response?.data?.msg ||
-        errorObj?.message ||
-        "Failed to process CMS Cash Collection. Please retry.";
-
+      const msg = extractApiErrorMessage(err, "Failed to process CMS Cash Collection. Please retry.");
       setOtpError(msg);
-      toast.error(msg);
+      showToast("error", err, "Failed to process CMS Cash Collection. Please retry.");
+
+
+
+
+
+
     } finally {
       setIsSubmitting(false);
     }

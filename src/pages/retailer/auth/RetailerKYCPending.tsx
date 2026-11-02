@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import React, { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -100,8 +101,7 @@ const RetailerKycPending: React.FC = () => {
   const [kycData, setKycData] = useState<RetailerKycData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
 
   // Staged files for re-uploading
   const [stagedFiles, setStagedFiles] = useState<Record<string, File>>({});
@@ -122,18 +122,20 @@ const RetailerKycPending: React.FC = () => {
   const fetchKycDetails = async (isSilent = false) => {
     if (!isSilent) setLoading(true);
     else setRefreshing(true);
-    setError(null);
+    
 
     try {
       const response = await getRetailerKycDetailsApi();
       if (response && response.success && response.data) {
         setKycData(response.data);
+        if (isSilent) {
+          showToast("success", "KYC status refreshed");
+        }
       } else {
         throw new Error(response?.message || "Failed to retrieve KYC details");
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Failed to load KYC status. Please try again.";
-      setError(msg);
+      showToast("error", err, "Failed to load KYC status. Please try again.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -155,8 +157,7 @@ const RetailerKycPending: React.FC = () => {
         }
       } catch (err: unknown) {
         if (!ignore) {
-          const msg = err instanceof Error ? err.message : "Failed to load KYC status. Please try again.";
-          setError(msg);
+          showToast("error", err, "Failed to load KYC status. Please try again.");
         }
       } finally {
         if (!ignore) {
@@ -198,7 +199,7 @@ const RetailerKycPending: React.FC = () => {
 
     // Validate size (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
-      setError(`File size exceeds 10MB limit for ${file.name}`);
+      showToast("error", `File size exceeds 10MB limit for ${file.name}`);
       return;
     }
 
@@ -210,7 +211,7 @@ const RetailerKycPending: React.FC = () => {
     const previewUrl = URL.createObjectURL(file);
     setStagedFiles((prev) => ({ ...prev, [field]: file }));
     setStagedPreviews((prev) => ({ ...prev, [field]: previewUrl }));
-    setError(null);
+    
   };
 
   const handleRemoveStagedFile = (field: string) => {
@@ -235,8 +236,8 @@ const RetailerKycPending: React.FC = () => {
     if (!file) return;
 
     setUploadingField(field);
-    setError(null);
-    setSuccessMessage(null);
+    
+    
 
     try {
       const formData = new FormData();
@@ -246,7 +247,7 @@ const RetailerKycPending: React.FC = () => {
       if (response && response.success && response.data) {
         setKycData(response.data);
         handleRemoveStagedFile(field);
-        setSuccessMessage(`"${response.data.documents.find((d) => d.field === field)?.title || "Document"}" re-uploaded successfully.`);
+        showToast("success", `"${response.data.documents.find((d) => d.field === field)?.title || "Document"}" re-uploaded successfully.`);
         if (refreshUser) {
           await refreshUser();
         }
@@ -254,8 +255,7 @@ const RetailerKycPending: React.FC = () => {
         throw new Error(response?.message || "Failed to re-upload document");
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Upload failed. Please try again.";
-      setError(msg);
+      showToast("error", err, "Upload failed. Please try again.");
     } finally {
       setUploadingField(null);
     }
@@ -267,8 +267,8 @@ const RetailerKycPending: React.FC = () => {
     if (fields.length === 0) return;
 
     setIsSubmittingAll(true);
-    setError(null);
-    setSuccessMessage(null);
+    
+    
 
     try {
       const formData = new FormData();
@@ -285,7 +285,7 @@ const RetailerKycPending: React.FC = () => {
         });
         setStagedFiles({});
         setStagedPreviews({});
-        setSuccessMessage(`${fields.length} document(s) re-uploaded and submitted for review.`);
+        showToast("success", `${fields.length} document(s) re-uploaded and submitted for review.`);
         if (refreshUser) {
           await refreshUser();
         }
@@ -293,8 +293,7 @@ const RetailerKycPending: React.FC = () => {
         throw new Error(response?.message || "Failed to re-upload documents");
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Batch upload failed. Please try again.";
-      setError(msg);
+      showToast("error", err, "Batch upload failed. Please try again.");
     } finally {
       setIsSubmittingAll(false);
     }
@@ -406,42 +405,7 @@ const RetailerKycPending: React.FC = () => {
 
       {/* Main Container */}
       <main className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8 space-y-6">
-        {/* ======================================================== */}
-        {/* TOAST / ALERTS */}
-        {/* ======================================================== */}
-        {error && (
-          <div className="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50/90 p-4 text-rose-800 shadow-sm animate-in fade-in">
-            <AlertCircle className="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
-            <div className="flex-1 text-sm">
-              <p className="font-semibold">Verification Notice</p>
-              <p className="mt-0.5 text-rose-700">{error}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setError(null)}
-              className="rounded-lg p-1 text-rose-500 hover:bg-rose-100"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
 
-        {successMessage && (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/90 p-4 text-emerald-800 shadow-sm animate-in fade-in">
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 mt-0.5" />
-            <div className="flex-1 text-sm">
-              <p className="font-semibold">Success</p>
-              <p className="mt-0.5 text-emerald-700">{successMessage}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSuccessMessage(null)}
-              className="rounded-lg p-1 text-emerald-500 hover:bg-emerald-100"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-        )}
 
         {/* ======================================================== */}
         {/* 2. DYNAMIC STATUS HERO BANNER */}

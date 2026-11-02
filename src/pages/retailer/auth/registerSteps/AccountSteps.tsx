@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../../utils/toast";
 import {
   Phone,
   ShieldCheck,
@@ -152,7 +152,7 @@ const AccountStep = ({
 
     if (mobile.length !== 10) {
       const msg = "Please enter a valid 10-digit mobile number.";
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -163,7 +163,7 @@ const AccountStep = ({
       console.log(res);
       setOtpSent(true);
       setResendTimer(60);
-      toast.success(res.message || "OTP sent successfully!");
+      showToast("success", res.message || "OTP sent successfully!");
       localStorage.setItem("pendingRetailerMobile", mobile);
     } catch (err: unknown) {
       const errorObj = err as ApiErrorResponse | undefined;
@@ -176,9 +176,9 @@ const AccountStep = ({
         msg.toLowerCase().includes("already exists")
       ) {
         setIsExistingAccount(true);
-        toast.warning("Account already exists. Please login.");
+        showToast("warning", "Account already exists. Please login.");
       } else {
-        toast.error(msg);
+        showToast("error", msg);
       }
     } finally {
       setSending(false);
@@ -198,12 +198,12 @@ const AccountStep = ({
       await resendRetailerRegisterOtp(mobile);
       setResendTimer(60);
       setResendSuccess("OTP resent successfully!");
-      toast.success("OTP resent successfully!");
+      showToast("success", "OTP resent successfully!");
     } catch (err: unknown) {
       const errorObj = err as { message?: string; statusCode?: number } | undefined;
       const msg = errorObj?.message || "Failed to resend OTP";
       setError(msg);
-      toast.error(msg);
+      showToast("error", msg);
     } finally {
       setResending(false);
     }
@@ -216,7 +216,7 @@ const AccountStep = ({
   const handleVerifyOtp = async () => {
     if (otp.length !== 4) {
       const msg = "Please enter the 4-digit OTP.";
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -231,7 +231,7 @@ const AccountStep = ({
       const id = res.data.user._id;
       setUserId(id);
       setOtpVerified(true);
-      toast.success(res.message || "OTP verified successfully!");
+      showToast("success", res.message || "OTP verified successfully!");
 
       if (!distributorId) {
         localStorage.setItem("retailerUserId", id);
@@ -243,7 +243,7 @@ const AccountStep = ({
       onAccountCreated?.(id);
     } catch (err: unknown) {
       const msg = getApiErrorMessage(err, "OTP verification failed");
-      toast.error(msg);
+      showToast("error", msg);
       setOtpVerified(false);
     } finally {
       setVerifying(false);

@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-import { toast } from "react-toastify";
+import { showToast } from "../../../../utils/toast";
 import {
   updateRetailerBankDetails,
   getSettlementBankList,
@@ -183,27 +183,27 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
 
   const handleSubmit = async (): Promise<boolean> => {
     if (!userId) {
-      toast.error("User not registered. Please complete step 1.");
+      showToast("error", "User not registered. Please complete step 1.");
       return false;
     }
     if (!bankName) {
-      toast.error("Bank name is required.");
+      showToast("error", "Bank name is required.");
       return false;
     }
     if (!ifscCode) {
-      toast.error("IFSC code is required.");
+      showToast("error", "IFSC code is required.");
       return false;
     }
     if (ifscCode.length !== 11) {
-      toast.error("Please enter a valid 11-character IFSC code.");
+      showToast("error", "Please enter a valid 11-character IFSC code.");
       return false;
     }
     if (!accountNumber) {
-      toast.error("Account number is required.");
+      showToast("error", "Account number is required.");
       return false;
     }
     if (accountNumber !== confirmAccountNumber) {
-      toast.error("Account numbers do not match.");
+      showToast("error", "Account numbers do not match.");
       return false;
     }
 
@@ -260,7 +260,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       onRegistrationComplete?.();
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save bank details");
+      showToast("error", err, "Failed to save bank details");
       return false;
     } finally {
       setSubmitting(false);

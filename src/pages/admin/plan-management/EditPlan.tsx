@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPlanById, updatePlan, configurePlanServices, type PlanFormData, type PlanService } from "../../../apis/pricingApi";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import EditPlanBasicInfo from "./EditPlanBasicInfo";
 import EditPlanServices from "./EditPlanServices";
 
@@ -38,7 +38,7 @@ const EditPlan = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [configuringServices, setConfiguringServices] = useState(false);
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"basic" | "services">("basic");
 
@@ -72,12 +72,12 @@ const EditPlan = () => {
         // Convert services to form data format
         setServices(plan.services.map((s: PlanService) => ({
           serviceName: s.serviceId,
-          categories: s.categories,
+          categories: s.categories || [],
           pricing: s.pricing || [],
         })));
       } catch (error) {
         console.error("Failed to fetch plan:", error);
-        toast.error("Failed to load plan details");
+        showToast("error", error, "Failed to load plan details");
         navigate("/admin/plan-management");
       } finally {
         setLoading(false);
@@ -89,12 +89,12 @@ const EditPlan = () => {
   const handleUpdateBasicInfo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      toast.error("Please provide a plan name");
+      showToast("error", "Please provide a plan name");
       return;
     }
 
     if (!id) {
-      toast.error("Invalid plan ID");
+      showToast("error", "Invalid plan ID");
       return;
     }
 
@@ -105,10 +105,10 @@ const EditPlan = () => {
       };
       const plandatares = await updatePlan(id, planData, imageFile);
       console.log("Plan details updated successfully!===========", plandatares);
-      toast.success("Plan details updated successfully!");
+      showToast("success", "Plan details updated successfully!");
     } catch (error) {
       console.error("Failed to update plan:", error);
-      toast.error("Failed to update plan. Please try again.");
+      showToast("error", error, "Failed to update plan. Please try again.");
     } finally {
       setUpdating(false);
     }
@@ -116,7 +116,7 @@ const EditPlan = () => {
 
   const handleConfigureServices = async () => {
     if (!id) {
-      toast.error("Invalid plan ID");
+      showToast("error", "Invalid plan ID");
       return;
     }
 
@@ -139,7 +139,8 @@ const EditPlan = () => {
                 String(slab.maxAmount) !== ""
               ) {
                 if (Number(slab.maxAmount) <= Number(slab.minAmount)) {
-                  toast.error(
+                  showToast(
+                    "error",
                     `Invalid range in ${rangeName}: Max amount (${slab.maxAmount}) must be greater than Min amount (${slab.minAmount})`
                   );
                   return;
@@ -161,7 +162,8 @@ const EditPlan = () => {
                 const total = Math.round((ret + dist + adm) * 100) / 100;
                 const roundedCharge = Math.round(charge * 100) / 100;
                 if (total !== roundedCharge) {
-                  toast.error(
+                  showToast(
+                    "error",
                     `Rate allocation mismatch in ${rangeName}: Charge is ${roundedCharge} ${unit}, but sum of Retailer (${ret}) + Distributor (${dist}) + Admin (${adm}) is ${total} ${unit}. Please ensure Retailer + Distributor + Admin equals the Charge amount.`
                   );
                   return;
@@ -188,7 +190,8 @@ const EditPlan = () => {
               String(slab.maxAmount) !== ""
             ) {
               if (Number(slab.maxAmount) <= Number(slab.minAmount)) {
-                toast.error(
+                showToast(
+                  "error",
                   `Invalid range in ${rangeName}: Max amount (${slab.maxAmount}) must be greater than Min amount (${slab.minAmount})`
                 );
                 return;
@@ -210,7 +213,8 @@ const EditPlan = () => {
               const total = Math.round((ret + dist + adm) * 100) / 100;
               const roundedCharge = Math.round(charge * 100) / 100;
               if (total !== roundedCharge) {
-                toast.error(
+                showToast(
+                  "error",
                   `Rate allocation mismatch in ${rangeName}: Charge is ${roundedCharge} ${unit}, but sum of Retailer (${ret}) + Distributor (${dist}) + Admin (${adm}) is ${total} ${unit}. Please ensure Retailer + Distributor + Admin equals the Charge amount.`
                 );
                 return;
@@ -301,12 +305,12 @@ const EditPlan = () => {
 
       console.log("Services data being sent:", servicesData);
 
-      await configurePlanServices(id, servicesData);
-      toast.success("Services configured successfully!");
+      await configurePlanServices(id, servicesData as unknown as PlanService[]);
+      showToast("success", "Services configured successfully!");
       navigate("/admin/plan-management");
     } catch (error) {
       console.error("Failed to configure services:", error);
-      toast.error("Failed to configure services. Please try again.");
+      showToast("error", error, "Failed to configure services. Please try again.");
     } finally {
       setConfiguringServices(false);
     }
@@ -366,12 +370,12 @@ const EditPlan = () => {
         <EditPlanBasicInfo
           formData={formData}
           setFormData={setFormData}
-          imageFile={imageFile}
+
           imagePreview={imagePreview}
-          setImageFile={setImageFile}
+
           setImagePreview={setImagePreview}
           updating={updating}
-          setUpdating={setUpdating}
+
           onUpdateBasicInfo={handleUpdateBasicInfo}
         />
       )}
@@ -381,7 +385,7 @@ const EditPlan = () => {
           services={services}
           setServices={setServices}
           configuringServices={configuringServices}
-          setConfiguringServices={setConfiguringServices}
+
           onConfigureServices={handleConfigureServices}
           onBack={() => setActiveTab("basic")}
         />

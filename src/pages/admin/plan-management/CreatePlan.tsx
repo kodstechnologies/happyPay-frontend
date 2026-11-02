@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ArrowLeft, Image as ImageIcon, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { createPlan, type PlanFormData } from "../../../apis/pricingApi";
+import { showToast } from "../../../utils/toast";
 
 const CreatePlan = () => {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ const CreatePlan = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) {
-      alert("Please provide a plan name");
+      showToast("error", "Please provide a plan name");
       return;
     }
 
@@ -40,10 +41,11 @@ const CreatePlan = () => {
         ...formData,
       };
       await createPlan(planData, imageFile);
+      showToast("success", "Plan created successfully!");
       navigate("/admin/plan-management");
     } catch (error) {
       console.error("Failed to create plan:", error);
-      alert("Failed to create plan. Please try again.");
+      showToast("error", error, "Failed to create plan. Please try again.");
     } finally {
       setCreating(false);
     }
@@ -64,8 +66,6 @@ const CreatePlan = () => {
           <p className="mt-1 text-sm text-gray-500">Configure plan details and pricing</p>
         </div>
       </div>
-
-
 
       <form onSubmit={handleSubmit}>
         <div className="max-w-2xl space-y-6">

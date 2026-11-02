@@ -14,7 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import {
   getWalletBalanceApi,
@@ -134,7 +134,7 @@ export default function SettlementToRetailer() {
     if (mobile.length !== 10) {
       const msg = "Please enter a valid 10-digit mobile number";
       setVerifyError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -160,16 +160,15 @@ export default function SettlementToRetailer() {
           status: String(raw.status || "active"),
         };
         setVerifiedRetailer(normalized);
-        toast.success(`Retailer verified: ${normalized.name}`);
+        showToast("success", `Retailer verified: ${normalized.name}`);
       }
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string } } };
-      const msg =
-        errorObj?.response?.data?.message ||
-        "Could not verify retailer with this mobile number.";
-      setVerifyError(msg);
-      setVerifiedRetailer(null);
-      toast.error(msg);
+      showToast("error", err, "Could not verify retailer with this mobile number.");
+
+
+
+
+
     } finally {
       setIsVerifying(false);
     }
@@ -189,22 +188,22 @@ export default function SettlementToRetailer() {
 
     if (!verifiedRetailer) {
       setTransferError("Please verify recipient retailer mobile number first");
-      toast.error("Please verify recipient retailer mobile number first");
+      showToast("error", "Please verify recipient retailer mobile number first");
       return;
     }
     if (numAmount < 10) {
       setTransferError("Minimum transfer amount is ₹10");
-      toast.error("Minimum transfer amount is ₹10");
+      showToast("error", "Minimum transfer amount is ₹10");
       return;
     }
     if (numAmount > balance) {
       setTransferError("Insufficient wallet balance for this transfer");
-      toast.error("Insufficient wallet balance for this transfer");
+      showToast("error", "Insufficient wallet balance for this transfer");
       return;
     }
     if (mpin.length < 4) {
       setTransferError("Please enter a valid 4-digit MPIN");
-      toast.error("Please enter a valid 4-digit MPIN");
+      showToast("error", "Please enter a valid 4-digit MPIN");
       return;
     }
 
@@ -235,16 +234,15 @@ export default function SettlementToRetailer() {
 
         setIsSuccess(true);
         fetchRecentTransfers();
-        toast.success(`₹${formatAmount(data.amount || numAmount)} transferred successfully to ${data.recipientName || verifiedRetailer.name}!`);
+        showToast("success", `₹${formatAmount(data.amount || numAmount)} transferred successfully to ${data.recipientName || verifiedRetailer.name}!`);
       }
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string } } };
-      const msg =
-        errorObj?.response?.data?.message ||
-        "Transfer failed. Please verify your details and MPIN.";
-      setTransferError(msg);
-      toast.error(msg);
-    } finally {
+      showToast("error", err, "Transfer failed. Please verify your details and MPIN.");
+
+
+
+
+
       setIsProcessing(false);
     }
   };

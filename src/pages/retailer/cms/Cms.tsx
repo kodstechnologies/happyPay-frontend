@@ -17,7 +17,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 
 import CashCollection from "./CashCollection";
 import CashDrop from "./CashDrop";
@@ -191,7 +191,7 @@ export default function Cms() {
 
   // Redirection Plugin states
   const [isFetchingUrl, setIsFetchingUrl] = useState<boolean>(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  // fetchError state removed in favor of showToast
   const [redirectionUrl, setRedirectionUrl] = useState<string>("");
   const [pluginStatus, setPluginStatus] = useState<PluginStatus>("IDLE");
   const [txnResult, setTxnResult] = useState<CmsCallbackData | null>(null);
@@ -227,7 +227,7 @@ export default function Cms() {
   const loadRedirectionUrl = useCallback(async () => {
     try {
       setIsFetchingUrl(true);
-      setFetchError(null);
+      
 
       const coords = await getGeolocationCoordinates();
       const response = await initiateCmsPaymentApi({
@@ -242,22 +242,12 @@ export default function Cms() {
       } else {
         const fallbackMsg =
           errorMsg || "Airtel CMS redirection URL not returned from server.";
-        setFetchError(fallbackMsg);
-        toast.error(fallbackMsg);
+        
+        showToast("error", fallbackMsg);
       }
     } catch (err: unknown) {
       console.error("Error retrieving CMS redirection URL:", err);
-      const errorObj = err as {
-        response?: { data?: { message?: string; msg?: string } };
-        message?: string;
-      };
-      const errorMsg =
-        errorObj?.response?.data?.message ||
-        errorObj?.response?.data?.msg ||
-        errorObj?.message ||
-        "Failed to initiate Airtel CMS gateway. Please try again.";
-      setFetchError(errorMsg);
-      toast.error(errorMsg);
+      showToast("error", err, "Failed to initiate Airtel CMS gateway. Please try again.");
     } finally {
       setIsFetchingUrl(false);
     }
@@ -284,23 +274,13 @@ export default function Cms() {
         } else {
           const fallbackMsg =
             errorMsg || "Airtel CMS redirection URL not returned from server.";
-          setFetchError(fallbackMsg);
-          toast.error(fallbackMsg);
+          
+          showToast("error", fallbackMsg);
         }
       } catch (err: unknown) {
         if (!ignore) {
           console.error("Error retrieving CMS redirection URL:", err);
-          const errorObj = err as {
-            response?: { data?: { message?: string; msg?: string } };
-            message?: string;
-          };
-          const errorMsg =
-            errorObj?.response?.data?.message ||
-            errorObj?.response?.data?.msg ||
-            errorObj?.message ||
-            "Failed to initiate Airtel CMS gateway. Please try again.";
-          setFetchError(errorMsg);
-          toast.error(errorMsg);
+          showToast("error", err, "Failed to initiate Airtel CMS gateway. Please try again.");
         }
       } finally {
         if (!ignore) {
@@ -327,11 +307,7 @@ export default function Cms() {
     setPluginStatus(processed.status);
     setTxnResult(processed.result);
 
-    if (processed.isSuccess) {
-      toast.success(processed.toastMessage);
-    } else {
-      toast.error(processed.toastMessage);
-    }
+    showToast(processed.isSuccess, processed.toastMessage);
   }, []);
 
   useEffect(() => {
@@ -392,7 +368,7 @@ export default function Cms() {
   ========================================================= */
   const handleOpenPlugin = () => {
     if (!redirectionUrl) {
-      toast.error("Redirection URL is unavailable. Please retry.");
+      showToast("error", "Redirection URL is unavailable. Please retry.");
       return;
     }
 
@@ -417,7 +393,7 @@ export default function Cms() {
       }
     }
 
-    toast.info("CMS Transaction waiting cancelled.");
+    showToast("info", "CMS Transaction waiting cancelled.");
   };
 
   /* =========================================================
@@ -532,7 +508,7 @@ export default function Cms() {
                     )}
 
                     {/* ERROR STATE: Failed to fetch redirection URL */}
-                    {!isFetchingUrl && fetchError && !redirectionUrl && (
+                    {!isFetchingUrl && !redirectionUrl && (
                       <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4">
                         <div className="flex items-start gap-3">
                           <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
@@ -540,7 +516,6 @@ export default function Cms() {
                             <h4 className="text-xs font-bold text-rose-900">
                               Failed to Connect to Airtel CMS Gateway
                             </h4>
-                            <p className="mt-1 text-xs text-rose-700">{fetchError}</p>
                             <button
                               type="button"
                               onClick={loadRedirectionUrl}

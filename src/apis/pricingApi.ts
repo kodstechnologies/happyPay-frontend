@@ -9,6 +9,20 @@ export interface PricingSlab {
   adminAmount?: number | null;
   distributorAmount?: number | null;
   retailerAmount?: number | null;
+  chargeAmount?: number | null;
+}
+
+// Plan Range
+export interface PlanRange {
+  _id?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  chargeType?: string;
+  charge?: number;
+  retailerRate?: number;
+  distributorRate?: number;
+  adminRate?: number;
+  [key: string]: unknown;
 }
 
 // Pricing
@@ -22,6 +36,8 @@ export interface Pricing {
 // Plan Category
 export interface PlanCategory {
   _id?: string;
+  categoryId?: string;
+  ranges?: PlanRange[];
   categoryName: string;
   pricing: Pricing[];
 }
@@ -29,14 +45,19 @@ export interface PlanCategory {
 // Plan Service
 export interface PlanService {
   _id?: string;
+  serviceName?: string;
+  serviceCode?: string;
+  chargeType?: string;
+  ranges?: PlanRange[];
   serviceId: string;
-  categories: PlanCategory[];
+  categories?: PlanCategory[];
   pricing?: Pricing[];
 }
 
 // Plan
 export interface Plan {
   _id: string;
+  imageUrl?: string;
   name: string;
   image: string;
   description: string;

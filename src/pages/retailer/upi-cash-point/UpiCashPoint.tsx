@@ -4,12 +4,12 @@ import {
   CheckCircle2,
   QrCode,
   RefreshCw,
-  XCircle,
+
   Printer,
   Loader2,
   Check,
 } from "lucide-react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 import { initiateUpiCashpointPaymentApi } from "../../../apis/upiCashpoint.apis";
@@ -33,7 +33,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   const [rrn, setRrn] = useState("");
   const [qrString, setQrString] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  
 
   const isValidAmount = Number(amount) > 0;
 
@@ -48,7 +48,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setRrn("");
     setQrString("");
     setIsLoading(false);
-    setErrorMessage("");
+    
   };
 
   const handleAmountChange = (
@@ -63,13 +63,13 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
 
   const handleGenerateQr = async () => {
     if (!isValidAmount) {
-      toast.error("Please enter a valid amount greater than zero");
+      showToast("error", "Please enter a valid amount greater than zero");
       return;
     }
 
     try {
       setIsLoading(true);
-      setErrorMessage("");
+      
 
       // 1. Obtain real geolocation coordinates safely
       const coords = await getGeolocationCoordinates();
@@ -133,18 +133,10 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       setTransactionStatus("IDLE");
       setShowQr(true);
 
-      toast.success(response.message || "UPI Payment QR generated successfully!");
+      showToast("success", response.message || "UPI Payment QR generated successfully!");
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string; msg?: string } }; message?: string };
-      const msg =
-        errorObj?.response?.data?.message ||
-        errorObj?.response?.data?.msg ||
-        errorObj?.message ||
-        "Failed to initiate UPI Cashpoint transaction. Please try again.";
-
-      setErrorMessage(msg);
       setTransactionStatus("FAILED");
-      toast.error(msg);
+      showToast("error", err, "Failed to initiate UPI Cashpoint transaction. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -182,14 +174,14 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       // Wallet sync fallback
     }
 
-    toast.success("Payment confirmed! You can now disburse cash to the customer.");
+    showToast("success", "Payment confirmed! You can now disburse cash to the customer.");
   };
 
   const handleCancelQr = () => {
     setShowQr(false);
     setTimeLeft(180);
     setTransactionStatus("IDLE");
-    setErrorMessage("");
+    
   };
 
   const handlePrint = () => {
@@ -492,24 +484,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                 </div>
               )}
 
-              {/* Error Message */}
-              {transactionStatus === "FAILED" && errorMessage && (
-                <div className="mt-5 rounded-xl border border-red-100 bg-red-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <XCircle className="h-6 w-6 text-red-500 shrink-0" />
 
-                    <div>
-                      <p className="text-sm font-bold text-red-700">
-                        Transaction Failed
-                      </p>
-
-                      <p className="mt-1 text-xs text-red-600">
-                        {errorMessage}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

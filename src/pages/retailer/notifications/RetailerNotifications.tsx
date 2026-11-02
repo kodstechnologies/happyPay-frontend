@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -47,6 +48,7 @@ export default function RetailerNotifications() {
       setNotifications(response.notifications || []);
     } catch (error) {
       console.error("Failed to fetch retailer notifications:", error);
+      if (isRefresh) { showToast("error", error, "Failed to refresh notifications"); }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -100,12 +102,14 @@ export default function RetailerNotifications() {
     try {
       setActionInProgress("all");
       await markAllNotificationsAsRead();
+      showToast("success", "All notifications marked as read");
       setNotifications((prev) =>
         prev.map((n) => ({ ...n, isRead: true, readAt: new Date() }))
       );
       window.dispatchEvent(new Event("hp:notification:update"));
     } catch (error) {
       console.error("Failed to mark all notifications as read:", error);
+      showToast("error", error, "Failed to mark all notifications as read");
     } finally {
       setActionInProgress(null);
     }

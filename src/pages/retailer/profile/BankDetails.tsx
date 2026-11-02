@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,7 +14,7 @@ import {
   Upload,
   User,
   WalletCards,
-  AlertCircle,
+
   Search,
 } from "lucide-react";
 
@@ -40,8 +41,8 @@ export default function BankDetails() {
   const [profile, setProfile] = useState<RetailerFullProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  
+  
 
   // Bank list options & pagination
   const [availableBanks, setAvailableBanks] = useState<SettlementBank[]>([]);
@@ -89,8 +90,6 @@ export default function BankDetails() {
           }
 
           setAccountHolder(prof.fullName || "");
-        } else {
-          setError("Unable to load profile data.");
         }
 
         if (bankListRes.status === "fulfilled" && bankListRes.value?.data) {
@@ -104,9 +103,7 @@ export default function BankDetails() {
       .catch((err: unknown) => {
         if (!ignore) {
           console.error("Failed to load retailer bank details:", err);
-          const errorMsg =
-            err instanceof Error ? err.message : "Failed to load bank details.";
-          setError(errorMsg);
+          showToast("error", err, "Failed to load bank details.");
         }
       })
       .finally(() => {
@@ -168,31 +165,31 @@ export default function BankDetails() {
     setBankId(bank.code);
     setOpenDropdown(null);
     setBankSearch("");
-    setError(null);
+    
   };
 
   const handleAccountTypeSelect = (type: string) => {
     setAccountType(type);
     setOpenDropdown(null);
-    setError(null);
+    
   };
 
   const handleIfscChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\s/g, "").toUpperCase().slice(0, 11);
     setIfsc(value);
-    setError(null);
+    
   };
 
   const handleAccountNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "");
     setAccountNumber(value);
-    setError(null);
+    
   };
 
   const handleConfirmAccountNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, "");
     setConfirmAccountNumber(value);
-    setError(null);
+    
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,39 +197,39 @@ export default function BankDetails() {
     if (!file) return;
 
     if (file.size > 10 * 1024 * 1024) {
-      setError("File size cannot exceed 10 MB.");
+      showToast("error", "File size cannot exceed 10 MB.");
       return;
     }
 
     setProofFile(file);
     setProofFileName(file.name);
-    setError(null);
+    
   };
 
   // Validation
   const validateForm = () => {
     if (!bankName.trim()) {
-      setError("Please select or enter a bank name.");
+      showToast("error", "Please select or enter a bank name.");
       return false;
     }
 
     if (!accountHolder.trim()) {
-      setError("Please enter the account holder name.");
+      showToast("error", "Please enter the account holder name.");
       return false;
     }
 
     if (ifsc.trim().length !== 11) {
-      setError("IFSC code must be exactly 11 characters.");
+      showToast("error", "IFSC code must be exactly 11 characters.");
       return false;
     }
 
     if (accountNumber.trim().length < 8) {
-      setError("Please enter a valid account number.");
+      showToast("error", "Please enter a valid account number.");
       return false;
     }
 
     if (accountNumber !== confirmAccountNumber) {
-      setError("Account numbers do not match.");
+      showToast("error", "Account numbers do not match.");
       return false;
     }
 
@@ -242,8 +239,7 @@ export default function BankDetails() {
   // Real Save Handler
   const handleSave = async () => {
     if (isSaving) return;
-    setError(null);
-    setSuccessMessage(null);
+    
     setOpenDropdown(null);
 
     if (!validateForm()) return;
@@ -301,18 +297,13 @@ export default function BankDetails() {
             setBranchName(updatedPrimary.branchName || "");
           }
         }
-        setSuccessMessage("Bank account details successfully updated and synchronized!");
+        showToast("success", "Bank account details successfully updated and synchronized!");
       } else {
         throw new Error("Failed to update bank details.");
       }
     } catch (err: unknown) {
       console.error("Save bank details failed:", err);
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-            "Failed to update bank details. Please check the information and try again.";
-      setError(errorMsg);
+      showToast("error", err, "Failed to update bank details. Please check the information and try again.");
     } finally {
       setIsSaving(false);
     }
@@ -354,21 +345,6 @@ export default function BankDetails() {
           <div className="w-9" />
         </header>
 
-        {/* Success Toast / Notification */}
-        {successMessage && (
-          <div className="mb-5 flex items-center gap-3 rounded-2xl bg-emerald-50 p-4 text-xs font-semibold text-emerald-800 border border-emerald-200 shadow-sm animate-fade-in">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-            <span>{successMessage}</span>
-          </div>
-        )}
-
-        {/* Error Notification */}
-        {error && (
-          <div className="mb-5 flex items-center gap-3 rounded-2xl bg-rose-50 p-4 text-xs font-semibold text-rose-800 border border-rose-200 shadow-sm">
-            <AlertCircle className="h-5 w-5 text-rose-600 shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
 
         {isLoading ? (
           <div className="space-y-4">
@@ -769,7 +745,7 @@ export default function BankDetails() {
                   {confirmAccountNumber.length > 0 &&
                     confirmAccountNumber !== accountNumber && (
                       <p className="mt-1 text-[11px] font-semibold text-rose-600">
-                        Account numbers do not match
+      showToast("error", "Account numbers do not match.");
                       </p>
                     )}
                 </div>

@@ -2,27 +2,25 @@ import { Mail, ShieldCheck } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { forgotPassword } from "../../../apis/adminAuth.apis";
+import { showToast } from "../../../utils/toast";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setMessage("");
-    setError("");
     if (!email.trim()) {
-      setError("Enter your admin email address.");
+      showToast("error", "Enter your admin email address.");
       return;
     }
     setLoading(true);
     try {
       const response = await forgotPassword({ email: email.trim() });
-      setMessage(response.resetUrl ? `${response.message} ${response.resetUrl}` : (response.message ?? "If an account matches, reset instructions have been sent."));
+      const msg = response?.resetUrl ? `${response.message} ${response.resetUrl}` : (response?.message ?? "If an account matches, reset instructions have been sent.");
+      showToast("success", msg);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to process the request.");
+      showToast("error", caught, "Unable to process the request.");
     } finally {
       setLoading(false);
     }
@@ -55,17 +53,6 @@ export default function ForgotPassword() {
               />
             </div>
           </div>
-
-          {error && (
-            <p role="alert" className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
-              {error}
-            </p>
-          )}
-          {message && (
-            <p role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-              {message}
-            </p>
-          )}
 
           <button
             type="submit"

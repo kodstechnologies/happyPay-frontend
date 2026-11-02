@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, DollarSign, Percent, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getPlanById, type Plan } from "../../../apis/pricingApi";
+import { getPlanById, type Plan, type PlanRange } from "../../../apis/pricingApi";
+import { showToast } from "../../../utils/toast";
 
 const ViewPlanDetails = () => {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ const ViewPlanDetails = () => {
         setPlan(planData);
       } catch (error) {
         console.error("Failed to fetch plan:", error);
-        alert("Failed to load plan details");
+        showToast("error", error, "Failed to load plan details");
         navigate("/admin/plan-management");
       } finally {
         setLoading(false);
@@ -99,350 +100,301 @@ const ViewPlanDetails = () => {
 
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Basic Information Card */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Basic Information</h2>
-          </div>
-          <div className="p-6">
-            <div className="flex gap-6">
-              {/* Plan Image */}
-              <div className="flex-shrink-0">
-                <div className="h-48 w-48 rounded-lg border-2 border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                  {plan.image ? (
-                    <img src={plan.image} alt={plan.name} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="text-center p-4">
-                      <Layers className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-xs text-gray-500">No Image</p>
-                    </div>
-                  )}
-                </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-start gap-6">
+            {plan.imageUrl ? (
+              <div className="h-24 w-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
+                <img src={plan.imageUrl} alt={plan.name} className="h-full w-full object-cover" />
               </div>
-
-              {/* Plan Details */}
-              <div className="flex-1 grid grid-cols-2 gap-6">
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Plan Name
-                  </label>
-                  <p className="text-lg font-semibold text-gray-900">{plan.name}</p>
+            ) : null}
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-xl font-bold text-gray-900">{plan.name}</h2>
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    plan.status === "ACTIVE"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  {plan.status === "ACTIVE" ? (
+                    <CheckCircle className="h-3 w-3" />
+                  ) : (
+                    <XCircle className="h-3 w-3" />
+                  )}
+                  {plan.status}
+                </span>
+              </div>
+              <p className="text-sm text-gray-600 mb-4">{plan.description}</p>
+              <div className="flex items-center gap-6 text-sm text-gray-500">
+                <div className="flex items-center gap-1.5">
+                  <Clock className="h-4 w-4" />
+                  <span>
+                    Validity: {plan.validityPeriod} {plan.validityUnit.toLowerCase()}
+                  </span>
                 </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Description
-                  </label>
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    {plan.description || "No description provided"}
-                  </p>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-4 w-4" />
+                  <span>Created: {formatDate(plan.createdAt || "")}</span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Status
-                  </label>
-                  <div className="flex items-center gap-2">
-                    {plan.status === "ACTIVE" ? (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                        <CheckCircle className="h-3 w-3" />
-                        Active
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        <XCircle className="h-3 w-3" />
-                        Inactive
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                    Validity Period
-                  </label>
-                  <div className="flex items-center gap-2 text-sm text-gray-700">
-                    <Clock className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium">{plan.validityPeriod}</span>
-                    <span className="text-gray-500">{plan.validityUnit.toLowerCase()}</span>
-                  </div>
-                </div>
-
-                {plan.createdAt && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                      Created On
-                    </label>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      {formatDate(plan.createdAt)}
-                    </div>
-                  </div>
-                )}
-
-                {plan.updatedAt && (
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
-                      Last Updated
-                    </label>
-                    <div className="flex items-center gap-2 text-sm text-gray-700">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      {formatDate(plan.updatedAt)}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Services Configuration */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Services & Pricing Configuration</h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {plan.services.length} {plan.services.length === 1 ? "service" : "services"} configured
-            </p>
+        {/* Services Section */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">
+              Configured Services ({plan.services?.length || 0})
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (expandedServices.size === plan.services?.length) {
+                    setExpandedServices(new Set());
+                  } else {
+                    setExpandedServices(new Set(plan.services?.map((s) => s.serviceId) || []));
+                  }
+                }}
+                className="text-xs text-[#315bd1] hover:underline font-medium"
+              >
+                {expandedServices.size === plan.services?.length ? "Collapse All" : "Expand All"}
+              </button>
+            </div>
           </div>
 
-          {plan.services.length === 0 ? (
-            <div className="p-12 text-center">
-              <Layers className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-sm text-gray-500">No services configured for this plan</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-200">
-              {plan.services.map((service, serviceIndex) => {
-                const isServiceExpanded = expandedServices.has(service._id || serviceIndex.toString());
-                const hasCategories = service.categories && service.categories.length > 0;
-                const hasServicePricing = service.pricing && service.pricing.length > 0;
+          {plan.services && plan.services.length > 0 ? (
+            <div className="space-y-4">
+              {plan.services.map((service) => {
+                const isExpanded = expandedServices.has(service.serviceId);
+                const categories = service.categories || [];
+                const directRanges = service.ranges || [];
 
                 return (
-                  <div key={service._id || serviceIndex} className="p-6">
+                  <div
+                    key={service.serviceId}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
+                  >
                     {/* Service Header */}
                     <div
-                      className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg p-3 -mx-3 transition-colors"
-                      onClick={() => toggleService(service._id || serviceIndex.toString())}
+                      onClick={() => toggleService(service.serviceId)}
+                      className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 rounded-lg bg-blue-50 flex items-center justify-center">
-                          <Layers className="h-5 w-5 text-blue-600" />
+                        <div className="p-2 bg-blue-50 rounded-lg text-[#315bd1]">
+                          <Layers className="h-5 w-5" />
                         </div>
                         <div>
-                          <h3 className="font-semibold text-gray-900">{service.serviceId}</h3>
-                          <p className="text-xs text-gray-500">
-                            {hasCategories ? `${service.categories.length} categories` : "Service-level pricing"}
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-gray-900">{service.serviceName}</h4>
+                            <span className="text-xs text-gray-500">({service.serviceCode})</span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                service.chargeType === "FLAT"
+                                  ? "bg-purple-100 text-purple-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}
+                            >
+                              {service.chargeType}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            {categories.length > 0
+                              ? `${categories.length} Categories configured`
+                              : `${directRanges.length} Direct Ranges configured`}
                           </p>
                         </div>
                       </div>
-                      {isServiceExpanded ? (
-                        <ChevronUp className="h-5 w-5 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="h-5 w-5 text-gray-400" />
-                      )}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">
+                          {isExpanded ? "Click to collapse" : "Click to view details"}
+                        </span>
+                        {isExpanded ? (
+                          <ChevronUp className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <ChevronDown className="h-5 w-5 text-gray-400" />
+                        )}
+                      </div>
                     </div>
 
                     {/* Service Content */}
-                    {isServiceExpanded && (
-                      <div className="mt-4 space-y-4">
-                        {/* Categories */}
-                        {hasCategories && (
+                    {isExpanded && (
+                      <div className="p-5 bg-gray-50/50 space-y-4">
+                        {/* Categories View */}
+                        {categories.length > 0 ? (
                           <div className="space-y-3">
-                            {service.categories.map((category, categoryIndex) => {
-                              const isCategoryExpanded = expandedCategories.has(
-                                category._id || `${serviceIndex}-${categoryIndex}`
-                              );
-                              const hasPricing = category.pricing && category.pricing.length > 0;
+                            <h5 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                              Categories & Slabs
+                            </h5>
+                            {categories.map((cat, idx) => {
+                              const catKey = `${service.serviceId}-${cat.categoryId || idx}`;
+                              const isCatExpanded = expandedCategories.has(catKey);
 
                               return (
                                 <div
-                                  key={category._id || categoryIndex}
-                                  className="border border-gray-200 rounded-lg overflow-hidden"
+                                  key={catKey}
+                                  className="bg-white rounded border border-gray-200 overflow-hidden"
                                 >
-                                  {/* Category Header */}
                                   <div
-                                    className="flex items-center justify-between cursor-pointer hover:bg-gray-50 p-3 transition-colors"
-                                    onClick={() =>
-                                      toggleCategory(category._id || `${serviceIndex}-${categoryIndex}`)
-                                    }
+                                    onClick={() => toggleCategory(catKey)}
+                                    className="p-3 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100/70"
                                   >
                                     <div className="flex items-center gap-2">
-                                      <div className="h-8 w-8 rounded bg-purple-50 flex items-center justify-center">
-                                        <Layers className="h-4 w-4 text-purple-600" />
-                                      </div>
-                                      <span className="font-medium text-gray-900 capitalize">
-                                        {category.categoryName}
+                                      <span className="font-medium text-sm text-gray-800">
+                                        {cat.categoryName}
+                                      </span>
+                                      <span className="text-xs text-gray-400">
+                                        ({cat.ranges?.length || 0} ranges)
                                       </span>
                                     </div>
-                                    {isCategoryExpanded ? (
-                                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                                    {isCatExpanded ? (
+                                      <ChevronUp className="h-4 w-4 text-gray-500" />
                                     ) : (
-                                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                                      <ChevronDown className="h-4 w-4 text-gray-500" />
                                     )}
                                   </div>
 
-                                  {/* Category Pricing */}
-                                  {isCategoryExpanded && (
-                                    <div className="p-4 bg-gray-50 border-t border-gray-200">
-                                      {!hasPricing ? (
-                                        <p className="text-sm text-gray-500 text-center py-4">
-                                          No pricing configured
-                                        </p>
-                                      ) : (
-                                        <div className="space-y-4">
-                                          {category.pricing.map((pricing, pricingIndex) => (
-                                            <PricingSection
-                                              key={pricing._id || pricingIndex}
-                                              pricing={pricing}
-                                              index={pricingIndex}
-                                            />
+                                  {isCatExpanded && (
+                                    <div className="p-3 overflow-x-auto">
+                                      <table className="w-full text-left text-xs">
+                                        <thead>
+                                          <tr className="border-b border-gray-200 text-gray-500 pb-2">
+                                            <th className="pb-2 font-medium">Min Amount</th>
+                                            <th className="pb-2 font-medium">Max Amount</th>
+                                            <th className="pb-2 font-medium">Charge Type</th>
+                                            <th className="pb-2 font-medium">Charge</th>
+                                            <th className="pb-2 font-medium">Retailer Comm.</th>
+                                            <th className="pb-2 font-medium">Distributor Comm.</th>
+                                            <th className="pb-2 font-medium">Admin Comm.</th>
+                                          </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                          {cat.ranges?.map((range: PlanRange, rIdx: number) => (
+                                            <tr key={rIdx} className="text-gray-700">
+                                              <td className="py-2">₹{range.minAmount}</td>
+                                              <td className="py-2">₹{range.maxAmount}</td>
+                                              <td className="py-2">
+                                                <span className="inline-flex items-center gap-1 font-medium">
+                                                  {range.chargeType === "PERCENTAGE" ? (
+                                                    <Percent className="h-3 w-3 text-blue-500" />
+                                                  ) : (
+                                                    <DollarSign className="h-3 w-3 text-purple-500" />
+                                                  )}
+                                                  {range.chargeType}
+                                                </span>
+                                              </td>
+                                              <td className="py-2 font-semibold">
+                                                {range.chargeType === "PERCENTAGE"
+                                                  ? `${range.charge}%`
+                                                  : `₹${range.charge}`}
+                                              </td>
+                                              <td className="py-2 text-green-600 font-medium">
+                                                {range.chargeType === "PERCENTAGE"
+                                                  ? `${range.retailerRate}%`
+                                                  : `₹${range.retailerRate}`}
+                                              </td>
+                                              <td className="py-2 text-blue-600 font-medium">
+                                                {range.chargeType === "PERCENTAGE"
+                                                  ? `${range.distributorRate}%`
+                                                  : `₹${range.distributorRate}`}
+                                              </td>
+                                              <td className="py-2 text-purple-600 font-medium">
+                                                {range.chargeType === "PERCENTAGE"
+                                                  ? `${range.adminRate}%`
+                                                  : `₹${range.adminRate}`}
+                                              </td>
+                                            </tr>
                                           ))}
-                                        </div>
-                                      )}
+                                        </tbody>
+                                      </table>
                                     </div>
                                   )}
                                 </div>
                               );
                             })}
                           </div>
-                        )}
+                        ) : null}
 
-                        {/* Service-level Pricing (if no categories) */}
-                        {!hasCategories && hasServicePricing && (
-                          <div className="space-y-4">
-                            {service.pricing?.map((pricing, pricingIndex) => (
-                              <PricingSection
-                                key={pricing._id || pricingIndex}
-                                pricing={pricing}
-                                index={pricingIndex}
-                              />
-                            ))}
+                        {/* Direct Ranges View */}
+                        {directRanges.length > 0 ? (
+                          <div className="bg-white rounded border border-gray-200 p-3">
+                            <h5 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
+                              Configured Ranges
+                            </h5>
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left text-xs">
+                                <thead>
+                                  <tr className="border-b border-gray-200 text-gray-500 pb-2">
+                                    <th className="pb-2 font-medium">Min Amount</th>
+                                    <th className="pb-2 font-medium">Max Amount</th>
+                                    <th className="pb-2 font-medium">Charge Type</th>
+                                    <th className="pb-2 font-medium">Charge</th>
+                                    <th className="pb-2 font-medium">Retailer Comm.</th>
+                                    <th className="pb-2 font-medium">Distributor Comm.</th>
+                                    <th className="pb-2 font-medium">Admin Comm.</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {directRanges.map((range: PlanRange, rIdx: number) => (
+                                    <tr key={rIdx} className="text-gray-700">
+                                      <td className="py-2">₹{range.minAmount}</td>
+                                      <td className="py-2">₹{range.maxAmount}</td>
+                                      <td className="py-2">
+                                        <span className="inline-flex items-center gap-1 font-medium">
+                                          {range.chargeType === "PERCENTAGE" ? (
+                                            <Percent className="h-3 w-3 text-blue-500" />
+                                          ) : (
+                                            <DollarSign className="h-3 w-3 text-purple-500" />
+                                          )}
+                                          {range.chargeType}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 font-semibold">
+                                        {range.chargeType === "PERCENTAGE"
+                                          ? `${range.charge}%`
+                                          : `₹${range.charge}`}
+                                      </td>
+                                      <td className="py-2 text-green-600 font-medium">
+                                        {range.chargeType === "PERCENTAGE"
+                                          ? `${range.retailerRate}%`
+                                          : `₹${range.retailerRate}`}
+                                      </td>
+                                      <td className="py-2 text-blue-600 font-medium">
+                                        {range.chargeType === "PERCENTAGE"
+                                          ? `${range.distributorRate}%`
+                                          : `₹${range.distributorRate}`}
+                                      </td>
+                                      <td className="py-2 text-purple-600 font-medium">
+                                        {range.chargeType === "PERCENTAGE"
+                                          ? `${range.adminRate}%`
+                                          : `₹${range.adminRate}`}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
-                        )}
+                        ) : null}
 
-                        {/* No pricing configured */}
-                        {!hasCategories && !hasServicePricing && (
-                          <div className="text-center py-8 bg-gray-50 rounded-lg">
-                            <p className="text-sm text-gray-500">No pricing configured for this service</p>
+                        {categories.length === 0 && directRanges.length === 0 ? (
+                          <div className="text-center py-4 text-xs text-gray-500">
+                            No pricing slabs or categories configured for this service.
                           </div>
-                        )}
+                        ) : null}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center text-sm text-gray-500">
+              No services configured in this plan yet.
+            </div>
           )}
         </div>
-      </div>
-    </div>
-  );
-};
-
-// Sub-component for displaying pricing details
-const PricingSection = ({ pricing, index }: { pricing: Pricing; index: number }) => {
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-      {/* Pricing Header */}
-      <div className="flex items-center justify-between p-3 bg-gray-100 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-500 uppercase">Pricing #{index + 1}</span>
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-            {pricing.type}
-          </span>
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-            {pricing.calculationType}
-          </span>
-        </div>
-      </div>
-
-      {/* Pricing Slabs */}
-      <div className="p-4">
-        {!pricing.slabs || pricing.slabs.length === 0 ? (
-          <p className="text-sm text-gray-500 text-center py-4">No slabs configured</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Min Amount
-                  </th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Max Amount
-                  </th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Charge
-                  </th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Admin
-                  </th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Distributor
-                  </th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700 text-xs uppercase tracking-wide">
-                    Retailer
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {pricing.slabs.map((slab: PricingSlab, slabIndex: number) => (
-                  <tr key={slabIndex} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2 px-3 text-gray-900 font-medium">
-                      {slab.minAmount.toLocaleString()}
-                    </td>
-                    <td className="py-2 px-3 text-gray-600">
-                      {slab.maxAmount ? slab.maxAmount.toLocaleString() : "Unlimited"}
-                    </td>
-                    <td className="py-2 px-3">
-                      {slab.chargeAmount !== null && slab.chargeAmount !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          {pricing.calculationType === "PERCENTAGE" ? (
-                            <Percent className="h-3 w-3 text-gray-400" />
-                          ) : (
-                            <DollarSign className="h-3 w-3 text-gray-400" />
-                          )}
-                          <span className="text-gray-900 font-medium">{slab.chargeAmount}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">
-                      {slab.adminAmount !== null && slab.adminAmount !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3 text-gray-400" />
-                          <span className="text-gray-900">{slab.adminAmount}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">
-                      {slab.distributorAmount !== null && slab.distributorAmount !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3 text-gray-400" />
-                          <span className="text-gray-900">{slab.distributorAmount}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="py-2 px-3">
-                      {slab.retailerAmount !== null && slab.retailerAmount !== undefined ? (
-                        <div className="flex items-center gap-1">
-                          <DollarSign className="h-3 w-3 text-gray-400" />
-                          <span className="text-gray-900">{slab.retailerAmount}</span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   );

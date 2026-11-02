@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import {
   AlertCircle,
   ArrowLeft,
@@ -47,32 +47,6 @@ import {
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import { getAuthUser } from "../../../context/AuthContext";
 
-const getApiErrorMessage = (error: unknown, fallback: string): string => {
-  if (typeof error !== "object" || error === null) {
-    return fallback;
-  }
-
-  if ("response" in error) {
-    const response = (error as { response?: unknown }).response;
-    if (typeof response === "object" && response !== null && "data" in response) {
-      const data = (response as { data?: unknown }).data;
-      if (
-        typeof data === "object" &&
-        data !== null &&
-        "message" in data &&
-        typeof (data as { message?: unknown }).message === "string"
-      ) {
-        return (data as { message: string }).message;
-      }
-    }
-  }
-
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return fallback;
-};
 
 // =============================================================
 // Interfaces & Types
@@ -465,7 +439,7 @@ const BBPS: React.FC = () => {
     const primaryInput = (consumerValues[primaryFieldLabel] || "").trim();
 
     if (!primaryInput) {
-      toast.error(`Please enter ${primaryFieldLabel}.`);
+      showToast("error", `Please enter ${primaryFieldLabel}.`);
       return;
     }
 
@@ -481,11 +455,11 @@ const BBPS: React.FC = () => {
     // Enforce DOB for Insurance and Life Insurance categories
     if (isInsuranceCategory) {
       if (!secondaryInput) {
-        toast.error("Please enter Date of Birth (DOB).");
+        showToast("error", "Please enter Date of Birth (DOB).");
         return;
       }
     } else if (secondaryFieldLabel && !secondaryInput) {
-      toast.error(`Please enter ${secondaryFieldLabel}.`);
+      showToast("error", `Please enter ${secondaryFieldLabel}.`);
       return;
     }
 
@@ -502,16 +476,16 @@ const BBPS: React.FC = () => {
     // Enforce Email ID for Insurance and Life Insurance categories
     if (isInsuranceCategory) {
       if (!tertiaryInput) {
-        toast.error("Please enter Email ID.");
+        showToast("error", "Please enter Email ID.");
         return;
       }
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(tertiaryInput)) {
-        toast.error("Please enter a valid Email ID (e.g. name@example.com).");
+        showToast("error", "Please enter a valid Email ID (e.g. name@example.com).");
         return;
       }
     } else if (tertiaryFieldLabel && !tertiaryInput) {
-      toast.error(`Please enter ${tertiaryFieldLabel}.`);
+      showToast("error", `Please enter ${tertiaryFieldLabel}.`);
       return;
     }
 
@@ -523,18 +497,18 @@ const BBPS: React.FC = () => {
       "";
 
     if (selectedBiller?.REFMOBILENO && !consumerValues[selectedBiller.REFMOBILENO]?.trim()) {
-      toast.error(`Please enter ${selectedBiller.REFMOBILENO}.`);
+      showToast("error", `Please enter ${selectedBiller.REFMOBILENO}.`);
       return;
     }
 
     if (enteredMobile && !/^[6-9]\d{9}$/.test(enteredMobile)) {
-      toast.error("Please enter a valid 10-digit mobile number.");
+      showToast("error", "Please enter a valid 10-digit mobile number.");
       return;
     }
 
     const opcode = String(selectedBiller?.opcode || (selectedBiller?.id ? String(selectedBiller.id) : ""));
     if (!opcode) {
-      toast.error("Operator code (opcode) is missing for this biller.");
+      showToast("error", "Operator code (opcode) is missing for this biller.");
       return;
     }
 
@@ -587,7 +561,7 @@ const BBPS: React.FC = () => {
         res?.status !== "ERROR";
 
       if (!isSuccess) {
-        toast.error(res?.message || "Unable to fetch bill details for the provided consumer account.");
+        showToast("error", res?.message || "Unable to fetch bill details for the provided consumer account.");
         return;
       }
 
@@ -601,7 +575,7 @@ const BBPS: React.FC = () => {
         billData;
 
       if (!billDetailsObj || typeof billDetailsObj !== "object") {
-        toast.error(res?.message || "No bill details returned for this account.");
+        showToast("error", res?.message || "No bill details returned for this account.");
         return;
       }
 
@@ -674,15 +648,15 @@ const BBPS: React.FC = () => {
 
       setPaymentAmount(amount > 0 ? amount.toFixed(2) : "");
       setPaymentMode(amount > 0 ? "full" : "custom");
-      toast.success(res?.message || "Bill details fetched successfully!");
+      showToast("success", res?.message || "Bill details fetched successfully!");
       setScreen("bill");
     } catch (err: unknown) {
       console.error("[BBPS] handleFetchBill error:", err);
-      const errorMsg = getApiErrorMessage(
-        err,
-        "Failed to connect to BBPS provider network. Please check details and try again."
-      );
-      toast.error(errorMsg);
+      showToast("error", err, "Failed to connect to BBPS provider network. Please check details and try again.");
+
+
+
+
     } finally {
       setIsFetching(false);
     }
@@ -693,18 +667,18 @@ const BBPS: React.FC = () => {
     if (!billDetails) return;
 
     if (!consent) {
-      toast.error("Please confirm customer consent to proceed with payment.");
+      showToast("error", "Please confirm customer consent to proceed with payment.");
       return;
     }
 
     const payValue = Math.round((parseFloat(paymentAmount) || 0) * 100) / 100;
     if (isNaN(payValue) || payValue <= 0) {
-      toast.error("Please enter a valid payment amount greater than ₹0.");
+      showToast("error", "Please enter a valid payment amount greater than ₹0.");
       return;
     }
 
     if (payValue > walletBalance) {
-      toast.error(
+      showToast("error", 
         `Insufficient wallet balance. Available: ${formatCurrency(walletBalance)}, Required: ${formatCurrency(payValue)}`
       );
       return;
@@ -784,7 +758,7 @@ const BBPS: React.FC = () => {
           payData?.message ||
           res?.message ||
           "Bill payment could not be processed by provider.";
-        toast.error(errorMsg);
+        showToast("error", errorMsg);
         return;
       }
 
@@ -814,14 +788,14 @@ const BBPS: React.FC = () => {
           hour12: true,
         })
       );
-      toast.success("Bill payment successfully completed!");
+      showToast("success", "Bill payment successfully completed!");
       setScreen("success");
     } catch (err: unknown) {
-      const errorMsg = getApiErrorMessage(
-        err,
-        "Payment failed due to provider connection error. Please try again."
-      );
-      toast.error(errorMsg);
+      showToast("error", err, "Payment failed due to provider connection error. Please try again.");
+
+
+
+
     } finally {
       setIsPaying(false);
     }
@@ -879,15 +853,15 @@ const BBPS: React.FC = () => {
       const res = await syncBbpsDataApi();
       const message =
         res?.message || "BBPS categories and billers synchronized successfully!";
-      toast.success(message);
+      showToast("success", message);
       await fetchCategories();
     } catch (err: unknown) {
       console.error("[BBPS] handleSyncBbps error:", err);
-      const errorMsg = getApiErrorMessage(
-        err,
-        "Failed to synchronize BBPS data. Please try again."
-      );
-      toast.error(errorMsg);
+      showToast("error", err, "Failed to synchronize BBPS data. Please try again.");
+
+
+
+
     } finally {
       setIsSyncing(false);
     }

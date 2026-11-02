@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { getFCMToken } from "../../../config/firebase";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import {
   sendRetailerLoginOtp,
   resendRetailerLoginOtp,
@@ -132,11 +132,11 @@ const RetailerLogin = () => {
       await resendRetailerLoginOtp(mobile);
       setResendTimer(59);
       setSuccessMessage("OTP resent successfully!");
-      toast.success("OTP resent successfully!");
+      showToast("success", "OTP resent successfully!");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message || "Failed to resend OTP";
       setError(msg);
-      toast.error(msg);
+      showToast("error", msg);
     } finally {
       setResending(false);
     }
@@ -322,7 +322,7 @@ const RetailerLogin = () => {
 
                 {/* MOBILE */}
                 {!otpSent && (
-                  <div className={error ? "mt-5" : "mt-8"}>
+                  <div className="mt-8">
                   <label
                     htmlFor="retailer-login-mobile"
                     className="mb-2.5 block text-[13px] font-semibold text-[#172033]"

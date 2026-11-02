@@ -1,3 +1,4 @@
+import { showToast } from "../../utils/toast";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -81,7 +82,8 @@ export default function DistributorRetailerDetails() {
       }
     } catch (err) {
       console.error("Failed to fetch retailer profile:", err);
-      setProfileError(err instanceof Error ? err.message : "Failed to load retailer profile");
+      showToast("error", err, "Failed to load retailer profile");
+      setProfileError("Failed to load retailer profile");
     } finally {
       setProfileLoading(false);
     }
@@ -112,7 +114,8 @@ export default function DistributorRetailerDetails() {
       }
     } catch (err) {
       console.error("Failed to fetch transactions:", err);
-      setTxError(err instanceof Error ? err.message : "Failed to load transactions");
+      showToast("error", err, "Failed to load transactions");
+      setTxError("Failed to load transactions");
     } finally {
       setTxLoading(false);
     }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Plus, X, Trash2, Search, ChevronDown, Check, AlertCircle, CheckCircle2 } from "lucide-react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 
 interface PricingSlab {
   minAmount: number;
@@ -382,7 +382,7 @@ const EditPlanServices = ({
   const addService = (serviceName: string) => {
     // Check if service already exists
     if (services.some(s => s.serviceName === serviceName)) {
-      toast.error("This service is already added");
+      showToast("error", "This service is already added");
       return;
     }
 

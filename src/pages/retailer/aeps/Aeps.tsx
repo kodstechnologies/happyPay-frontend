@@ -1,3 +1,4 @@
+import { showToast } from "../../../utils/toast";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { rdService } from "../../../utils/rdService";
 import { getDeviceInfo } from "../../../apis/bioKyc";
@@ -641,13 +642,13 @@ const Aeps = () => {
         setSelectedDevicePort(null);
         setWithdrawalDeviceName("No device found");
         console.log("=== Scan Complete: No devices found ===");
-        alert("No biometric devices found. Please ensure:\n1. RD Service is running\n2. Device is connected via USB\n3. Device driver is installed");
+        showToast("warning", "No biometric devices found. Please ensure RD Service is running and device is connected via USB.");
       }
     } catch (error) {
       console.error("=== Device Scanning Failed ===", error);
       setSelectedDevicePort(null);
       setWithdrawalDeviceName("Scan failed");
-      alert(`Device scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showToast("error", error, "Device scan failed. Please check your RD service connection.");
     }
 
     setIsScanningDevices(false);
@@ -2302,9 +2303,12 @@ const Aeps = () => {
       setBioKycError("");
       setOutletRegError("");
       setBioKycSuccess("Outlet registered with bank successfully! Please click 'Do Bio KYC' to complete biometric authentication.");
+      showToast("success", "Outlet registered with bank successfully!");
     } catch (err: unknown) {
       console.error("[AePS] outletRegisterVerify failed:", err);
-      setOutletRegError(getErrorMessage(err, "OTP verification failed. Please check OTP and retry."));
+      const outErrMsg = getErrorMessage(err, "OTP verification failed. Please check OTP and retry.");
+      setOutletRegError(outErrMsg);
+      showToast("error", err, outErrMsg);
     } finally {
       setIsVerifyingOutletOtp(false);
     }

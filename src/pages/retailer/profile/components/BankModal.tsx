@@ -1,9 +1,10 @@
+import { showToast } from "../../../../utils/toast";
 import { useState, useEffect, useRef } from "react";
 import {
   Building2,
   CreditCard,
   CheckCircle2,
-  AlertCircle,
+
   ShieldCheck,
   Star,
   Search,
@@ -67,7 +68,7 @@ export default function BankModal({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
 
   useEffect(() => {
     if (!open) return;
@@ -141,7 +142,7 @@ export default function BankModal({
     setBankId(bank.code);
     setIsDropdownOpen(false);
     setBankSearch("");
-    setError(null);
+    
   };
 
   const filteredBanks = availableBanks.filter((b) =>
@@ -153,21 +154,21 @@ export default function BankModal({
 
   const validate = () => {
     if (!bankName.trim()) {
-      setError("Please select or enter the bank name.");
+      showToast("error", "Please select or enter the bank name.");
       return false;
     }
     const cleanAcc = accountNumber.trim();
     if (!cleanAcc || cleanAcc.length < 8) {
-      setError("Please enter a valid bank account number (minimum 8 digits).");
+      showToast("error", "Please enter a valid bank account number (minimum 8 digits).");
       return false;
     }
     if (cleanAcc !== confirmAccountNumber.trim()) {
-      setError("Account numbers do not match. Please verify.");
+      showToast("error", "Account numbers do not match.");
       return false;
     }
     const cleanIfsc = ifscCode.trim().toUpperCase();
     if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleanIfsc)) {
-      setError("Please enter a valid 11-digit IFSC code (e.g., HDFC0001234).");
+      showToast("error", "Please enter a valid 11-digit IFSC code (e.g., HDFC0001234).");
       return false;
     }
     return true;
@@ -175,7 +176,7 @@ export default function BankModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    
 
     if (!validate()) return;
 
@@ -210,12 +211,7 @@ export default function BankModal({
       }
     } catch (err: unknown) {
       console.error("Save bank account error:", err);
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data
-              ?.message || "Failed to save bank account. Please check the details.";
-      setError(errorMsg);
+      showToast("error", err, "Failed to save bank account.");
     } finally {
       setIsSubmitting(false);
     }
@@ -249,14 +245,6 @@ export default function BankModal({
       deleteLabel="Delete Account"
     >
       <form id="bank-account-modal-form" onSubmit={handleSubmit} className="space-y-4">
-          {/* Error Banner */}
-          {error && (
-            <div className="flex items-start gap-2.5 rounded-xl bg-rose-50 p-3.5 border border-rose-200/80 text-rose-800 text-xs">
-              <AlertCircle className="h-4 w-4 shrink-0 text-rose-500 mt-0.5" />
-              <div className="flex-1 font-medium">{error}</div>
-            </div>
-          )}
-
           {/* Bank Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">

@@ -21,7 +21,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import {
   getDistributorSettlementInfoApi,
@@ -94,12 +94,12 @@ export default function SettlementToDistributor() {
         }
       }
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string } } };
-      const msg = errorObj?.response?.data?.message || "Failed to load distributor details.";
-      setTransferError(msg);
-      setHasDistributor(false);
-      setCanTransfer(false);
-      setDistributor(null);
+      showToast("error", err, "Transfer failed. Please check your MPIN and try again.");
+
+
+
+
+
     } finally {
       setIsLoading(false);
     }
@@ -143,12 +143,12 @@ export default function SettlementToDistributor() {
       })
       .catch((err: unknown) => {
         if (!isMounted) return;
-        const errorObj = err as { response?: { data?: { message?: string } } };
-        const msg = errorObj?.response?.data?.message || "Failed to load distributor details.";
-        setTransferError(msg);
-        setHasDistributor(false);
-        setCanTransfer(false);
-        setDistributor(null);
+      showToast("error", err, "Transfer failed. Please check your MPIN and try again.");
+
+
+
+
+
       })
       .finally(() => {
         if (isMounted) setIsLoading(false);
@@ -189,25 +189,25 @@ export default function SettlementToDistributor() {
     if (!hasDistributor || !distributor) {
       const msg = "Settlement disabled: No distributor is assigned to your account.";
       setTransferError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (numAmount < 100) {
       const msg = "Minimum transfer amount to distributor is ₹100";
       setTransferError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (numAmount > balance) {
       const msg = "Insufficient wallet balance for transfer";
       setTransferError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (mpin.length < 4) {
       const msg = "Please enter your 4-digit security MPIN";
       setTransferError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -238,15 +238,15 @@ export default function SettlementToDistributor() {
 
         setIsSuccess(true);
         fetchRecentTransfers();
-        toast.success(`₹${formatAmount(numAmount)} transferred successfully to ${data.distributorName || distributor.name}!`);
+        showToast("success", `₹${formatAmount(numAmount)} transferred successfully to ${data.distributorName || distributor.name}!`);
       }
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string } } };
-      const msg =
-        errorObj?.response?.data?.message ||
-        "Transfer failed. Please check your MPIN and try again.";
-      setTransferError(msg);
-      toast.error(msg);
+      showToast("error", err, "Transfer failed. Please check your MPIN and try again.");
+
+
+
+
+
     } finally {
       setIsProcessing(false);
     }
@@ -661,11 +661,11 @@ export default function SettlementToDistributor() {
                 )}
               </div>
 
-              {transferError && (
-                <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">
-                  {transferError}
-                </div>
-              )}
+
+
+
+
+
 
               {/* Submit Button */}
               <button

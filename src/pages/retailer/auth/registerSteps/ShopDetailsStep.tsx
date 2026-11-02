@@ -25,7 +25,7 @@ import {
   type CurrentRegistrationStepResult,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
-import { toast } from "react-toastify";
+import { showToast } from "../../../../utils/toast";
 import {
   getCategories,
   getPropertyTypes,
@@ -277,7 +277,7 @@ const ShopDetailsStep = ({
       } catch (err: unknown) {
         console.error("Error fetching master data:", err);
         const msg = getApiErrorMessage(err, "Failed to load form options. Please refresh the page.");
-        toast.error(msg);
+        showToast("error", msg);
       } finally {
         setMasterDataLoading(false);
       }
@@ -294,12 +294,12 @@ const ShopDetailsStep = ({
     setEmailOtpError("");
     if (!userId) {
       const msg = "User not registered. Please complete step 1.";
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (!email.trim()) {
       const msg = "Please enter your email.";
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -307,10 +307,10 @@ const ShopDetailsStep = ({
     try {
       const res = await sendRetailerEmailOtp({ userId, email: email.trim() });
       setEmailOtpSent(true);
-      toast.success(res?.message || "OTP sent to your email!");
+      showToast("success", res?.message || "OTP sent to your email!");
     } catch (err: unknown) {
       const msg = getApiErrorMessage(err, "Failed to send email OTP");
-      toast.error(msg);
+      showToast("error", msg);
     } finally {
       setSendingEmailOtp(false);
     }
@@ -324,19 +324,19 @@ const ShopDetailsStep = ({
     if (!userId) {
       const msg = "User not registered.";
       setEmailOtpError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (!emailOtp.trim()) {
       const msg = "Please enter the OTP.";
       setEmailOtpError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
     if (emailOtp.length !== 4 && emailOtp.length !== 6) {
       const msg = "Please enter a valid OTP.";
       setEmailOtpError(msg);
-      toast.error(msg);
+      showToast("error", msg);
       return;
     }
 
@@ -349,11 +349,11 @@ const ShopDetailsStep = ({
       });
       setEmailVerified(true);
       setEmailOtpError("");
-      toast.success(res?.message || "Email verified successfully");
+      showToast("success", res?.message || "Email verified successfully");
     } catch (err: unknown) {
       const msg = getApiErrorMessage(err, "Email verification failed");
       setEmailOtpError(msg);
-      toast.error(msg);
+      showToast("error", msg);
     } finally {
       setVerifyingEmailOtp(false);
     }
@@ -364,7 +364,7 @@ const ShopDetailsStep = ({
   // ==========================================================
   const handleLocation = () => {
     if (!navigator.geolocation) {
-      toast.error("Geolocation not supported by this browser.");
+      showToast("error", "Geolocation not supported by this browser.");
       return;
     }
     navigator.geolocation.getCurrentPosition(
@@ -372,7 +372,7 @@ const ShopDetailsStep = ({
         setLatitude(pos.coords.latitude);
         setLongitude(pos.coords.longitude);
       },
-      (err) => toast.error("Location error: " + err.message),
+      (err) => showToast("error", "Location error: " + err.message),
     );
   };
 
@@ -466,24 +466,24 @@ const ShopDetailsStep = ({
   // SUBMIT FULL SHOP DETAILS
   // ==========================================================
   const handleSubmit = async () => {
-    if (!userId) return toast.error("User not registered.");
-    if (!emailVerified) return toast.error("Please verify your email first.");
-    if (!pan) return toast.error("PAN number is required.");
-    if (!panFile) return toast.error("PAN document is required.");
-    if (!shopName.trim()) return toast.error("Shop name is required.");
-    if (!category) return toast.error("Shop category is required.");
-    if (!propertyType) return toast.error("Property type is required.");
-    if (!address.trim()) return toast.error("Shop address is required.");
-    if (!city.trim()) return toast.error("City is required.");
-    if (!state.trim()) return toast.error("State is required.");
-    if (!pincode.trim()) return toast.error("Pincode is required.");
-    if (pincode.length !== 6) return toast.error("Pincode must be exactly 6 digits.");
-    if (pincodeError) return toast.error(pincodeError);
-    if (!businessProof) return toast.error("Business proof type is required.");
-    if (latitude == null || isNaN(latitude)) return toast.error("Latitude is required.");
-    if (longitude == null || isNaN(longitude)) return toast.error("Longitude is required.");
-    if (latitude < -90 || latitude > 90) return toast.error("Latitude must be between -90 and 90.");
-    if (longitude < -180 || longitude > 180) return toast.error("Longitude must be between -180 and 180.");
+    if (!userId) return showToast("error", "User not registered.");
+    if (!emailVerified) return showToast("error", "Please verify your email first.");
+    if (!pan) return showToast("error", "PAN number is required.");
+    if (!panFile) return showToast("error", "PAN document is required.");
+    if (!shopName.trim()) return showToast("error", "Shop name is required.");
+    if (!category) return showToast("error", "Shop category is required.");
+    if (!propertyType) return showToast("error", "Property type is required.");
+    if (!address.trim()) return showToast("error", "Shop address is required.");
+    if (!city.trim()) return showToast("error", "City is required.");
+    if (!state.trim()) return showToast("error", "State is required.");
+    if (!pincode.trim()) return showToast("error", "Pincode is required.");
+    if (pincode.length !== 6) return showToast("error", "Pincode must be exactly 6 digits.");
+    if (pincodeError) return showToast("error", pincodeError);
+    if (!businessProof) return showToast("error", "Business proof type is required.");
+    if (latitude == null || isNaN(latitude)) return showToast("error", "Latitude is required.");
+    if (longitude == null || isNaN(longitude)) return showToast("error", "Longitude is required.");
+    if (latitude < -90 || latitude > 90) return showToast("error", "Latitude must be between -90 and 90.");
+    if (longitude < -180 || longitude > 180) return showToast("error", "Longitude must be between -180 and 180.");
 
     setSubmitting(true);
     try {
@@ -511,7 +511,7 @@ const ShopDetailsStep = ({
       onShopDetailsSaved?.();
     } catch (err: unknown) {
       const msg = getApiErrorMessage(err, "Failed to save shop details");
-      toast.error(msg);
+      showToast("error", msg);
     } finally {
       setSubmitting(false);
     }

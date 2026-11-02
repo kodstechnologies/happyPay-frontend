@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import OtpInput from "../../../components/common/OtpInput";
 import StepIndicator from "../../../components/common/StepIndicator";
 import Input from "../../../components/common/Input";
@@ -149,7 +149,7 @@ export default function CashDrop({
 
   const confirmDrop = async () => {
     if (otp.length !== 6) {
-      toast.error("Please enter the 6-digit OTP.");
+      showToast("error", "Please enter the 6-digit OTP.");
       return;
     }
 
@@ -178,16 +178,16 @@ export default function CashDrop({
 
       setTransactionId(String(generatedTxn));
       setScreen("receipt");
-      toast.success(response.message || "Cash Drop submitted successfully!");
+      showToast("success", response.message || "Cash Drop submitted successfully!");
     } catch (err: unknown) {
-      const errorObj = err as { response?: { data?: { message?: string; msg?: string } }; message?: string };
-      const msg =
-        errorObj?.response?.data?.message ||
-        errorObj?.response?.data?.msg ||
-        errorObj?.message ||
-        "Failed to submit CMS Cash Drop. Please retry.";
+      showToast("error", err, "Failed to submit CMS Cash Drop. Please retry.");
 
-      toast.error(msg);
+
+
+
+
+
+
     } finally {
       setIsSubmitting(false);
     }

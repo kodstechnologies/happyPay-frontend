@@ -1,3 +1,4 @@
+import { showToast } from "../../../../utils/toast";
 import { useRef, useState, useEffect, forwardRef, useImperativeHandle } from "react";
 import {
   Fingerprint,
@@ -8,7 +9,6 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
-import { toast } from "react-toastify";
 
 import {
   updateRetailerAadhaarDetails,
@@ -36,7 +36,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
     const [aadhaarNumber, setAadhaarNumber] = useState("");
     const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
     const [existingAadhaarFile, setExistingAadhaarFile] = useState<string | null>(null);
-    const [error, setError] = useState("");
+
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
@@ -80,22 +80,21 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
     };
 
     const handleSubmit = async (): Promise<boolean> => {
-      setError("");
 
       if (!userId) {
-        setError("User not registered. Please complete step 1.");
+        showToast("error", "User not registered. Please complete step 1.");
         return false;
       }
       if (!consent) {
-        setError("Please provide consent for Aadhaar verification.");
+        showToast("error", "Please provide consent for Aadhaar verification.");
         return false;
       }
       if (aadhaarNumber.length !== 12) {
-        setError("Please enter a valid 12-digit Aadhaar number.");
+        showToast("error", "Please enter a valid 12-digit Aadhaar number.");
         return false;
       }
       if (!aadhaarFile && !existingAadhaarFile) {
-        setError("Aadhaar document is required.");
+        showToast("error", "Aadhaar document is required.");
         return false;
       }
 
@@ -112,13 +111,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
 
         return true;
       } catch (err: unknown) {
-        // Extract error message from API response
-        const errorMessage = (err as Error & { response?: { data?: { message?: string; errors?: string[] } } })?.response?.data?.message || 
-                          (err as Error & { response?: { data?: { errors?: string[] } } })?.response?.data?.errors?.[0] ||
-                          (err as Error)?.message ||
-                          "Failed to save Aadhaar details";
-        setError(errorMessage);
-        toast.error(errorMessage);
+        showToast("error", err, "Failed to save Aadhaar details");
         return false;
       } finally {
         setSubmitting(false);
@@ -313,13 +306,6 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
         onChange={handleAadhaarUpload}
         className="hidden"
       />
-
-      {/* ERROR */}
-      {error && (
-        <div className="rounded-xl border border-[#f0cccc] bg-[#fff5f5] px-4 py-3">
-          <p className="text-[13px] font-medium text-[#c84f4f]">{error}</p>
-        </div>
-      )}
 
       {/* Submitting indicator */}
       {submitting && (

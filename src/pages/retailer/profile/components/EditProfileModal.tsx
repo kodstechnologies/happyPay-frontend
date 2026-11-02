@@ -1,5 +1,6 @@
+import { showToast } from "../../../../utils/toast";
 import { useState, useEffect } from "react";
-import { User, Store, AlertCircle } from "lucide-react";
+import { User, Store } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import type { ModalSize } from "../../../../components/common/ModalWrapper";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
@@ -73,7 +74,7 @@ export default function EditProfileModal({
   const [qualifications, setQualifications] = useState<MasterDataItem[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  
 
   useEffect(() => {
     if (!open) return;
@@ -109,10 +110,10 @@ export default function EditProfileModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    
 
     if (!fullName.trim()) {
-      setError("Full name is required.");
+      showToast("error", "Full name is required.");
       return;
     }
 
@@ -145,12 +146,7 @@ export default function EditProfileModal({
         throw new Error("Failed to update profile.");
       }
     } catch (err: unknown) {
-      const errorMsg =
-        err instanceof Error
-          ? err.message
-          : (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-          "Failed to update profile. Please try again.";
-      setError(errorMsg);
+      showToast("error", err, "Failed to update profile.");
     } finally {
       setIsSubmitting(false);
     }
@@ -195,13 +191,6 @@ export default function EditProfileModal({
       }
     >
       <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-4">
-        {/* Error Alert */}
-        {error && (
-          <div className="flex items-center gap-2 rounded-xl bg-rose-50 p-3 text-xs text-rose-700 border border-rose-100">
-            <AlertCircle className="h-4 w-4 shrink-0 text-rose-500" />
-            <span>{error}</span>
-          </div>
-        )}
         {activeTab === "personal" ? (
           <div className="space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

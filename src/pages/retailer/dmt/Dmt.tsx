@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { toast } from "react-toastify";
+import { showToast } from "../../../utils/toast";
 import {
   ArrowLeft,
   ArrowRight,
@@ -603,7 +603,7 @@ const Dmt = () => {
           saveWadh(prompt.pidOptionWadh);
         }
 
-        toast.info(res?.message || "New remitter detected. OTP sent to mobile number.");
+        showToast("info", res?.message || "New remitter detected. OTP sent to mobile number.");
         setOtp("");
         setOtpSent(true);
         setOtpTimer(30);
@@ -613,7 +613,7 @@ const Dmt = () => {
 
       // Existing verified remitter -> Skip registration
       setIsRemitterEkycDone(true);
-      toast.success(res?.message || "Remitter verified successfully");
+      showToast("success", res?.message || "Remitter verified successfully");
       const firstName = String(resData?.data?.firstName || "").trim();
       const lastName = String(resData?.data?.lastName || "").trim();
       const fullName = `${firstName} ${lastName}`.trim();
@@ -625,7 +625,7 @@ const Dmt = () => {
       await fetchBeneficiariesList();
       setScreen("customer-details");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to verify or register remitter"));
+      showToast("error", err, "Failed to verify or register remitter");
     } finally {
       setIsFetchingCustomer(false);
       setContinueStatus("");
@@ -685,15 +685,15 @@ const Dmt = () => {
           setIsRemitterEkycDone(true);
         }
 
-        toast.success(res?.message || "Remitter registered and verified successfully!");
+        showToast("success", res?.message || "Remitter registered and verified successfully!");
         setCustomerName(res?.data?.name || res?.data?.remitterName || "VERIFIED SENDER");
         await fetchBeneficiariesList();
         setScreen("customer-details");
       } else {
-        toast.error(res?.message || "Invalid OTP. Please enter the correct OTP.");
+        showToast("error", res?.message || "Invalid OTP. Please enter the correct OTP.");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to verify OTP."));
+      showToast("error", err, "Failed to verify OTP.");
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -729,15 +729,15 @@ const Dmt = () => {
         if (prompt.pidOptionWadh) {
           saveWadh(prompt.pidOptionWadh);
         }
-        toast.success(regRes?.message || "OTP resent successfully!");
+        showToast("success", regRes?.message || "OTP resent successfully!");
         setOtp("");
         setOtpTimer(30);
         setOtpSent(true);
       } else {
-        toast.error(regRes?.message || "Failed to resend OTP");
+        showToast("error", regRes?.message || "Failed to resend OTP");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to resend OTP"));
+      showToast("error", err, "Failed to resend OTP");
     }
   };
 
@@ -854,7 +854,7 @@ const Dmt = () => {
       });
 
       if (res?.success || res?.status) {
-        toast.success(res?.message || "Account verified successfully!");
+        showToast("success", res?.message || "Account verified successfully!");
         setAccountVerified(true);
         const beneName = res?.data?.bene_name || res?.data?.data?.bene_name || res?.data?.beneficiaryName || res?.data?.name;
         if (beneName) {
@@ -862,11 +862,11 @@ const Dmt = () => {
         }
       } else {
         setVerifyAccount(false);
-        toast.error(res?.message || "Account verification failed");
+        showToast("error", res?.message || "Account verification failed");
       }
     } catch (err: unknown) {
       setVerifyAccount(false);
-      toast.error(getApiErrorMessage(err, "Failed to verify account"));
+      showToast("error", err, "Failed to verify account");
     } finally {
       setIsVerifyingAccount(false);
     }
@@ -890,7 +890,7 @@ const Dmt = () => {
     }
 
     if (!/^[6-9]\d{9}$/.test(beneficiaryMobile.trim())) {
-      toast.error("Please enter a valid 10-digit mobile number for beneficiary");
+      showToast("error", "Please enter a valid 10-digit mobile number for beneficiary");
       return;
     }
 
@@ -927,13 +927,13 @@ const Dmt = () => {
           ifsc: effectiveIfsc,
         });
         setBeneficiaryVerifyOtp("");
-        toast.success(res?.data?.msg || res?.message || "OTP sent to verify beneficiary");
+        showToast("success", res?.data?.msg || res?.message || "OTP sent to verify beneficiary");
         setScreen("verify-beneficiary");
       } else {
-        toast.error(res?.message || "Failed to add beneficiary");
+        showToast("error", res?.message || "Failed to add beneficiary");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to add beneficiary"));
+      showToast("error", err, "Failed to add beneficiary");
     } finally {
       setIsAddingBeneficiary(false);
     }
@@ -945,7 +945,7 @@ const Dmt = () => {
 
   const handleVerifyBeneficiaryOtp = async () => {
     if (!pendingVerifyBeneficiary || beneficiaryVerifyOtp.length !== 6) {
-      toast.error("Please enter a valid 6-digit OTP");
+      showToast("error", "Please enter a valid 6-digit OTP");
       return;
     }
 
@@ -961,15 +961,15 @@ const Dmt = () => {
 
       const res = await verifyBeneficiaryApi(payload);
       if (res?.success || res?.status) {
-        toast.success(res?.message || "Beneficiary verified and added successfully!");
+        showToast("success", res?.message || "Beneficiary verified and added successfully!");
         await fetchBeneficiariesList();
         resetBeneficiaryForm();
         setScreen("customer-details");
       } else {
-        toast.error(res?.message || "Failed to verify beneficiary OTP");
+        showToast("error", res?.message || "Failed to verify beneficiary OTP");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to verify beneficiary OTP"));
+      showToast("error", err, "Failed to verify beneficiary OTP");
     } finally {
       setIsVerifyingBeneficiaryOtp(false);
     }
@@ -982,7 +982,7 @@ const Dmt = () => {
   const handleInitiateDeleteBeneficiary = async (beneficiary: Beneficiary) => {
     const targetBeneficiaryId = beneficiary.beneficiaryId || beneficiary.id;
     if (!targetBeneficiaryId) {
-      toast.error("Beneficiary ID (beneficiaryId) is missing");
+      showToast("error", "Beneficiary ID (beneficiaryId) is missing");
       return;
     }
 
@@ -1012,13 +1012,13 @@ const Dmt = () => {
         if (receivedRefKey) {
           setDeleteReferenceKey(receivedRefKey);
         }
-        toast.info(res?.message || res?.msg || "OTP sent to customer mobile to confirm beneficiary deletion.");
+        showToast("info", res?.message || res?.msg || "OTP sent to customer mobile to confirm beneficiary deletion.");
         setShowDeleteModal(true);
       } else {
-        toast.error(res?.message || res?.msg || "Failed to initiate beneficiary deletion");
+        showToast("error", res?.message || res?.msg || "Failed to initiate beneficiary deletion");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to initiate beneficiary deletion"));
+      showToast("error", err, "Failed to initiate beneficiary deletion");
     } finally {
       setIsInitiatingDelete(false);
     }
@@ -1027,7 +1027,7 @@ const Dmt = () => {
   const handleConfirmDeleteBeneficiary = async () => {
     const targetBeneficiaryId = deletingBeneficiary?.beneficiaryId || deletingBeneficiary?.id;
     if (!deletingBeneficiary || !targetBeneficiaryId || deleteOtp.length !== 6) {
-      toast.error("Please enter the 6-digit OTP");
+      showToast("error", "Please enter the 6-digit OTP");
       return;
     }
 
@@ -1052,17 +1052,17 @@ const Dmt = () => {
       });
 
       if (res?.success || res?.status === "SUCCESS" || res?.status === true) {
-        toast.success(res?.message || res?.msg || "Beneficiary deleted successfully!");
+        showToast("success", res?.message || res?.msg || "Beneficiary deleted successfully!");
         setShowDeleteModal(false);
         setDeletingBeneficiary(null);
         setDeleteOtp("");
         setDeleteReferenceKey("");
         await fetchBeneficiariesList();
       } else {
-        toast.error(res?.message || res?.msg || "Failed to verify delete OTP");
+        showToast("error", res?.message || res?.msg || "Failed to verify delete OTP");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to delete beneficiary"));
+      showToast("error", err, "Failed to delete beneficiary");
     } finally {
       setIsVerifyingDeleteOtp(false);
     }
@@ -1080,7 +1080,7 @@ const Dmt = () => {
     if (!targetPort) {
       const errorMsg = "Please connect a biometric device and click Scan.";
       setKycError(errorMsg);
-      toast.error(errorMsg);
+      showToast("error", errorMsg);
       return;
     }
 
@@ -1120,7 +1120,7 @@ const Dmt = () => {
           const errorMsg = captureResult.message || mfsCapture.message || "Fingerprint capture failed. Please check device connection.";
           setKycError(errorMsg);
           setKycStep("Capture failed.");
-          toast.error(errorMsg);
+          showToast("error", errorMsg);
           return;
         }
       }
@@ -1135,13 +1135,13 @@ const Dmt = () => {
         const errorMsg = `Device error (${biometricData.errCode}): ${biometricData.errInfo || "Failed to capture fingerprint"}`;
         setKycError(errorMsg);
         setKycStep("Device error.");
-        toast.error(errorMsg);
+        showToast("error", errorMsg);
         return;
       }
 
       const qScore = parseInt(biometricData.qScore || "0", 10);
       if (qScore > 0 && qScore < 40) {
-        toast.warning(`Fingerprint quality is low (${qScore}%). If eKYC fails, please reposition finger firmly.`);
+        showToast("warning", `Fingerprint quality is low (${qScore}%). If eKYC fails, please reposition finger firmly.`);
       }
 
       // 3. Geolocation
@@ -1194,25 +1194,25 @@ const Dmt = () => {
         isSuccessMsg(res?.data?.msg) ||
         isSuccessMsg(res?.msg)
       ) {
-        toast.success(res?.message || res?.data?.msg || res?.msg || "Remitter eKYC completed successfully!");
+        showToast("success", res?.message || res?.data?.msg || res?.msg || "Remitter eKYC completed successfully!");
         setIsRemitterEkycDone(true);
         setShowDoKycModal(false);
         setKycError("");
       } else {
         const errorMsg = res?.message || res?.data?.msg || res?.msg || "eKYC verification failed";
         setKycError(errorMsg);
-        toast.error(errorMsg);
+        showToast("error", errorMsg);
       }
     } catch (err: unknown) {
       const errorMsg = getApiErrorMessage(err, "Failed to perform remitter eKYC");
       if (/successful|success/i.test(errorMsg)) {
-        toast.success(errorMsg);
+        showToast("success", errorMsg);
         setIsRemitterEkycDone(true);
         setShowDoKycModal(false);
         setKycError("");
       } else {
         setKycError(errorMsg);
-        toast.error(errorMsg);
+        showToast("error", errorMsg);
       }
     } finally {
       setIsCapturingBiometric(false);
@@ -1254,13 +1254,13 @@ const Dmt = () => {
 
   const handleSendTransactionOtp = async () => {
     if (!customerMobile || numericSendAmount <= 0) {
-      toast.error("Please enter a valid transfer amount.");
+      showToast("error", "Please enter a valid transfer amount.");
       return;
     }
 
     const targetBeneId = selectedBeneficiary?.beneficiaryId || selectedBeneficiary?.id;
     if (!targetBeneId) {
-      toast.error("Beneficiary is required");
+      showToast("error", "Beneficiary is required");
       return;
     }
 
@@ -1290,14 +1290,14 @@ const Dmt = () => {
           setTxnReferenceKey(returnedRefKey.trim());
           txnReferenceKeyRef.current = returnedRefKey.trim();
         }
-        toast.success(res?.message || res?.msg || "Transaction OTP sent to customer mobile successfully.");
+        showToast("success", res?.message || res?.msg || "Transaction OTP sent to customer mobile successfully.");
         setTxnOtpTimer(60);
         setShowTxnOtpModal(true);
       } else {
-        toast.error(res?.message || res?.msg || "Failed to generate transaction OTP");
+        showToast("error", res?.message || res?.msg || "Failed to generate transaction OTP");
       }
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to send transaction OTP"));
+      showToast("error", err, "Failed to send transaction OTP");
     } finally {
       setIsSendingTxnOtp(false);
     }
@@ -1313,17 +1313,17 @@ const Dmt = () => {
 
   const handleInitiateTransfer = async () => {
     if (!selectedBeneficiary) {
-      toast.error("Please select a beneficiary.");
+      showToast("error", "Please select a beneficiary.");
       return;
     }
 
     if (numericSendAmount <= 0) {
-      toast.error("Please enter a valid transfer amount.");
+      showToast("error", "Please enter a valid transfer amount.");
       return;
     }
 
     if (numericSendAmount > availableBalance) {
-      toast.error("Amount cannot exceed available wallet balance.");
+      showToast("error", "Amount cannot exceed available wallet balance.");
       return;
     }
 
@@ -1341,7 +1341,7 @@ const Dmt = () => {
     }
 
     if (!transactionOtp.trim() || transactionOtp.trim().length < 4) {
-      toast.error("Please enter a valid OTP (at least 4 digits).");
+      showToast("error", "Please enter a valid OTP (at least 4 digits).");
       return;
     }
 
@@ -1382,7 +1382,7 @@ const Dmt = () => {
       const isSuccess = res?.success !== false && res?.status !== false && res?.status !== "FAILED";
 
       if (!isSuccess) {
-        toast.error(res?.message || res?.msg || "Transfer failed");
+        showToast("error", res?.message || res?.msg || "Transfer failed");
         return;
       }
 
@@ -1392,9 +1392,9 @@ const Dmt = () => {
       setTransactionOtp("");
       fetchWallet();
       setScreen("success");
-      toast.success("Transfer completed successfully!");
+      showToast("success", "Transfer completed successfully!");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to execute DMT transfer"));
+      showToast("error", err, "Failed to execute DMT transfer");
     } finally {
       setIsProcessingTransfer(false);
     }
