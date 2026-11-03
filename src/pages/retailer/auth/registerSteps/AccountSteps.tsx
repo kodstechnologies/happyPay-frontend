@@ -88,6 +88,7 @@ const AccountStep = ({
 }: AccountStepProps) => {
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(initialMobile || "");
+  const [selectedRole, setSelectedRole] = useState<"retailer" | "distributor">("retailer");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [otpVerified, setOtpVerified] = useState(false);
@@ -159,12 +160,13 @@ const AccountStep = ({
     setSending(true);
     setResendSuccess("");
     try {
-      const res = await sendRetailerRegisterOtp(mobile);
+      const res = await sendRetailerRegisterOtp(mobile, selectedRole);
       console.log(res);
       setOtpSent(true);
       setResendTimer(60);
       showToast("success", res.message || "OTP sent successfully!");
       localStorage.setItem("pendingRetailerMobile", mobile);
+      localStorage.setItem("selectedRole", selectedRole);
     } catch (err: unknown) {
       const errorObj = err as ApiErrorResponse | undefined;
       const statusCode = errorObj?.response?.status || errorObj?.statusCode;
@@ -195,7 +197,7 @@ const AccountStep = ({
     setResendSuccess("");
     setResending(true);
     try {
-      await resendRetailerRegisterOtp(mobile);
+      await resendRetailerRegisterOtp(mobile, selectedRole);
       setResendTimer(60);
       setResendSuccess("OTP resent successfully!");
       showToast("success", "OTP resent successfully!");
@@ -236,6 +238,7 @@ const AccountStep = ({
       if (!distributorId) {
         localStorage.setItem("retailerUserId", id);
         localStorage.setItem("pendingRetailerMobile", mobile);
+        localStorage.setItem("selectedRole", selectedRole);
       } else {
         localStorage.setItem("subRetailerUserId", id);
       }
@@ -300,6 +303,34 @@ const AccountStep = ({
           )}
         </div>
       </div>
+
+      {/* Role Selection */}
+      {!otpVerified && (
+        <div>
+          <label
+            htmlFor="registration-role"
+            className="mb-2.5 block text-[15px] font-semibold text-[#172033]"
+          >
+            I want to register as
+          </label>
+          <select
+            id="registration-role"
+            value={selectedRole}
+            onChange={(e) => setSelectedRole(e.target.value as "retailer" | "distributor")}
+            disabled={otpSent}
+            className={`h-[58px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-12 text-[15px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 disabled:cursor-not-allowed disabled:opacity-50 ${selectedRole ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
+          >
+            <option value="retailer">Retailer</option>
+            <option value="distributor">Distributor</option>
+          </select>
+          <p className="mt-2 text-[12px] leading-5 text-[#697386]">
+            {selectedRole === "retailer"
+              ? "Retailers can perform transactions and earn commissions."
+              : "Distributors can onboard retailers and earn additional commissions from their network."}
+          </p>
+        </div>
+      )}
 
       {/* Info card */}
       <div className="rounded-2xl border border-[#dbe3f7] bg-[#f3f6ff] px-5 py-4">

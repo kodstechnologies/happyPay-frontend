@@ -22,7 +22,11 @@ import {
   verifyRetailerEmailOtp,
   updateRetailerShopDetails,
   validatePincodeApi,
+  fetchUpiStateListApi,
+  fetchUpiDistrictApi,
   type CurrentRegistrationStepResult,
+  type UpiState,
+  type UpiDistrict,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
 import { showToast } from "../../../../utils/toast";
@@ -141,16 +145,22 @@ const ShopDetailsStep = ({
   const [propertyType, setPropertyType] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
-  const [state, setState] = useState("");
+  const [state, setState] = useState("");           // selected state name (for display / submit)
+  const [stateCode, setStateCode] = useState("");   // selected state code (for district API)
+  const [districtName, setDistrictName] = useState("");
+  const [districtCode, setDistrictCode] = useState("");
   const [pincode, setPincode] = useState("");
   const [pincodeLoading, setPincodeLoading] = useState(false);
   const [pincodeError, setPincodeError] = useState("");
   const [pincodeValid, setPincodeValid] = useState(false);
-  const [pincodeInfo, setPincodeInfo] = useState<{
-    city?: string | null;
-    district?: string | null;
-    state?: string | null;
-  } | null>(null);
+  const [pincodeInfo, setPincodeInfo] = useState<{ state?: string; city?: string; district?: string } | null>(null);
+
+  // State / District dropdown data
+  const [stateList, setStateList] = useState<UpiState[]>([]);
+  const [districtList, setDistrictList] = useState<UpiDistrict[]>([]);
+  const [statesLoading, setStatesLoading] = useState(false);
+  const [districtsLoading, setDistrictsLoading] = useState(false);
+
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
 
@@ -215,6 +225,8 @@ const ShopDetailsStep = ({
 
           if (fd.shop.address?.city) setCity(fd.shop.address.city);
           if (fd.shop.address?.state) setState(fd.shop.address.state);
+          if (fd.shop.address?.districtName) setDistrictName(fd.shop.address.districtName);
+          if (fd.shop.address?.districtCode) setDistrictCode(fd.shop.address.districtCode);
           if (fd.shop.address?.pincode) {
             setPincode(fd.shop.address.pincode);
           }
@@ -236,7 +248,32 @@ const ShopDetailsStep = ({
     }
   }
 
-  // Validate initial pincode asynchronously
+  // Load state list on mount
+  useEffect(() => {
+    fetchUpiStateListApi()
+      .then((res) => {
+        // The backend returns { data: { data: [...], pagination: {...} } }
+        // after unwrap, we need to access res.data.data for the array
+        let raw: unknown = res.data;
+        if (raw && typeof raw === "object" && "data" in raw) {
+          raw = (raw as Record<string, unknown>).data;
+        }
+        if (Array.isArray(raw)) {
+          setStateList(raw as UpiState[]);
+        } else if (raw && typeof raw === "object") {
+          // Some providers return { states: [...] } or { data: [...] }
+          const nested = (raw as Record<string, unknown>).states ||
+            (raw as Record<string, unknown>).data ||
+            (raw as Record<string, unknown>).stateList;
+          if (Array.isArray(nested)) setStateList(nested as UpiState[]);
+        }
+      })
+      .catch(() => { /* silently ignore — user can still type */ })
+      .finally(() => setStatesLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Validate initial pincode asynchronously (only for validity check, no auto-fill)
   useEffect(() => {
     const pin = initialData?.filledData?.shop?.address?.pincode;
     if (pin && pin.length === 6) {
@@ -245,17 +282,10 @@ const ShopDetailsStep = ({
         .then((res) => {
           if (isMounted && res.data?.isValid) {
             setPincodeValid(true);
-            setPincodeInfo({
-              city: res.data.city || res.data.district || null,
-              district: res.data.district || null,
-              state: res.data.state || null,
-            });
           }
         })
-        .catch(() => {});
-      return () => {
-        isMounted = false;
-      };
+        .catch(() => { });
+      return () => { isMounted = false; };
     }
   }, [initialData?.filledData?.shop?.address?.pincode]);
 
@@ -415,7 +445,6 @@ const ShopDetailsStep = ({
     const value = e.target.value.replace(/\D/g, "").slice(0, 6);
     setPincode(value);
 
-    // If less than 6 digits, reset validation state
     if (value.length < 6) {
       setPincodeValid(false);
       setPincodeError("");
@@ -423,7 +452,7 @@ const ShopDetailsStep = ({
       return;
     }
 
-    // Call API exactly as the 6th digit is entered
+    // Only validate (no auto-fill of state/district/city)
     if (value.length === 6) {
       setPincodeLoading(true);
       setPincodeError("");
@@ -432,34 +461,68 @@ const ShopDetailsStep = ({
         if (res.data?.isValid) {
           setPincodeValid(true);
           setPincodeError("");
-          const loc = {
-            city: res.data.city || res.data.district || null,
-            district: res.data.district || null,
-            state: res.data.state || null,
-          };
-          setPincodeInfo(loc);
-
-          // Auto-fill city if empty or matching previous auto-filled city
-          if (loc.city && (!city.trim() || city === pincodeInfo?.city)) {
-            setCity(loc.city);
-          }
-
-          // Auto-fill state if empty or matching previous auto-filled state
-          if (loc.state && (!state.trim() || state === pincodeInfo?.state)) {
-            setState(loc.state);
-          }
+          setPincodeInfo({
+            state: res.data.state || undefined,
+            city: res.data.city || undefined,
+            district: res.data.district || undefined,
+          });
         } else {
           setPincodeValid(false);
           setPincodeError(res.message || "Invalid pincode. No records found.");
+          setPincodeInfo(null);
         }
       } catch (err: unknown) {
         setPincodeValid(false);
         const msg = getApiErrorMessage(err, "Invalid postal pincode");
         setPincodeError(msg);
+        setPincodeInfo(null);
       } finally {
         setPincodeLoading(false);
       }
     }
+  };
+
+  // When state selection changes: load districts
+  const handleStateChange = async (selectedCode: string) => {
+    setStateCode(selectedCode);
+    // Resolve display name from list
+    const found = stateList.find((s) => s.stateCode === selectedCode);
+    setState(found?.stateName || selectedCode);
+    // Reset district
+    setDistrictName("");
+    setDistrictCode("");
+    setDistrictList([]);
+
+    if (!selectedCode) return;
+    setDistrictsLoading(true);
+    try {
+      const res = await fetchUpiDistrictApi(selectedCode);
+      // The backend returns { data: { data: [...], pagination: {...} } }
+      // after unwrap, we need to access res.data.data for the array
+      let raw: unknown = res.data;
+      if (raw && typeof raw === "object" && "data" in raw) {
+        raw = (raw as Record<string, unknown>).data;
+      }
+      if (Array.isArray(raw)) {
+        setDistrictList(raw as UpiDistrict[]);
+      } else if (raw && typeof raw === "object") {
+        const nested = (raw as Record<string, unknown>).districts ||
+          (raw as Record<string, unknown>).data ||
+          (raw as Record<string, unknown>).districtList;
+        if (Array.isArray(nested)) setDistrictList(nested as UpiDistrict[]);
+      }
+    } catch {
+      showToast("error", "Failed to load district list");
+    } finally {
+      setDistrictsLoading(false);
+    }
+  };
+
+  // When district selection changes
+  const handleDistrictChange = (selectedCode: string) => {
+    setDistrictCode(selectedCode);
+    const found = districtList.find((d) => d.districtCode === selectedCode);
+    setDistrictName(found?.districtName || selectedCode);
   };
 
   // ==========================================================
@@ -491,15 +554,17 @@ const ShopDetailsStep = ({
         userId,
         panNumber: pan,
         shopName,
-        shopCategory: category, // This is now an ID from the API
-        propertyType, // This is now an ID from the API
+        shopCategory: category,
+        propertyType,
         address,
         city,
-        state: pincodeInfo?.state || (initialData?.filledData?.shop?.address?.state ?? ""),
+        state,
         pincode,
+        districtName,
+        districtCode,
         latitude,
         longitude,
-        businessProofType: businessProof, // This is now an ID from the API
+        businessProofType: businessProof,
         shopInsidePhoto: insideShopFile || existingInsideShop,
         shopOutsidePhoto: outsideShopFile || existingOutsideShop,
         shopLocationPhoto: shopLocationFile || existingShopLocation,
@@ -620,11 +685,10 @@ const ShopDetailsStep = ({
             placeholder="Enter OTP"
             maxLength={6}
             inputMode="numeric"
-            className={`mt-3 h-[54px] w-full rounded-xl border bg-white px-4 text-center text-[18px] font-bold tracking-[0.4em] text-[#172033] outline-none transition-all ${
-              emailOtpError
-                ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
-                : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
-            }`}
+            className={`mt-3 h-[54px] w-full rounded-xl border bg-white px-4 text-center text-[18px] font-bold tracking-[0.4em] text-[#172033] outline-none transition-all ${emailOtpError
+              ? "border-[#d85b5b] focus:border-[#d85b5b] focus:ring-4 focus:ring-[#d85b5b]/10"
+              : "border-[#dfe3e9] focus:border-[#7c3aed] focus:ring-4 focus:ring-[#7c3aed]/10"
+              }`}
           />
           {emailOtpError && (
             <p className="mt-2 text-center text-[13px] font-semibold text-[#d85b5b]">
@@ -810,7 +874,7 @@ const ShopDetailsStep = ({
 
         {/* City + State + Pincode */}
         <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
-             <div>
+          <div>
             <div className="mb-2.5 flex items-center justify-between">
               <label
                 htmlFor="shop-pincode"
@@ -879,16 +943,64 @@ const ShopDetailsStep = ({
             <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
               State
             </label>
-            <input
-              type="text"
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-              placeholder="Enter state"
-              className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] px-5 text-[14px] font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${state ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-                }`}
-            />
+            <div className="relative">
+              <select
+                value={stateCode}
+                onChange={(e) => handleStateChange(e.target.value)}
+                disabled={statesLoading}
+                className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${stateCode ? "border-[#7c3aed] text-[#172033]" : "border-[#dfe3e9] text-[#a1a8b5]"
+                  }`}
+              >
+                <option value="" disabled>
+                  Select state
+                </option>
+                {stateList.map((s) => (
+                  <option key={s.stateCode} value={s.stateCode}>
+                    {s.stateName}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                {statesLoading ? (
+                  <Loader2 className="h-5 w-5 animate-spin text-[#7c3aed]" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 text-[#697386]" strokeWidth={2.2} />
+                )}
+              </div>
+            </div>
           </div>
-       
+        </div>
+
+        {/* District */}
+        <div className="mt-5">
+          <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
+            District
+          </label>
+          <div className="relative">
+            <select
+              value={districtCode}
+              onChange={(e) => handleDistrictChange(e.target.value)}
+              disabled={districtsLoading || !stateCode}
+              className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${districtCode ? "border-[#7c3aed] text-[#172033]" : "border-[#dfe3e9] text-[#a1a8b5]"
+                }`}
+            >
+              <option value="" disabled>
+                {stateCode ? "Select district" : "Select state first"}
+              </option>
+              {districtList.map((d) => (
+                <option key={d.districtCode} value={d.districtCode}>
+                  {d.districtName}
+                </option>
+              ))}
+            </select>
+            <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+              {districtsLoading ? (
+                <Loader2 className="h-5 w-5 animate-spin text-[#7c3aed]" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-[#697386]" strokeWidth={2.2} />
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Shop Location (lat/lng input fields) */}

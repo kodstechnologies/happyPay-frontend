@@ -67,12 +67,12 @@ export interface VerifyOtpResult {
 
 
 
-export function sendRetailerRegisterOtp(mobile: string) {
-  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/send", { mobile }).then(unwrap);
+export function sendRetailerRegisterOtp(mobile: string, role?: string) {
+  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/send", { mobile, role }).then(unwrap);
 }
 
-export function resendRetailerRegisterOtp(mobile: string) {
-  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/resend", { mobile }).then(unwrap);
+export function resendRetailerRegisterOtp(mobile: string, role?: string) {
+  return api.post<ApiEnvelope<SendOtpResult>>("/api/v1/otp/resend", { mobile, role }).then(unwrap);
 }
 
 // ============================================================
@@ -116,6 +116,8 @@ export interface ShopAddress {
   city: string | null;
   state: string | null;
   pincode: string | null;
+  districtName?: string | null;
+  districtCode?: string | null;
 }
 
 export interface ShopLocation {
@@ -171,7 +173,7 @@ export interface CurrentRegistrationStepResult {
     primaryBank?: {
       bankName?: string;
       bank_id?: string | number;
-  bank_code?: string;
+      bank_code?: string;
       ifscCode?: string;
       accountNumber?: string;
       isPrimary?: boolean;
@@ -259,6 +261,8 @@ export interface UpdateShopDetailsPayload {
   city: string;
   state: string;
   pincode: string;
+  districtName?: string;
+  districtCode?: string;
   latitude?: number | null;
   longitude?: number | null;
   businessProofType: string;
@@ -281,6 +285,8 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   fd.append("city", payload.city);
   fd.append("state", payload.state);
   fd.append("pincode", payload.pincode);
+  if (payload.districtName) fd.append("districtName", payload.districtName);
+  if (payload.districtCode) fd.append("districtCode", payload.districtCode);
   if (payload.latitude != null) fd.append("latitude", String(payload.latitude));
   if (payload.longitude != null)
     fd.append("longitude", String(payload.longitude));
@@ -658,6 +664,30 @@ export interface PincodeValidationData {
 
 export function validatePincodeApi(pincode: string) {
   return api.get<ApiEnvelope<PincodeValidationData>>(`/api/v1/auth/pincode/validate/${encodeURIComponent(pincode)}`).then(unwrap);
+}
+
+// ============================================================
+// UPI STATE & DISTRICT LOOKUP
+// ============================================================
+
+export interface UpiState {
+  stateCode: string;
+  stateName: string;
+  [key: string]: unknown;
+}
+
+export interface UpiDistrict {
+  districtCode: string;
+  districtName: string;
+  [key: string]: unknown;
+}
+
+export function fetchUpiStateListApi() {
+  return api.post<ApiEnvelope<UpiState[] | Record<string, unknown>>>("/api/v1/upi-cashpoint/state-list", { page: 1, limit: 100 }).then(unwrap);
+}
+
+export function fetchUpiDistrictApi(stateCode: string) {
+  return api.post<ApiEnvelope<UpiDistrict[] | Record<string, unknown>>>("/api/v1/upi-cashpoint/district", { stateCode }).then(unwrap);
 }
 
 // ============================================================

@@ -30,6 +30,9 @@ export interface RetailerShop {
     addressLine?: string;
     city?: string;
     state?: string;
+    stateCode?: string;
+    districtName?: string;
+    districtCode?: string;
     pincode?: string;
   };
   completeAddress?: string;
@@ -60,6 +63,7 @@ export interface RetailerFullProfile {
   isEmailVerified: boolean;
   fullName: string;
   fatherName?: string;
+  motherName?: string;
   gender?: string;
   maritalStatus?: string;
   educationalQualification?: string;
@@ -98,6 +102,7 @@ export interface RetailerFullProfile {
 export interface UpdateProfilePayload {
   fullName?: string;
   fatherName?: string;
+  motherName?: string;
   gender?: string;
   maritalStatus?: string;
   educationalQualification?: string;
@@ -109,6 +114,9 @@ export interface UpdateProfilePayload {
   addressLine?: string;
   city?: string;
   state?: string;
+  stateCode?: string;
+  districtName?: string;
+  districtCode?: string;
   pincode?: string;
   completeAddress?: string;
   latitude?: number;
