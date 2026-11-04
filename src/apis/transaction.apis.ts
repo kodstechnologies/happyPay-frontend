@@ -11,6 +11,15 @@ export interface PayeeInfo {
   accountHolderName?: string;
 }
 
+export interface CommissionBreakdown {
+  retailerCommission?: number;
+  distributorCommission?: number;
+  adminCommission?: number;
+  providerCharge?: number;
+  totalChargesDeducted?: number;
+  totalCommission?: number;
+}
+
 export interface TransactionItem {
   _id: string;
   wallet?: string;
@@ -31,6 +40,7 @@ export interface TransactionItem {
   status: "pending" | "success" | "failed" | "reversed" | string;
   description?: string;
   commissionEarned?: number;
+  commissionBreakdown?: CommissionBreakdown;
 
   createdAt: string;
   updatedAt: string;

@@ -865,6 +865,65 @@ export default function Transactions() {
                 </div>
               ) : null}
 
+              {/* Commission Breakdown Details */}
+              {selectedTxn.commissionBreakdown && (
+                <div className="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+                    Commission Breakdown
+                  </p>
+                  <div className="space-y-1.5">
+                    {selectedTxn.commissionBreakdown.retailerCommission !== undefined && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Retailer Commission</span>
+                        <span className="font-semibold text-emerald-600">
+                          +₹{formatAmount(selectedTxn.commissionBreakdown.retailerCommission)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedTxn.commissionBreakdown.distributorCommission !== undefined && selectedTxn.commissionBreakdown.distributorCommission > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Distributor Commission</span>
+                        <span className="font-semibold text-blue-600">
+                          +₹{formatAmount(selectedTxn.commissionBreakdown.distributorCommission)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedTxn.commissionBreakdown.adminCommission !== undefined && selectedTxn.commissionBreakdown.adminCommission > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Admin Commission</span>
+                        <span className="font-semibold text-slate-700">
+                          ₹{formatAmount(selectedTxn.commissionBreakdown.adminCommission)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedTxn.commissionBreakdown.providerCharge !== undefined && selectedTxn.commissionBreakdown.providerCharge > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-slate-500">Provider Charge</span>
+                        <span className="font-semibold text-rose-600">
+                          -₹{formatAmount(selectedTxn.commissionBreakdown.providerCharge)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedTxn.commissionBreakdown.totalChargesDeducted !== undefined && selectedTxn.commissionBreakdown.totalChargesDeducted > 0 && (
+                      <div className="flex justify-between text-xs pt-1 border-t border-slate-200">
+                        <span className="text-slate-500 font-semibold">Total Charges</span>
+                        <span className="font-bold text-rose-600">
+                          -₹{formatAmount(selectedTxn.commissionBreakdown.totalChargesDeducted)}
+                        </span>
+                      </div>
+                    )}
+                    {selectedTxn.commissionBreakdown.totalCommission !== undefined && (
+                      <div className="flex justify-between text-xs pt-1 border-t border-slate-200">
+                        <span className="text-slate-500 font-semibold">Total Commission</span>
+                        <span className="font-bold text-emerald-600">
+                          +₹{formatAmount(selectedTxn.commissionBreakdown.totalCommission)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {(selectedTxn.payee?.name || selectedTxn.payee?.accountHolderName) && (
                 <div className="flex justify-between py-1 border-b border-slate-50">
                   <span className="text-slate-500">Beneficiary / Payee</span>
