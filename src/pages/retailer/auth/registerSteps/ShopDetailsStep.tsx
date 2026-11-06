@@ -327,7 +327,6 @@ const ShopDetailsStep = ({
     };
     
     loadStatesOnMount();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load state list function for pagination
