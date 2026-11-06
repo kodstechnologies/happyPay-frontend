@@ -16,6 +16,7 @@ const CreatePlan = () => {
     status: "ACTIVE",
     validityPeriod: 1,
     validityUnit: "DAYS",
+    subscriptionAmount: undefined,
     services: [],
   });
 
@@ -32,6 +33,11 @@ const CreatePlan = () => {
     e.preventDefault();
     if (!formData.name) {
       showToast("error", "Please provide a plan name");
+      return;
+    }
+
+    if (formData.subscriptionAmount === undefined || formData.subscriptionAmount === null || isNaN(Number(formData.subscriptionAmount))) {
+      showToast("error", "Please provide a valid subscription amount");
       return;
     }
 
@@ -167,6 +173,36 @@ const CreatePlan = () => {
                 </select>
               </div>
             </div>
+          </div>
+
+          {/* Subscription Amount */}
+          <div>
+            <label className="mb-2 block text-sm font-medium text-gray-700">
+              Subscription Amount (₹) <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-sm text-gray-500">
+                ₹
+              </span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.subscriptionAmount ?? ""}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    subscriptionAmount: e.target.value === "" ? undefined : parseFloat(e.target.value),
+                  })
+                }
+                className="w-full rounded-lg border border-gray-300 py-2 pl-7 pr-3 text-sm focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
+                placeholder="0.00"
+                required
+              />
+            </div>
+            <p className="mt-1 text-xs text-gray-500">
+              Amount charged to the retailer for subscribing to this plan
+            </p>
           </div>
 
           {/* Status */}

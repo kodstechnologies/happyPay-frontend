@@ -63,6 +63,7 @@ export interface Plan {
   description: string;
   validityPeriod: number;
   validityUnit: "DAYS" | "MONTHS" | "YEARS";
+  subscriptionAmount: number;
   services: PlanService[];
   status: "ACTIVE" | "INACTIVE";
   createdAt?: string;
@@ -140,6 +141,11 @@ function planFormData(data: Partial<PlanFormData>, image?: File | null) {
   }
   if (data.validityUnit !== undefined) {
     body.append("validityUnit", data.validityUnit);
+  }
+
+  // Append subscription amount
+  if (data.subscriptionAmount !== undefined) {
+    body.append("subscriptionAmount", String(data.subscriptionAmount));
   }
 
   // Append image if provided
