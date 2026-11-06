@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import {
   Mail,
   Store,
@@ -160,6 +160,12 @@ const ShopDetailsStep = ({
   const [districtList, setDistrictList] = useState<UpiDistrict[]>([]);
   const [statesLoading, setStatesLoading] = useState(false);
   const [districtsLoading, setDistrictsLoading] = useState(false);
+  const [statePage, setStatePage] = useState(1);
+  const [stateTotalPages, setStateTotalPages] = useState(1);
+  const [stateHasMore, setStateHasMore] = useState(false);
+  const [districtPage, setDistrictPage] = useState(1);
+  const [districtTotalPages, setDistrictTotalPages] = useState(1);
+  const [districtHasMore, setDistrictHasMore] = useState(false);
 
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
@@ -250,27 +256,150 @@ const ShopDetailsStep = ({
 
   // Load state list on mount
   useEffect(() => {
-    fetchUpiStateListApi()
-      .then((res) => {
+    const loadStatesOnMount = async () => {
+      setStatesLoading(true);
+      console.log("Fetching state list page: 1");
+      try {
+        const res = await fetchUpiStateListApi();
+        console.log("State list API response:", res);
+        
         // The backend returns { data: { data: [...], pagination: {...} } }
-        // after unwrap, we need to access res.data.data for the array
+        // after unwrap, we get { success, statusCode, message, data: { data: [...], pagination: {...} } }
         let raw: unknown = res.data;
+        let pagination = null;
+        
+        // Extract the states array from the nested structure
         if (raw && typeof raw === "object" && "data" in raw) {
-          raw = (raw as Record<string, unknown>).data;
+          const dataObj = (raw as Record<string, unknown>).data;
+          if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+            raw = (dataObj as Record<string, unknown>).data;
+            // Extract pagination info if available
+            if (dataObj && typeof dataObj === "object" && "pagination" in dataObj) {
+              pagination = (dataObj as Record<string, unknown>).pagination;
+            }
+          } else {
+            raw = dataObj;
+          }
         }
+        
+        // Map API response fields (description, code) to expected interface (stateName, stateCode)
         if (Array.isArray(raw)) {
-          setStateList(raw as UpiState[]);
+          const mappedStates = (raw as Array<{ description: string; code: string }>).map((item) => ({
+            stateCode: item.code,
+            stateName: item.description,
+          }));
+          console.log("Setting state list with mapped array:", mappedStates);
+          setStateList(mappedStates);
+          
+          // Update pagination info
+          if (pagination && typeof pagination === "object") {
+            const pag = pagination as Record<string, unknown>;
+            setStateTotalPages(Number(pag.totalPages) || 1);
+            setStateHasMore(Boolean(pag.hasNextPage));
+          }
         } else if (raw && typeof raw === "object") {
           // Some providers return { states: [...] } or { data: [...] }
           const nested = (raw as Record<string, unknown>).states ||
             (raw as Record<string, unknown>).data ||
             (raw as Record<string, unknown>).stateList;
-          if (Array.isArray(nested)) setStateList(nested as UpiState[]);
+          if (Array.isArray(nested)) {
+            const mappedStates = (nested as Array<{ description: string; code: string }>).map((item) => ({
+              stateCode: item.code,
+              stateName: item.description,
+            }));
+            console.log("Setting state list with mapped nested array:", mappedStates);
+            setStateList(mappedStates);
+            
+            // Update pagination info
+            if (pagination && typeof pagination === "object") {
+              const pag = pagination as Record<string, unknown>;
+              setStateTotalPages(Number(pag.totalPages) || 1);
+              setStateHasMore(Boolean(pag.hasNextPage));
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching state list:", err);
+        /* silently ignore — user can still type */
+      } finally {
+        setStatesLoading(false);
+      }
+    };
+    
+    loadStatesOnMount();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Load state list function for pagination
+  const loadStates = useCallback((page: number = 1, append: boolean = false) => {
+    setStatesLoading(true);
+    console.log("Fetching state list page:", page);
+    fetchUpiStateListApi()
+      .then((res) => {
+        console.log("State list API response:", res);
+        
+        let raw: unknown = res.data;
+        let pagination = null;
+        
+        if (raw && typeof raw === "object" && "data" in raw) {
+          const dataObj = (raw as Record<string, unknown>).data;
+          if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+            raw = (dataObj as Record<string, unknown>).data;
+            if (dataObj && typeof dataObj === "object" && "pagination" in dataObj) {
+              pagination = (dataObj as Record<string, unknown>).pagination;
+            }
+          } else {
+            raw = dataObj;
+          }
+        }
+        
+        if (Array.isArray(raw)) {
+          const mappedStates = (raw as Array<{ description: string; code: string }>).map((item) => ({
+            stateCode: item.code,
+            stateName: item.description,
+          }));
+          console.log("Setting state list with mapped array:", mappedStates);
+          
+          if (append) {
+            setStateList((prev) => [...prev, ...mappedStates]);
+          } else {
+            setStateList(mappedStates);
+          }
+          
+          if (pagination && typeof pagination === "object") {
+            const pag = pagination as Record<string, unknown>;
+            setStateTotalPages(Number(pag.totalPages) || 1);
+            setStateHasMore(Boolean(pag.hasNextPage));
+          }
+        } else if (raw && typeof raw === "object") {
+          const nested = (raw as Record<string, unknown>).states ||
+            (raw as Record<string, unknown>).data ||
+            (raw as Record<string, unknown>).stateList;
+          if (Array.isArray(nested)) {
+            const mappedStates = (nested as Array<{ description: string; code: string }>).map((item) => ({
+              stateCode: item.code,
+              stateName: item.description,
+            }));
+            console.log("Setting state list with mapped nested array:", mappedStates);
+            
+            if (append) {
+              setStateList((prev) => [...prev, ...mappedStates]);
+            } else {
+              setStateList(mappedStates);
+            }
+            
+            if (pagination && typeof pagination === "object") {
+              const pag = pagination as Record<string, unknown>;
+              setStateTotalPages(Number(pag.totalPages) || 1);
+              setStateHasMore(Boolean(pag.hasNextPage));
+            }
+          }
         }
       })
-      .catch(() => { /* silently ignore — user can still type */ })
+      .catch((err) => {
+        console.error("Error fetching state list:", err);
+      })
       .finally(() => setStatesLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Validate initial pincode asynchronously (only for validity check, no auto-fill)
@@ -452,7 +581,7 @@ const ShopDetailsStep = ({
       return;
     }
 
-    // Only validate (no auto-fill of state/district/city)
+    // Validate and auto-fill city
     if (value.length === 6) {
       setPincodeLoading(true);
       setPincodeError("");
@@ -466,6 +595,10 @@ const ShopDetailsStep = ({
             city: res.data.city || undefined,
             district: res.data.district || undefined,
           });
+          // Auto-fill city from pincode validation
+          if (res.data.city) {
+            setCity(res.data.city);
+          }
         } else {
           setPincodeValid(false);
           setPincodeError(res.message || "Invalid pincode. No records found.");
@@ -492,24 +625,69 @@ const ShopDetailsStep = ({
     setDistrictName("");
     setDistrictCode("");
     setDistrictList([]);
+    setDistrictPage(1);
+    setDistrictTotalPages(1);
+    setDistrictHasMore(false);
 
     if (!selectedCode) return;
     setDistrictsLoading(true);
     try {
       const res = await fetchUpiDistrictApi(selectedCode);
+      console.log("District API response:", res);
+      
       // The backend returns { data: { data: [...], pagination: {...} } }
-      // after unwrap, we need to access res.data.data for the array
+      // after unwrap, we get { success, statusCode, message, data: { data: [...], pagination: {...} } }
       let raw: unknown = res.data;
+      let pagination = null;
+      
+      // Extract the districts array from the nested structure
       if (raw && typeof raw === "object" && "data" in raw) {
-        raw = (raw as Record<string, unknown>).data;
+        const dataObj = (raw as Record<string, unknown>).data;
+        if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+          raw = (dataObj as Record<string, unknown>).data;
+          // Extract pagination info if available
+          if (dataObj && typeof dataObj === "object" && "pagination" in dataObj) {
+            pagination = (dataObj as Record<string, unknown>).pagination;
+          }
+        } else {
+          raw = dataObj;
+        }
       }
+      
+      // Map API response fields (description, code) to expected interface (districtName, districtCode)
       if (Array.isArray(raw)) {
-        setDistrictList(raw as UpiDistrict[]);
+        const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
+          districtCode: item.code,
+          districtName: item.description,
+        }));
+        console.log("Setting district list with mapped array:", mappedDistricts);
+        setDistrictList(mappedDistricts);
+        
+        // Update pagination info
+        if (pagination && typeof pagination === "object") {
+          const pag = pagination as Record<string, unknown>;
+          setDistrictTotalPages(Number(pag.totalPages) || 1);
+          setDistrictHasMore(Boolean(pag.hasNextPage));
+        }
       } else if (raw && typeof raw === "object") {
         const nested = (raw as Record<string, unknown>).districts ||
           (raw as Record<string, unknown>).data ||
           (raw as Record<string, unknown>).districtList;
-        if (Array.isArray(nested)) setDistrictList(nested as UpiDistrict[]);
+        if (Array.isArray(nested)) {
+          const mappedDistricts = (nested as Array<{ description: string; code: string }>).map((item) => ({
+            districtCode: item.code,
+            districtName: item.description,
+          }));
+          console.log("Setting district list with mapped nested array:", mappedDistricts);
+          setDistrictList(mappedDistricts);
+          
+          // Update pagination info
+          if (pagination && typeof pagination === "object") {
+            const pag = pagination as Record<string, unknown>;
+            setDistrictTotalPages(Number(pag.totalPages) || 1);
+            setDistrictHasMore(Boolean(pag.hasNextPage));
+          }
+        }
       }
     } catch {
       showToast("error", "Failed to load district list");
@@ -517,6 +695,49 @@ const ShopDetailsStep = ({
       setDistrictsLoading(false);
     }
   };
+
+  // Load more districts
+  const loadMoreDistricts = useCallback(async () => {
+    if (!stateCode || districtsLoading) return;
+    setDistrictsLoading(true);
+    try {
+      const res = await fetchUpiDistrictApi(stateCode);
+      console.log("District API response:", res);
+      
+      let raw: unknown = res.data;
+      let pagination = null;
+      
+      if (raw && typeof raw === "object" && "data" in raw) {
+        const dataObj = (raw as Record<string, unknown>).data;
+        if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+          raw = (dataObj as Record<string, unknown>).data;
+          if (dataObj && typeof dataObj === "object" && "pagination" in dataObj) {
+            pagination = (dataObj as Record<string, unknown>).pagination;
+          }
+        } else {
+          raw = dataObj;
+        }
+      }
+      
+      if (Array.isArray(raw)) {
+        const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
+          districtCode: item.code,
+          districtName: item.description,
+        }));
+        setDistrictList((prev) => [...prev, ...mappedDistricts]);
+        
+        if (pagination && typeof pagination === "object") {
+          const pag = pagination as Record<string, unknown>;
+          setDistrictTotalPages(Number(pag.totalPages) || 1);
+          setDistrictHasMore(Boolean(pag.hasNextPage));
+        }
+      }
+    } catch {
+      showToast("error", "Failed to load more districts");
+    } finally {
+      setDistrictsLoading(false);
+    }
+  }, [stateCode, districtsLoading]);
 
   // When district selection changes
   const handleDistrictChange = (selectedCode: string) => {
@@ -948,14 +1169,14 @@ const ShopDetailsStep = ({
                 value={stateCode}
                 onChange={(e) => handleStateChange(e.target.value)}
                 disabled={statesLoading}
-                className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${stateCode ? "border-[#7c3aed] text-[#172033]" : "border-[#dfe3e9] text-[#a1a8b5]"
+                className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${stateCode ? "border-[#7c3aed]" : "border-[#dfe3e9]"
                   }`}
               >
-                <option value="" disabled>
+                <option value="" disabled className="text-[#a1a8b5]">
                   Select state
                 </option>
                 {stateList.map((s) => (
-                  <option key={s.stateCode} value={s.stateCode}>
+                  <option key={s.stateCode} value={s.stateCode} className="text-[#172033]">
                     {s.stateName}
                   </option>
                 ))}
@@ -968,6 +1189,29 @@ const ShopDetailsStep = ({
                 )}
               </div>
             </div>
+            {stateHasMore && statePage < stateTotalPages && (
+              <button
+                type="button"
+                onClick={() => {
+                  const nextPage = statePage + 1;
+                  setStatePage(nextPage);
+                  loadStates(nextPage, true);
+                }}
+                disabled={statesLoading}
+                className="mt-2 text-[12px] font-semibold text-[#7c3aed] hover:text-[#5b4bc7] disabled:opacity-50 flex items-center gap-1"
+              >
+                {statesLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  <>
+                    Load more states ({stateList.length} loaded)
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -981,14 +1225,14 @@ const ShopDetailsStep = ({
               value={districtCode}
               onChange={(e) => handleDistrictChange(e.target.value)}
               disabled={districtsLoading || !stateCode}
-              className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${districtCode ? "border-[#7c3aed] text-[#172033]" : "border-[#dfe3e9] text-[#a1a8b5]"
+              className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] px-5 pr-11 text-[14px] font-medium outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${districtCode ? "border-[#7c3aed]" : "border-[#dfe3e9]"
                 }`}
             >
-              <option value="" disabled>
+              <option value="" disabled className="text-[#a1a8b5]">
                 {stateCode ? "Select district" : "Select state first"}
               </option>
               {districtList.map((d) => (
-                <option key={d.districtCode} value={d.districtCode}>
+                <option key={d.districtCode} value={d.districtCode} className="text-[#172033]">
                   {d.districtName}
                 </option>
               ))}
@@ -1001,6 +1245,29 @@ const ShopDetailsStep = ({
               )}
             </div>
           </div>
+          {districtHasMore && districtPage < districtTotalPages && (
+            <button
+              type="button"
+              onClick={() => {
+                const nextPage = districtPage + 1;
+                setDistrictPage(nextPage);
+                loadMoreDistricts();
+              }}
+              disabled={districtsLoading}
+              className="mt-2 text-[12px] font-semibold text-[#7c3aed] hover:text-[#5b4bc7] disabled:opacity-50 flex items-center gap-1"
+            >
+              {districtsLoading ? (
+                <>
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  Load more districts ({districtList.length} loaded)
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Shop Location (lat/lng input fields) */}
