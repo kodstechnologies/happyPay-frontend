@@ -48,6 +48,154 @@ export const initiateUpiCashpointPaymentApi = async (
   return response.data;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MERCHANT REGISTRATION
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MerchantRegistrationPayload {
+  /** HappyPay internal user ID (MongoDB ObjectId) */
+  userId: string;
+  // The backend pulls most fields from the DB automatically.
+  // Pass these overrides only when you need to supply values explicitly.
+  stateCode?: string;
+  fathername?: string;
+  mothername?: string;
+  firstname?: string;
+  lastname?: string;
+  dob?: string;           // DD-MM-YYYY
+  email?: string;
+  phone?: string | number;
+  latitude?: string | number;
+  longitude?: string | number;
+  txnid?: string;
+  merchantpincode?: string | number;
+  panno?: string;
+  accountnumber?: string | number;
+  ifsc?: string;
+  bankname?: string;
+  aadharno?: string | number;
+  state?: string;
+  shopname?: string;
+  address?: string;
+  gender?: string;        // Single uppercase char: M / F / T
+  maritalstatus?: string; // Uppercase: MARRIED, UNMARRIED, etc.
+  ipaddress?: string;
+  district?: string;
+  [key: string]: unknown;
+}
+
+export interface MerchantRegistrationResponseData {
+  merchantId?: string | number;
+  status?: boolean | string | number;
+  statuscode?: string;
+  message?: string;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface MerchantRegistrationApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: MerchantRegistrationResponseData;
+}
+
+/**
+ * Register retailer as a UPI Cashpoint merchant.
+ * The backend fetches most KYC fields from the retailer's DB record automatically;
+ * you only need to supply `userId`. Pass optional override fields when needed.
+ *
+ * POST /api/v1/upi-cashpoint/merchant-register
+ */
+export const merchantRegisterApi = async (
+  payload: MerchantRegistrationPayload
+): Promise<MerchantRegistrationApiResponse> => {
+  const response = await api.post<MerchantRegistrationApiResponse>(
+    "/api/v1/upi-cashpoint/merchant-register",
+    payload
+  );
+  return response.data;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MERCHANT REGISTRATION — SEND OTP
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MerchantRegistrationSendOtpPayload {
+  merchantId: string | number;
+}
+
+export interface MerchantRegistrationSendOtpResponseData {
+  status?: boolean | string | number;
+  message?: string;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface MerchantRegistrationSendOtpApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: MerchantRegistrationSendOtpResponseData;
+}
+
+/**
+ * Trigger OTP delivery for merchant registration verification.
+ * Call this after a successful /merchant-register.
+ *
+ * POST /api/v1/upi-cashpoint/merchant-registration/send-otp
+ */
+export const merchantRegistrationSendOtpApi = async (
+  payload: MerchantRegistrationSendOtpPayload
+): Promise<MerchantRegistrationSendOtpApiResponse> => {
+  const response = await api.post<MerchantRegistrationSendOtpApiResponse>(
+    "/api/v1/upi-cashpoint/merchant-registration/send-otp",
+    payload
+  );
+  return response.data;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MERCHANT REGISTRATION — VERIFY OTP
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MerchantRegistrationVerifyPayload {
+  merchantId: string | number;
+  otp: string | number;
+}
+
+export interface MerchantRegistrationVerifyResponseData {
+  status?: boolean | string | number;
+  message?: string;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface MerchantRegistrationVerifyApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: MerchantRegistrationVerifyResponseData;
+}
+
+/**
+ * Verify the OTP to complete merchant registration.
+ *
+ * POST /api/v1/upi-cashpoint/merchant-registration/verify
+ */
+export const merchantRegistrationVerifyApi = async (
+  payload: MerchantRegistrationVerifyPayload
+): Promise<MerchantRegistrationVerifyApiResponse> => {
+  const response = await api.post<MerchantRegistrationVerifyApiResponse>(
+    "/api/v1/upi-cashpoint/merchant-registration/verify",
+    payload
+  );
+  return response.data;
+};
+
 export default {
   initiateUpiCashpointPaymentApi,
+  merchantRegisterApi,
+  merchantRegistrationSendOtpApi,
+  merchantRegistrationVerifyApi,
 };

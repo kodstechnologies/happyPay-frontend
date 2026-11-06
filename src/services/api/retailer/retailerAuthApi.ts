@@ -614,6 +614,12 @@ export interface AepsEkycData {
   eKYCRejectionReason?: string | null;
 }
 
+export interface UpiEkycData {
+  merchantId: string | null;
+  eKYCStatus: string | null;
+  eKYCRejectionReason?: string | null;
+}
+
 export interface RetailerUser {
   id: string;
   _id: string;
@@ -628,6 +634,7 @@ export interface RetailerUser {
   referenceKey: string | null;
   eKYCStatus: string | null;
   AepsEkyc: AepsEkycData | null;
+  UpiEkyc: UpiEkycData | null;
   roles: string[];
   permissions: string[];
   isMobileVerified: boolean;
