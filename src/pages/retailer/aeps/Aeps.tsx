@@ -402,6 +402,19 @@ const Aeps = () => {
     (Boolean(bioKycError && bioKycError.toLowerCase().includes("outlet not yet registered with bank")) ||
      Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
 
+  // Check if the error is about pending activation at the bank - in this case, show "Do Bio KYC" button
+  const isBankActivationPending =
+    Boolean(bioKycError && (
+      bioKycError.toLowerCase().includes("activation is pending") ||
+      bioKycError.toLowerCase().includes("pending at the bank") ||
+      bioKycError.toLowerCase().includes("pending from the bank")
+    )) ||
+    Boolean(ekycPrompt?.message && (
+      ekycPrompt.message.toLowerCase().includes("activation is pending") ||
+      ekycPrompt.message.toLowerCase().includes("pending at the bank") ||
+      ekycPrompt.message.toLowerCase().includes("pending from the bank")
+    ));
+
   const token = getToken();
   let tokenOutletId = "";
   if (token) {
@@ -2422,6 +2435,8 @@ const Aeps = () => {
                   <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
                     {isBankRegistrationRequired
                       ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
+                      : isBankActivationPending
+                      ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
                       : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
                   </p>
                   {bioKycError && (
