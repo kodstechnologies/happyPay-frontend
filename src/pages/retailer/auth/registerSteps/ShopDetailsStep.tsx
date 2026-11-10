@@ -262,12 +262,12 @@ const ShopDetailsStep = ({
       try {
         const res = await fetchUpiStateListApi();
         console.log("State list API response:", res);
-        
+
         // The backend returns { data: { data: [...], pagination: {...} } }
         // after unwrap, we get { success, statusCode, message, data: { data: [...], pagination: {...} } }
         let raw: unknown = res.data;
         let pagination = null;
-        
+
         // Extract the states array from the nested structure
         if (raw && typeof raw === "object" && "data" in raw) {
           const dataObj = (raw as Record<string, unknown>).data;
@@ -281,7 +281,7 @@ const ShopDetailsStep = ({
             raw = dataObj;
           }
         }
-        
+
         // Map API response fields (description, code) to expected interface (stateName, stateCode)
         if (Array.isArray(raw)) {
           const mappedStates = (raw as Array<{ description: string; code: string }>).map((item) => ({
@@ -290,7 +290,7 @@ const ShopDetailsStep = ({
           }));
           console.log("Setting state list with mapped array:", mappedStates);
           setStateList(mappedStates);
-          
+
           // Update pagination info
           if (pagination && typeof pagination === "object") {
             const pag = pagination as Record<string, unknown>;
@@ -309,7 +309,7 @@ const ShopDetailsStep = ({
             }));
             console.log("Setting state list with mapped nested array:", mappedStates);
             setStateList(mappedStates);
-            
+
             // Update pagination info
             if (pagination && typeof pagination === "object") {
               const pag = pagination as Record<string, unknown>;
@@ -325,7 +325,7 @@ const ShopDetailsStep = ({
         setStatesLoading(false);
       }
     };
-    
+
     loadStatesOnMount();
   }, []);
 
@@ -336,10 +336,10 @@ const ShopDetailsStep = ({
     fetchUpiStateListApi()
       .then((res) => {
         console.log("State list API response:", res);
-        
+
         let raw: unknown = res.data;
         let pagination = null;
-        
+
         if (raw && typeof raw === "object" && "data" in raw) {
           const dataObj = (raw as Record<string, unknown>).data;
           if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
@@ -351,20 +351,20 @@ const ShopDetailsStep = ({
             raw = dataObj;
           }
         }
-        
+
         if (Array.isArray(raw)) {
           const mappedStates = (raw as Array<{ description: string; code: string }>).map((item) => ({
             stateCode: item.code,
             stateName: item.description,
           }));
           console.log("Setting state list with mapped array:", mappedStates);
-          
+
           if (append) {
             setStateList((prev) => [...prev, ...mappedStates]);
           } else {
             setStateList(mappedStates);
           }
-          
+
           if (pagination && typeof pagination === "object") {
             const pag = pagination as Record<string, unknown>;
             setStateTotalPages(Number(pag.totalPages) || 1);
@@ -380,13 +380,13 @@ const ShopDetailsStep = ({
               stateName: item.description,
             }));
             console.log("Setting state list with mapped nested array:", mappedStates);
-            
+
             if (append) {
               setStateList((prev) => [...prev, ...mappedStates]);
             } else {
               setStateList(mappedStates);
             }
-            
+
             if (pagination && typeof pagination === "object") {
               const pag = pagination as Record<string, unknown>;
               setStateTotalPages(Number(pag.totalPages) || 1);
@@ -633,12 +633,12 @@ const ShopDetailsStep = ({
     try {
       const res = await fetchUpiDistrictApi(selectedCode);
       console.log("District API response:", res);
-      
+
       // The backend returns { data: { data: [...], pagination: {...} } }
       // after unwrap, we get { success, statusCode, message, data: { data: [...], pagination: {...} } }
       let raw: unknown = res.data;
       let pagination = null;
-      
+
       // Extract the districts array from the nested structure
       if (raw && typeof raw === "object" && "data" in raw) {
         const dataObj = (raw as Record<string, unknown>).data;
@@ -652,7 +652,7 @@ const ShopDetailsStep = ({
           raw = dataObj;
         }
       }
-      
+
       // Map API response fields (description, code) to expected interface (districtName, districtCode)
       if (Array.isArray(raw)) {
         const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
@@ -661,7 +661,7 @@ const ShopDetailsStep = ({
         }));
         console.log("Setting district list with mapped array:", mappedDistricts);
         setDistrictList(mappedDistricts);
-        
+
         // Update pagination info
         if (pagination && typeof pagination === "object") {
           const pag = pagination as Record<string, unknown>;
@@ -679,7 +679,7 @@ const ShopDetailsStep = ({
           }));
           console.log("Setting district list with mapped nested array:", mappedDistricts);
           setDistrictList(mappedDistricts);
-          
+
           // Update pagination info
           if (pagination && typeof pagination === "object") {
             const pag = pagination as Record<string, unknown>;
@@ -702,10 +702,10 @@ const ShopDetailsStep = ({
     try {
       const res = await fetchUpiDistrictApi(stateCode);
       console.log("District API response:", res);
-      
+
       let raw: unknown = res.data;
       let pagination = null;
-      
+
       if (raw && typeof raw === "object" && "data" in raw) {
         const dataObj = (raw as Record<string, unknown>).data;
         if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
@@ -717,14 +717,14 @@ const ShopDetailsStep = ({
           raw = dataObj;
         }
       }
-      
+
       if (Array.isArray(raw)) {
         const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
           districtCode: item.code,
           districtName: item.description,
         }));
         setDistrictList((prev) => [...prev, ...mappedDistricts]);
-        
+
         if (pagination && typeof pagination === "object") {
           const pag = pagination as Record<string, unknown>;
           setDistrictTotalPages(Number(pag.totalPages) || 1);
@@ -779,6 +779,7 @@ const ShopDetailsStep = ({
         address,
         city,
         state,
+        stateCode,
         pincode,
         districtName,
         districtCode,

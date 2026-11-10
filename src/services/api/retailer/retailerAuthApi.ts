@@ -156,6 +156,7 @@ export interface CurrentRegistrationStepResult {
     businessProofDocument: string | null;
     fullName?: string | null;
     name?: string | null;
+    lastName?: string | null;
     fatherName?: string | null;
     motherName?: string | null;
     selfie: string | null;
@@ -260,6 +261,7 @@ export interface UpdateShopDetailsPayload {
   address: string;
   city: string;
   state: string;
+  stateCode?: string;
   pincode: string;
   districtName?: string;
   districtCode?: string;
@@ -284,6 +286,7 @@ export function updateRetailerShopDetails(payload: UpdateShopDetailsPayload) {
   fd.append("address", payload.address);
   fd.append("city", payload.city);
   fd.append("state", payload.state);
+  if (payload.stateCode) fd.append("stateCode", payload.stateCode);
   fd.append("pincode", payload.pincode);
   if (payload.districtName) fd.append("districtName", payload.districtName);
   if (payload.districtCode) fd.append("districtCode", payload.districtCode);
@@ -364,6 +367,7 @@ export interface UpdateAboutResult {
 export interface UpdateAboutPayload {
   userId: string;
   fullName: string;
+  lastName: string;
   dateOfBirth: string;
   gender: "M" | "F" | "T";   // ← narrowed
   maritalStatus: string;
@@ -377,6 +381,7 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   const fd = new FormData();
   fd.append("userId", payload.userId);
   fd.append("fullName", payload.fullName);
+  fd.append("lastName", payload.lastName);
   fd.append("dateOfBirth", payload.dateOfBirth);
   fd.append("gender", payload.gender);
   fd.append("maritalStatus", payload.maritalStatus);

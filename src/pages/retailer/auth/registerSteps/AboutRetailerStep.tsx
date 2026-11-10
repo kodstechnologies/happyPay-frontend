@@ -48,6 +48,7 @@ const AboutRetailerStep = forwardRef<
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
 
   const [fullName, setFullName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
   const [existingSelfie, setExistingSelfie] = useState<string | null>(null);
   const [gender, setGender] = useState("");
@@ -66,6 +67,10 @@ const AboutRetailerStep = forwardRef<
     if (initialData) {
       if (initialData.fullName || initialData.name) {
         setFullName(initialData.fullName || initialData.name || "");
+      }
+
+      if (initialData.lastName) {
+        setLastName(initialData.lastName || "");
       }
 
       if (initialData.dateOfBirth || initialData.dob) {
@@ -144,6 +149,10 @@ const AboutRetailerStep = forwardRef<
       showToast("error", "Full name is required.");
       return false;
     }
+    if (!lastName.trim()) {
+      showToast("error", "Last name is required.");
+      return false;
+    }
     if (!dateOfBirth) {
       showToast("error", "Date of birth is required.");
       return false;
@@ -177,6 +186,7 @@ const AboutRetailerStep = forwardRef<
       await updateRetailerAboutDetails({
         userId,
         fullName: fullName.trim(),
+        lastName: lastName.trim(),
         dateOfBirth: isoDob,
         gender: genderCode,
         maritalStatus,
@@ -226,6 +236,33 @@ const AboutRetailerStep = forwardRef<
             placeholder="Enter your full name"
             className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
               fullName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+            }`}
+          />
+        </div>
+      </div>
+
+      {/* LAST NAME */}
+      <div>
+        <label
+          htmlFor="retailer-last-name"
+          className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
+        >
+          Last Name
+        </label>
+        <div className="relative">
+          <UserRound
+            className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#8992a3]"
+            strokeWidth={2}
+          />
+          <input
+            id="retailer-last-name"
+            name="lastName"
+            type="text"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+            placeholder="Enter your last name"
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
+              lastName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
             }`}
           />
         </div>
