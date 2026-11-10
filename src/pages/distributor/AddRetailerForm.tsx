@@ -553,6 +553,7 @@ export default function AddRetailerForm({
         maritalStatus,
         educationalQualification,
         selfie: selfieFile,
+        lastName: "",
       });
 
       showToast("success", "Personal details saved successfully!");
