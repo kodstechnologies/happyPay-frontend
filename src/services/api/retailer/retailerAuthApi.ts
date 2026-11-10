@@ -115,6 +115,7 @@ export interface ShopAddress {
   addressLine: string | null;
   city: string | null;
   state: string | null;
+  stateCode?: string | null;
   pincode: string | null;
   districtName?: string | null;
   districtCode?: string | null;
