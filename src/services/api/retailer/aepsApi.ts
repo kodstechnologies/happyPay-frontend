@@ -251,8 +251,16 @@ export function doEkyc(payload: BiometricPayload) {
   return api.post<Envelope<unknown>>("/api/v1/aeps/do-ekyc", payload).then(unwrap);
 }
 
+export interface DoBioEkycResponse {
+  eKYCStatus?: string;
+  message?: string;
+  kycRequired?: boolean;
+  provider?: unknown;
+  ekyc?: unknown;
+}
+
 export function doBioEkyc(payload: BiometricPayload) {
-  return api.post<Envelope<unknown>>("/api/v1/auth/do-bio-ekyc", payload).then(unwrap);
+  return api.post<Envelope<DoBioEkycResponse>>("/api/v1/auth/do-bio-ekyc", payload).then(unwrap);
 }
 
 export interface OutletRegisterPayload {

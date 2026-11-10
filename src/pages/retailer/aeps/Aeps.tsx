@@ -2175,7 +2175,7 @@ const Aeps = () => {
       const parsedData = parsePidXml(captureResult.data);
 
       console.log("[AePS] Submitting doBioEkyc with referenceKey:", refKeyToUse);
-      await doBioEkyc({
+      const response = await doBioEkyc({
         userId,
         outlet_id: effectiveOutletId,
         referenceKey: refKeyToUse,
@@ -2183,6 +2183,20 @@ const Aeps = () => {
         longitude: coords.longitude,
         ...parsedData,
       });
+
+      console.log("[AePS] doBioEkyc response:", response);
+
+      // Check if backend returned PENDING status (bank activation pending)
+      if (response?.data?.eKYCStatus === "PENDING") {
+        const pendingMessage = response?.data?.message || response?.message || "Your AePS activation is pending at the bank. Please try again later.";
+        setBioKycError(pendingMessage);
+        setBioKycCompletedLocally(false); // Ensure banner stays visible
+        
+        if (refreshUser) {
+          await refreshUser();
+        }
+        return;
+      }
 
       setBioKycSuccess("Biometric eKYC completed successfully!");
       setBioKycCompletedLocally(true);
