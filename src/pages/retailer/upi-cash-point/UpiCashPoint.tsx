@@ -331,20 +331,20 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                   <div className="flex flex-col items-center gap-1.5 min-w-0">
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${isDone
-                          ? "bg-emerald-500 text-white"
-                          : isCurrent
-                            ? "bg-[#7c3aed] text-white ring-4 ring-[#7c3aed]/20"
-                            : "bg-slate-100 text-slate-400"
+                        ? "bg-emerald-500 text-white"
+                        : isCurrent
+                          ? "bg-[#7c3aed] text-white ring-4 ring-[#7c3aed]/20"
+                          : "bg-slate-100 text-slate-400"
                         }`}
                     >
                       {isDone ? <Check className="h-4 w-4" /> : idx + 1}
                     </div>
                     <span
                       className={`text-[10px] font-semibold leading-none whitespace-nowrap ${isDone
-                          ? "text-emerald-600"
-                          : isCurrent
-                            ? "text-[#7c3aed]"
-                            : "text-slate-400"
+                        ? "text-emerald-600"
+                        : isCurrent
+                          ? "text-[#7c3aed]"
+                          : "text-slate-400"
                         }`}
                     >
                       {step.label}

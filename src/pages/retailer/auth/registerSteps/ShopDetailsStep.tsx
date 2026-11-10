@@ -231,6 +231,7 @@ const ShopDetailsStep = ({
 
           if (fd.shop.address?.city) setCity(fd.shop.address.city);
           if (fd.shop.address?.state) setState(fd.shop.address.state);
+          if (fd.shop.address?.stateCode) setStateCode(fd.shop.address.stateCode);
           if (fd.shop.address?.districtName) setDistrictName(fd.shop.address.districtName);
           if (fd.shop.address?.districtCode) setDistrictCode(fd.shop.address.districtCode);
           if (fd.shop.address?.pincode) {
