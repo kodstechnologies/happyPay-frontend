@@ -377,6 +377,12 @@ const Aeps = () => {
     authUser?.AepsEkyc?.eKYCStatus === "COMPLETED"
   );
 
+  // Explicitly check if status is PENDING (activation pending at bank)
+  const isBioKycPending = Boolean(
+    authUser?.eKYCStatus === "PENDING" ||
+    authUser?.AepsEkyc?.eKYCStatus === "PENDING"
+  );
+
   // 2. Comprehensive Bio KYC status: If DB says COMPLETED or completed in this session -> DONE!
   const isBioKycDone = isBioKycDoneInDb || bioKycCompletedLocally;
 
@@ -2415,8 +2421,8 @@ const Aeps = () => {
           </div>
         )}
 
-        {/* Biometric eKYC Action Banner (Visible ONLY when NOT loading auth, ONBOARDED, and Bio KYC NOT done in DB/session) */}
-        {!isAuthLoading && isOnboarded && !isBioKycDone && (
+        {/* Biometric eKYC Action Banner (Visible when NOT loading auth, ONBOARDED, and Bio KYC NOT done or PENDING) */}
+        {!isAuthLoading && isOnboarded && (!isBioKycDone || isBioKycPending) && (
           <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3.5">
@@ -2426,7 +2432,7 @@ const Aeps = () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-slate-900">
-                      Biometric eKYC Verification Required
+                      {isBioKycPending ? "AEPS Activation Pending at Bank" : "Biometric eKYC Verification Required"}
                     </h3>
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
                       Pending
@@ -2435,7 +2441,7 @@ const Aeps = () => {
                   <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
                     {isBankRegistrationRequired
                       ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
-                      : isBankActivationPending
+                      : isBioKycPending || isBankActivationPending
                       ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
                       : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
                   </p>
