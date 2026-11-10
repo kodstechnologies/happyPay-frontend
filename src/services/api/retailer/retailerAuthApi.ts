@@ -377,6 +377,7 @@ export interface UpdateAboutPayload {
   fatherName?: string;
   motherName?: string;
   selfie?: File | string | null;
+
 }
 
 export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {

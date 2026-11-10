@@ -545,7 +545,7 @@ export default function AddRetailerForm({
     try {
       await updateRetailerAboutDetails({
         userId,
-        fullName: fullName.trim(),
+        firstName: fullName.trim(),
         fatherName: fatherName.trim(),
         motherName: motherName.trim(),
         dateOfBirth,
@@ -712,13 +712,12 @@ export default function AddRetailerForm({
               <React.Fragment key={s.id}>
                 <div className="flex items-center gap-3">
                   <div
-                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 ${
-                      isCompleted
-                        ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                        : isActive
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl transition-all duration-300 ${isCompleted
+                      ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                      : isActive
                         ? "bg-gradient-to-tr from-[#7c3aed] to-[#6d28d9] text-white shadow-lg shadow-violet-500/30 ring-4 ring-violet-100"
                         : "bg-slate-100 text-slate-400"
-                    }`}
+                      }`}
                   >
                     {isCompleted ? (
                       <Check className="h-5 w-5 stroke-[2.5]" />
@@ -728,24 +727,22 @@ export default function AddRetailerForm({
                   </div>
                   <div>
                     <p
-                      className={`text-[11px] font-bold uppercase tracking-wider ${
-                        isActive
-                          ? "text-[#7c3aed]"
-                          : isCompleted
+                      className={`text-[11px] font-bold uppercase tracking-wider ${isActive
+                        ? "text-[#7c3aed]"
+                        : isCompleted
                           ? "text-emerald-600"
                           : "text-slate-400"
-                      }`}
+                        }`}
                     >
                       Step 0{s.id}
                     </p>
                     <p
-                      className={`text-sm font-extrabold ${
-                        isActive
-                          ? "text-slate-900"
-                          : isCompleted
+                      className={`text-sm font-extrabold ${isActive
+                        ? "text-slate-900"
+                        : isCompleted
                           ? "text-slate-700"
                           : "text-slate-400"
-                      }`}
+                        }`}
                     >
                       {s.title}
                     </p>
@@ -755,9 +752,8 @@ export default function AddRetailerForm({
                 {index < STEPS.length - 1 && (
                   <div className="mx-4 h-0.5 flex-1 bg-slate-100">
                     <div
-                      className={`h-full transition-all duration-500 ${
-                        s.id < currentStep ? "bg-emerald-500" : "bg-transparent"
-                      }`}
+                      className={`h-full transition-all duration-500 ${s.id < currentStep ? "bg-emerald-500" : "bg-transparent"
+                        }`}
                     />
                   </div>
                 )}
@@ -1175,11 +1171,10 @@ export default function AddRetailerForm({
                   value={pincode}
                   onChange={handlePincodeChange}
                   placeholder="6-digit Pincode"
-                  className={`h-11 w-full rounded-xl border px-4 font-mono text-sm font-bold outline-none transition ${
-                    pincodeValid
-                      ? "border-emerald-300 bg-emerald-50/30 text-emerald-900"
-                      : "border-slate-200 bg-slate-50/60 text-slate-900 focus:border-[#7c3aed] focus:bg-white"
-                  }`}
+                  className={`h-11 w-full rounded-xl border px-4 font-mono text-sm font-bold outline-none transition ${pincodeValid
+                    ? "border-emerald-300 bg-emerald-50/30 text-emerald-900"
+                    : "border-slate-200 bg-slate-50/60 text-slate-900 focus:border-[#7c3aed] focus:bg-white"
+                    }`}
                 />
                 {pincodeError && <p className="text-[11px] font-semibold text-rose-500">{pincodeError}</p>}
               </div>
@@ -1466,11 +1461,10 @@ export default function AddRetailerForm({
                     key={g.code}
                     type="button"
                     onClick={() => setGender(g.code as "M" | "F" | "T")}
-                    className={`h-11 rounded-xl border text-xs font-bold transition ${
-                      gender === g.code
-                        ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed] shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
+                    className={`h-11 rounded-xl border text-xs font-bold transition ${gender === g.code
+                      ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed] shadow-sm"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     {g.label}
                   </button>
@@ -1618,11 +1612,10 @@ export default function AddRetailerForm({
                   <button
                     type="button"
                     onClick={() => setAadhaarMobileLinked("yes")}
-                    className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold transition ${
-                      aadhaarMobileLinked === "yes"
-                        ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed]"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
+                    className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold transition ${aadhaarMobileLinked === "yes"
+                      ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed]"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Yes, Linked
@@ -1630,11 +1623,10 @@ export default function AddRetailerForm({
                   <button
                     type="button"
                     onClick={() => setAadhaarMobileLinked("no")}
-                    className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold transition ${
-                      aadhaarMobileLinked === "no"
-                        ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed]"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                    }`}
+                    className={`flex h-11 items-center justify-center gap-2 rounded-xl border text-xs font-bold transition ${aadhaarMobileLinked === "no"
+                      ? "border-[#7c3aed] bg-violet-50 text-[#7c3aed]"
+                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
                   >
                     No, Not Linked
                   </button>
@@ -1830,13 +1822,12 @@ export default function AddRetailerForm({
                 value={confirmAccountNumber}
                 onChange={(e) => setConfirmAccountNumber(e.target.value.replace(/\D/g, "").slice(0, 18))}
                 placeholder="Re-enter account number"
-                className={`h-12 w-full rounded-2xl border px-4 font-mono text-sm font-bold outline-none transition ${
-                  confirmAccountNumber && confirmAccountNumber !== accountNumber
-                    ? "border-rose-300 bg-rose-50/30 text-rose-900"
-                    : confirmAccountNumber && confirmAccountNumber === accountNumber
+                className={`h-12 w-full rounded-2xl border px-4 font-mono text-sm font-bold outline-none transition ${confirmAccountNumber && confirmAccountNumber !== accountNumber
+                  ? "border-rose-300 bg-rose-50/30 text-rose-900"
+                  : confirmAccountNumber && confirmAccountNumber === accountNumber
                     ? "border-emerald-300 bg-emerald-50/30 text-emerald-900"
                     : "border-slate-200 bg-slate-50/60 text-slate-900 focus:border-[#7c3aed] focus:bg-white"
-                }`}
+                  }`}
               />
               {confirmAccountNumber && confirmAccountNumber !== accountNumber && (
                 <p className="text-[11px] font-semibold text-rose-500">Account numbers do not match.</p>
