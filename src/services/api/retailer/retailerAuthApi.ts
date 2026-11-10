@@ -155,6 +155,7 @@ export interface CurrentRegistrationStepResult {
     shopLocationPhoto: string | null;
     businessProofType: string | { _id: string; name: string } | null;
     businessProofDocument: string | null;
+    firstName?: string | null;
     fullName?: string | null;
     name?: string | null;
     lastName?: string | null;
@@ -367,7 +368,7 @@ export interface UpdateAboutResult {
 
 export interface UpdateAboutPayload {
   userId: string;
-  fullName: string;
+  firstName: string;
   lastName: string;
   dateOfBirth: string;
   gender: "M" | "F" | "T";   // ← narrowed
@@ -381,7 +382,7 @@ export interface UpdateAboutPayload {
 export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   const fd = new FormData();
   fd.append("userId", payload.userId);
-  fd.append("fullName", payload.fullName);
+  fd.append("firstName", payload.firstName);
   fd.append("lastName", payload.lastName);
   fd.append("dateOfBirth", payload.dateOfBirth);
   fd.append("gender", payload.gender);
@@ -631,6 +632,8 @@ export interface RetailerUser {
   _id: string;
   mobile: string;
   email: string | null;
+  firstName: string | null;
+  lastName: string | null;
   fullName: string | null;
   registrationStatus: string;
   currentRegistrationStep: string;

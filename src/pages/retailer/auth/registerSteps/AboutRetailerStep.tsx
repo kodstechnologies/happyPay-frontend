@@ -47,7 +47,7 @@ const AboutRetailerStep = forwardRef<
 
   const selfieInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
   const [existingSelfie, setExistingSelfie] = useState<string | null>(null);
@@ -65,12 +65,16 @@ const AboutRetailerStep = forwardRef<
   if (initialData !== prevInitialData) {
     setPrevInitialData(initialData);
     if (initialData) {
-      if (initialData.fullName || initialData.name) {
-        setFullName(initialData.fullName || initialData.name || "");
+      if (initialData.firstName) {
+        setFirstName(initialData.firstName || "");
       }
 
       if (initialData.lastName) {
         setLastName(initialData.lastName || "");
+      }
+
+      if (initialData.fullName || initialData.name) {
+        // fullName is optional now, auto-generated from firstName + lastName
       }
 
       if (initialData.dateOfBirth || initialData.dob) {
@@ -145,8 +149,8 @@ const AboutRetailerStep = forwardRef<
       showToast("error", "User not registered. Please complete step 1.");
       return false;
     }
-    if (!fullName.trim()) {
-      showToast("error", "Full name is required.");
+    if (!firstName.trim()) {
+      showToast("error", "First name is required.");
       return false;
     }
     if (!lastName.trim()) {
@@ -185,7 +189,7 @@ const AboutRetailerStep = forwardRef<
     try {
       await updateRetailerAboutDetails({
         userId,
-        fullName: fullName.trim(),
+        firstName: firstName.trim(),
         lastName: lastName.trim(),
         dateOfBirth: isoDob,
         gender: genderCode,
@@ -214,13 +218,13 @@ const AboutRetailerStep = forwardRef<
   // ==========================================================
   return (
     <div className="space-y-6">
-      {/* FULL NAME */}
+      {/* FIRST NAME */}
       <div>
         <label
-          htmlFor="retailer-full-name"
+          htmlFor="retailer-first-name"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Full Name
+          First Name
         </label>
         <div className="relative">
           <UserRound
@@ -228,15 +232,14 @@ const AboutRetailerStep = forwardRef<
             strokeWidth={2}
           />
           <input
-            id="retailer-full-name"
-            name="fullName"
+            id="retailer-first-name"
+            name="firstName"
             type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="Enter your full name"
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              fullName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+            placeholder="Enter your first name"
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${firstName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -261,9 +264,8 @@ const AboutRetailerStep = forwardRef<
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             placeholder="Enter your last name"
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              lastName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${lastName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -288,9 +290,8 @@ const AboutRetailerStep = forwardRef<
             value={fatherName}
             onChange={(e) => setFatherName(e.target.value)}
             placeholder="Enter your father's name"
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              fatherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${fatherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -315,9 +316,8 @@ const AboutRetailerStep = forwardRef<
             value={motherName}
             onChange={(e) => setMotherName(e.target.value)}
             placeholder="Enter your mother's name"
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              motherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${motherName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -338,11 +338,10 @@ const AboutRetailerStep = forwardRef<
         <button
           type="button"
           onClick={() => selfieInputRef.current?.click()}
-          className={`flex min-h-[150px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition-all ${
-            selfie || existingSelfie
+          className={`flex min-h-[150px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition-all ${selfie || existingSelfie
               ? "border-[#b9e8d4] bg-[#f3fcf8]"
               : "border-[#dfe3e9] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f3f6ff]"
-          }`}
+            }`}
         >
           {selfie || existingSelfie ? (
             <>
@@ -394,9 +393,8 @@ const AboutRetailerStep = forwardRef<
             placeholder="DD/MM/YYYY"
             inputMode="numeric"
             maxLength={10}
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              dateOfBirth ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${dateOfBirth ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -441,9 +439,8 @@ const AboutRetailerStep = forwardRef<
             value={education}
             onChange={(e) => setEducation(e.target.value)}
             placeholder="e.g. Graduate, 12th, B.Com"
-            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-              education ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-            }`}
+            className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${education ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+              }`}
           />
         </div>
       </div>
@@ -498,9 +495,8 @@ const SelectField = ({
         name={name}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-12 pr-11 text-[14px] font-medium text-[#172033] outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${
-          value ? "border-[#7c3aed]" : "border-[#dfe3e9]"
-        }`}
+        className={`h-[54px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-12 pr-11 text-[14px] font-medium text-[#172033] outline-none transition-all focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${value ? "border-[#7c3aed]" : "border-[#dfe3e9]"
+          }`}
       >
         <option value="">Select {label}</option>
         {options.map((option) => (
