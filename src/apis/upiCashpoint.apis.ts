@@ -193,9 +193,49 @@ export const merchantRegistrationVerifyApi = async (
   return response.data;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MERCHANT REGISTRATION — EKYC
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MerchantEkycPayload {
+  merchantId: string | number;
+  pidData: string;
+}
+
+export interface MerchantEkycResponseData {
+  status?: boolean | string | number;
+  message?: string;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface MerchantEkycApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: MerchantEkycResponseData;
+}
+
+/**
+ * Complete merchant eKYC with biometric data.
+ * Call this after successful merchant registration and before OTP verification.
+ *
+ * POST /api/v1/upi-cashpoint/ekyc
+ */
+export const merchantEkycApi = async (
+  payload: MerchantEkycPayload
+): Promise<MerchantEkycApiResponse> => {
+  const response = await api.post<MerchantEkycApiResponse>(
+    "/api/v1/upi-cashpoint/ekyc",
+    payload
+  );
+  return response.data;
+};
+
 export default {
   initiateUpiCashpointPaymentApi,
   merchantRegisterApi,
   merchantRegistrationSendOtpApi,
   merchantRegistrationVerifyApi,
+  merchantEkycApi,
 };

@@ -18,6 +18,7 @@ import {
   merchantRegisterApi,
   merchantRegistrationSendOtpApi,
   merchantRegistrationVerifyApi,
+  merchantEkycApi,
 } from "../../../apis/upiCashpoint.apis";
 import { useAuth } from "../../../context/AuthContext";
 
@@ -27,15 +28,32 @@ interface UpiCashPointProps {
   onBack?: () => void;
 }
 
-/** Screens within the UPI Cashpoint flow */
+/**
+ * Screens within the UPI Cashpoint flow — in correct order:
+ *   REGISTER → SEND_OTP → VERIFY_OTP → EKYC → PAYMENT → RECEIPT
+ */
 type Screen =
-  | "REGISTER"      // Step 1 – trigger merchant registration
-  | "SEND_OTP"      // Step 2 – send OTP to the merchant
-  | "VERIFY_OTP"    // Step 3 – enter & verify OTP
-  | "PAYMENT"       // Step 4 – amount entry + QR generation
-  | "RECEIPT";      // Step 5 – success receipt
+  | "REGISTER"    // Step 1 – trigger merchant registration
+  | "SEND_OTP"    // Step 2 – send OTP to the merchant's mobile
+  | "VERIFY_OTP"  // Step 3 – enter & verify OTP
+  | "EKYC"        // Step 4 – complete biometric eKYC
+  | "PAYMENT"     // Step 5 – amount entry + QR generation
+  | "RECEIPT";    // Step 6 – success receipt
 
 const MERCHANT_ID_KEY = "upiCashpoint_merchantId";
+
+// ─── Step progress config ─────────────────────────────────────────────────────
+
+const ONBOARDING_STEPS: { key: Screen; label: string }[] = [
+  { key: "REGISTER", label: "Register" },
+  { key: "SEND_OTP", label: "Send OTP" },
+  { key: "VERIFY_OTP", label: "Verify OTP" },
+  { key: "EKYC", label: "eKYC" },
+];
+
+const ONBOARDING_SCREEN_SET = new Set<Screen>(
+  ONBOARDING_STEPS.map((s) => s.key)
+);
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -53,8 +71,6 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     resolvedMerchantId ? "PAYMENT" : "REGISTER",
   );
 
-  // ...QR countdown, etc...
-
   // Registration
   const [registering, setRegistering] = useState(false);
 
@@ -62,6 +78,10 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [otp, setOtp] = useState("");
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+
+  // EKYC
+  const [doingEkyc, setDoingEkyc] = useState(false);
+  const [pidData, setPidData] = useState("");
 
   // Payment / QR
   const [amount, setAmount] = useState("");
@@ -118,6 +138,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setRrn("");
     setTimeLeft(180);
     setOtp("");
+    setPidData("");
     setScreen(merchantId ? "PAYMENT" : "REGISTER");
   };
 
@@ -141,6 +162,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       if (!id) throw new Error(res.message || "Merchant ID not returned");
       saveMerchantId(id);
       showToast("success", res.message || "Merchant registered successfully!");
+      // ✅ Next step: Send OTP
       setScreen("SEND_OTP");
     } catch (err) {
       showToast("error", err, "Merchant registration failed. Please try again.");
@@ -156,6 +178,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     try {
       const res = await merchantRegistrationSendOtpApi({ merchantId });
       showToast("success", res.message || "OTP sent successfully!");
+      // ✅ Next step: Verify OTP
       setScreen("VERIFY_OTP");
     } catch (err) {
       showToast("error", err, "Failed to send OTP. Please try again.");
@@ -176,7 +199,8 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     try {
       const res = await merchantRegistrationVerifyApi({ merchantId, otp });
       showToast("success", res.message || "OTP verified successfully!");
-      setScreen("PAYMENT");
+      // ✅ Next step: eKYC
+      setScreen("EKYC");
     } catch (err) {
       showToast("error", err, "OTP verification failed. Please try again.");
     } finally {
@@ -184,7 +208,28 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     }
   };
 
-  // ── Step 4 – Generate QR ─────────────────────────────────────────────────
+  // ── Step 4 – Merchant eKYC ────────────────────────────────────────────────
+
+  const handleEkyc = async () => {
+    if (!pidData.trim()) {
+      showToast("error", "Please provide biometric data (pidData).");
+      return;
+    }
+
+    setDoingEkyc(true);
+    try {
+      const res = await merchantEkycApi({ merchantId, pidData });
+      showToast("success", res.message || "eKYC completed successfully!");
+      // ✅ Next step: Payment
+      setScreen("PAYMENT");
+    } catch (err) {
+      showToast("error", err, "eKYC failed. Please try again.");
+    } finally {
+      setDoingEkyc(false);
+    }
+  };
+
+  // ── Step 5 – Generate QR ─────────────────────────────────────────────────
 
   const handleGenerateQr = async () => {
     if (!isValidAmount) {
@@ -235,6 +280,10 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setScreen("RECEIPT");
   };
 
+  // ── Step progress bar (shown only during onboarding steps) ───────────────
+
+  const currentStepIndex = ONBOARDING_STEPS.findIndex((s) => s.key === screen);
+
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER
   // ─────────────────────────────────────────────────────────────────────────
@@ -266,12 +315,62 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
         </div>
       </div>
 
+      {/* ── Onboarding step progress bar ── */}
+      {ONBOARDING_SCREEN_SET.has(screen) && (
+        <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
+          <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Setup Progress
+          </p>
+          <div className="flex items-center gap-0">
+            {ONBOARDING_STEPS.map((step, idx) => {
+              const isDone = idx < currentStepIndex;
+              const isCurrent = idx === currentStepIndex;
+              return (
+                <React.Fragment key={step.key}>
+                  {/* Step bubble */}
+                  <div className="flex flex-col items-center gap-1.5 min-w-0">
+                    <div
+                      className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${isDone
+                          ? "bg-emerald-500 text-white"
+                          : isCurrent
+                            ? "bg-[#7c3aed] text-white ring-4 ring-[#7c3aed]/20"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                    >
+                      {isDone ? <Check className="h-4 w-4" /> : idx + 1}
+                    </div>
+                    <span
+                      className={`text-[10px] font-semibold leading-none whitespace-nowrap ${isDone
+                          ? "text-emerald-600"
+                          : isCurrent
+                            ? "text-[#7c3aed]"
+                            : "text-slate-400"
+                        }`}
+                    >
+                      {step.label}
+                    </span>
+                  </div>
+
+                  {/* Connector line (between steps) */}
+                  {idx < ONBOARDING_STEPS.length - 1 && (
+                    <div
+                      className={`mx-1 mb-5 h-0.5 flex-1 rounded-full transition-all ${idx < currentStepIndex ? "bg-emerald-400" : "bg-slate-200"
+                        }`}
+                    />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Main card ── */}
       <section className="hp-card rounded-3xl border border-slate-100 bg-white p-8 shadow-sm sm:p-10">
         <div className="mx-auto max-w-md">
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: REGISTER
+              SCREEN: REGISTER  (Step 1)
           ══════════════════════════════════════════════════════════ */}
           {screen === "REGISTER" && (
             <div className="space-y-6 text-center">
@@ -287,6 +386,23 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                   One-time registration to activate your UPI Cash Point
                   service. Your KYC details are used automatically.
                 </p>
+              </div>
+
+              {/* Flow overview */}
+              <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left space-y-2">
+                {[
+                  "Register your merchant account",
+                  "Verify via OTP sent to your mobile",
+                  "Complete biometric eKYC",
+                  "Start accepting UPI payments",
+                ].map((step, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[10px] font-bold text-white">
+                      {i + 1}
+                    </span>
+                    <p className="text-xs text-slate-600">{step}</p>
+                  </div>
+                ))}
               </div>
 
               <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left">
@@ -316,7 +432,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: SEND OTP
+              SCREEN: SEND OTP  (Step 2)
           ══════════════════════════════════════════════════════════ */}
           {screen === "SEND_OTP" && (
             <div className="space-y-6 text-center">
@@ -355,7 +471,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: VERIFY OTP
+              SCREEN: VERIFY OTP  (Step 3)
           ══════════════════════════════════════════════════════════ */}
           {screen === "VERIFY_OTP" && (
             <div className="space-y-6">
@@ -403,7 +519,59 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: PAYMENT (amount entry + QR)
+              SCREEN: EKYC  (Step 4)
+          ══════════════════════════════════════════════════════════ */}
+          {screen === "EKYC" && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
+                  <ShieldCheck className="h-8 w-8 text-[#7c3aed]" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Complete Biometric eKYC
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  Provide your biometric data to complete the merchant
+                  verification process.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
+                <span className="font-semibold">Merchant ID:</span>{" "}
+                <span className="font-mono">{merchantId}</span>
+              </div>
+
+              <div>
+                <label htmlFor="pidData" className="text-sm font-bold text-slate-700">
+                  Biometric Data (pidData)
+                </label>
+                <textarea
+                  id="pidData"
+                  value={pidData}
+                  onChange={(e) => setPidData(e.target.value)}
+                  placeholder="Paste the XML pidData from your biometric device"
+                  rows={6}
+                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleEkyc}
+                disabled={doingEkyc || !pidData.trim()}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
+              >
+                {doingEkyc ? (
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Processing eKYC…</>
+                ) : (
+                  <><ShieldCheck className="h-5 w-5" /> Complete eKYC</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN: PAYMENT  (Step 5 — amount entry + QR)
           ══════════════════════════════════════════════════════════ */}
           {screen === "PAYMENT" && (
             <div className="space-y-6">
@@ -470,9 +638,8 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
 
                     {/* QR image */}
                     <div
-                      className={`mx-auto mt-5 flex h-52 w-52 items-center justify-center rounded-2xl border-4 border-white bg-white p-2 shadow-sm transition-opacity ${
-                        timeLeft <= 0 ? "opacity-30 grayscale" : "opacity-100"
-                      }`}
+                      className={`mx-auto mt-5 flex h-52 w-52 items-center justify-center rounded-2xl border-4 border-white bg-white p-2 shadow-sm transition-opacity ${timeLeft <= 0 ? "opacity-30 grayscale" : "opacity-100"
+                        }`}
                     >
                       {qrString ? (
                         <img
@@ -503,9 +670,8 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
 
                     <div className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-xs font-bold text-slate-600 shadow-xs">
                       <span
-                        className={`h-2 w-2 rounded-full ${
-                          timeLeft > 0 ? "animate-pulse bg-emerald-500" : "bg-red-500"
-                        }`}
+                        className={`h-2 w-2 rounded-full ${timeLeft > 0 ? "animate-pulse bg-emerald-500" : "bg-red-500"
+                          }`}
                       />
                       {timeLeft > 0 ? `QR expires in ${formattedTime}` : "QR code expired"}
                     </div>
@@ -549,7 +715,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: RECEIPT
+              SCREEN: RECEIPT  (Step 6)
           ══════════════════════════════════════════════════════════ */}
           {screen === "RECEIPT" && (
             <div className="animate-in fade-in zoom-in-95 space-y-5 duration-300">
