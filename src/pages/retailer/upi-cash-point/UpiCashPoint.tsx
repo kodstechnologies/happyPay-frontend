@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react";
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   CheckCircle2,
+  Fingerprint,
   Loader2,
   Printer,
   QrCode,
@@ -20,6 +22,7 @@ import {
   merchantRegistrationVerifyApi,
   merchantEkycApi,
 } from "../../../apis/upiCashpoint.apis";
+import { rdService } from "../../../utils/rdService";
 import { useAuth } from "../../../context/AuthContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -29,15 +32,15 @@ interface UpiCashPointProps {
 }
 
 /**
- * Screens within the UPI Cashpoint flow — in correct order:
+ * Screens within the UPI Cashpoint flow — strictly in order:
  *   REGISTER → SEND_OTP → VERIFY_OTP → EKYC → PAYMENT → RECEIPT
  */
 type Screen =
   | "REGISTER"    // Step 1 – trigger merchant registration
   | "SEND_OTP"    // Step 2 – send OTP to the merchant's mobile
-  | "VERIFY_OTP"  // Step 3 – enter & verify OTP
-  | "EKYC"        // Step 4 – complete biometric eKYC
-  | "PAYMENT"     // Step 5 – amount entry + QR generation
+  | "VERIFY_OTP"  // Step 3 – enter & verify OTP (must be "msg": "OTP VERIFIED.")
+  | "EKYC"        // Step 4 – complete biometric eKYC with pidData
+  | "PAYMENT"     // Step 5 – amount entry + QR generation (only after eKYC)
   | "RECEIPT";    // Step 6 – success receipt
 
 const MERCHANT_ID_KEY = "upiCashpoint_merchantId";
@@ -60,16 +63,47 @@ const ONBOARDING_SCREEN_SET = new Set<Screen>(
 const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   const { user } = useAuth();
 
-  // Prefer merchantId from the server (populated after registration),
-  // fall back to localStorage for the current session until the next /me refresh.
+  // Check whether merchant is already registered and eKYC completed on server
   const serverMerchantId = user?.UpiEkyc?.merchantId ?? null;
+  const isServerEkycCompleted = user?.UpiEkyc?.eKYCStatus === "COMPLETED";
+
   const resolvedMerchantId = serverMerchantId || localStorage.getItem(MERCHANT_ID_KEY) || "";
 
   const [merchantId, setMerchantId] = useState<string>(resolvedMerchantId);
 
-  const [screen, setScreen] = useState<Screen>(
-    resolvedMerchantId ? "PAYMENT" : "REGISTER",
-  );
+  // OTP verified state
+  const [isOtpVerified, setIsOtpVerified] = useState<boolean>(() => {
+    if (isServerEkycCompleted) return true;
+    if (resolvedMerchantId) {
+      return sessionStorage.getItem(`upiCashpoint_otpVerified_${resolvedMerchantId}`) === "true";
+    }
+    return false;
+  });
+
+  // eKYC completed state
+  const [isEkycCompleted, setIsEkycCompleted] = useState<boolean>(() => {
+    if (isServerEkycCompleted) return true;
+    if (resolvedMerchantId) {
+      return sessionStorage.getItem(`upiCashpoint_ekycCompleted_${resolvedMerchantId}`) === "true";
+    }
+    return false;
+  });
+
+  // Calculate starting screen based on actual verification progress
+  const getInitialScreen = (): Screen => {
+    if (isServerEkycCompleted || (resolvedMerchantId && sessionStorage.getItem(`upiCashpoint_ekycCompleted_${resolvedMerchantId}`) === "true")) {
+      return "PAYMENT";
+    }
+    if (resolvedMerchantId) {
+      if (sessionStorage.getItem(`upiCashpoint_otpVerified_${resolvedMerchantId}`) === "true") {
+        return "EKYC";
+      }
+      return "SEND_OTP";
+    }
+    return "REGISTER";
+  };
+
+  const [screen, setScreen] = useState<Screen>(getInitialScreen);
 
   // Registration
   const [registering, setRegistering] = useState(false);
@@ -82,6 +116,8 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   // EKYC
   const [doingEkyc, setDoingEkyc] = useState(false);
   const [pidData, setPidData] = useState("");
+  const [isScanning, setIsScanning] = useState(false);
+  const [connectedDevice, setConnectedDevice] = useState<string>("");
 
   // Payment / QR
   const [amount, setAmount] = useState("");
@@ -120,12 +156,9 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
 
   const saveMerchantId = (id: string) => {
     setMerchantId(id);
-    // Store in localStorage as a temporary session cache until the next
-    // /me call refreshes the user profile from the server.
     localStorage.setItem(MERCHANT_ID_KEY, id);
   };
 
-  // Clean up stale localStorage entry once the server value is confirmed.
   if (serverMerchantId) {
     localStorage.removeItem(MERCHANT_ID_KEY);
   }
@@ -139,7 +172,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setTimeLeft(180);
     setOtp("");
     setPidData("");
-    setScreen(merchantId ? "PAYMENT" : "REGISTER");
+    setScreen(isEkycCompleted ? "PAYMENT" : isOtpVerified ? "EKYC" : merchantId ? "SEND_OTP" : "REGISTER");
   };
 
   // ── Step 1 – Merchant Registration ───────────────────────────────────────
@@ -159,10 +192,14 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
         (res.data as Record<string, unknown>)?.merchant_id ??
         "",
       );
-      if (!id) throw new Error(res.message || "Merchant ID not returned");
+      if (!id) throw new Error(res.message || "Merchant ID not returned from provider");
+
       saveMerchantId(id);
+      setIsOtpVerified(false);
+      setIsEkycCompleted(false);
+
       showToast("success", res.message || "Merchant registered successfully!");
-      // ✅ Next step: Send OTP
+      // Proceed to Step 2: Send OTP
       setScreen("SEND_OTP");
     } catch (err) {
       showToast("error", err, "Merchant registration failed. Please try again.");
@@ -174,11 +211,17 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   // ── Step 2 – Send OTP ────────────────────────────────────────────────────
 
   const handleSendOtp = async () => {
+    if (!merchantId) {
+      showToast("error", "Merchant ID not found. Please register first.");
+      setScreen("REGISTER");
+      return;
+    }
+
     setSendingOtp(true);
     try {
       const res = await merchantRegistrationSendOtpApi({ merchantId });
-      showToast("success", res.message || "OTP sent successfully!");
-      // ✅ Next step: Verify OTP
+      showToast("success", res.message || "OTP sent to your registered mobile number!");
+      // Proceed to Step 3: Verify OTP
       setScreen("VERIFY_OTP");
     } catch (err) {
       showToast("error", err, "Failed to send OTP. Please try again.");
@@ -190,6 +233,12 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   // ── Step 3 – Verify OTP ──────────────────────────────────────────────────
 
   const handleVerifyOtp = async () => {
+    if (!merchantId) {
+      showToast("error", "Merchant ID not found. Please register first.");
+      setScreen("REGISTER");
+      return;
+    }
+
     if (!otp.trim()) {
       showToast("error", "Please enter the OTP.");
       return;
@@ -198,40 +247,130 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setVerifyingOtp(true);
     try {
       const res = await merchantRegistrationVerifyApi({ merchantId, otp });
-      showToast("success", res.message || "OTP verified successfully!");
-      // ✅ Next step: eKYC
+
+      const resMsg = String(res.data?.msg || res.data?.message || res.message || "").trim();
+      const statusUpper = String(res.data?.status || "").toUpperCase();
+
+      // STRICT VALIDATION:
+      // The provider returns "msg": "OTP VERIFIED." on success.
+      // Do NOT proceed to eKYC if verification fails or message is not verified!
+      const isVerified =
+        res.success !== false &&
+        statusUpper !== "ERROR" &&
+        statusUpper !== "FAILED" &&
+        res.data?.status !== false &&
+        (/otp\s*verified/i.test(resMsg) || resMsg === "OTP VERIFIED." || statusUpper === "SUCCESS");
+
+      if (!isVerified) {
+        setIsOtpVerified(false);
+        showToast("error", resMsg || "OTP verification failed. Please check the OTP and try again.");
+        return;
+      }
+
+      // Mark OTP as verified
+      setIsOtpVerified(true);
+      sessionStorage.setItem(`upiCashpoint_otpVerified_${merchantId}`, "true");
+      showToast("success", resMsg || "OTP VERIFIED.");
+
+      // ✅ Proceed to Step 4: eKYC (Allowed only after OTP verification success!)
       setScreen("EKYC");
     } catch (err) {
+      setIsOtpVerified(false);
       showToast("error", err, "OTP verification failed. Please try again.");
     } finally {
       setVerifyingOtp(false);
     }
   };
 
+  // ── Biometric Device Fingerprint Scan ─────────────────────────────────────
+
+  const handleScanFingerprint = async () => {
+    setIsScanning(true);
+    try {
+      const devices = await rdService.scanAllDevices();
+      if (!devices || devices.length === 0) {
+        throw new Error(
+          "No Biometric Device found. Please connect your USB RD Service scanner (e.g. Mantra, Morpho, SecuGen) and retry."
+        );
+      }
+
+      const activeDev = devices[0];
+      setConnectedDevice(activeDev.name);
+      showToast("info", `Connected: ${activeDev.name}. Place finger on the scanner...`);
+
+      const captureResult = await rdService.captureFingerprint(activeDev.port, {
+        capturePath: activeDev.capturePath || "/rd/capture",
+        fType: "2",
+      });
+
+      if (!captureResult.success || !captureResult.data) {
+        throw new Error(captureResult.message || "Failed to capture fingerprint from scanner.");
+      }
+
+      setPidData(captureResult.data);
+      showToast("success", "Fingerprint captured successfully! Now click 'Complete eKYC'.");
+    } catch (err: unknown) {
+      showToast("error", err, "Fingerprint scan failed. Check scanner connection or enter PID XML manually.");
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   // ── Step 4 – Merchant eKYC ────────────────────────────────────────────────
 
   const handleEkyc = async () => {
+    // ENFORCE: Never do eKYC without successful OTP verification!
+    if (!isOtpVerified) {
+      showToast("error", "OTP verification is required before doing biometric eKYC.");
+      setScreen("VERIFY_OTP");
+      return;
+    }
+
+    if (!merchantId) {
+      showToast("error", "Merchant ID not found. Please register first.");
+      setScreen("REGISTER");
+      return;
+    }
+
     if (!pidData.trim()) {
-      showToast("error", "Please provide biometric data (pidData).");
+      showToast("error", "Please capture fingerprint via scanner or paste the XML pidData.");
       return;
     }
 
     setDoingEkyc(true);
     try {
       const res = await merchantEkycApi({ merchantId, pidData });
-      showToast("success", res.message || "eKYC completed successfully!");
-      // ✅ Next step: Payment
+      const statusUpper = String(res.data?.status || "").toUpperCase();
+      const resMsg = String(res.data?.msg || res.data?.message || res.message || "").trim();
+
+      if (res.success === false || statusUpper === "ERROR" || statusUpper === "FAILED" || res.data?.status === false) {
+        throw new Error(resMsg || "eKYC verification failed. Please try again.");
+      }
+
+      // Mark eKYC as completed
+      setIsEkycCompleted(true);
+      sessionStorage.setItem(`upiCashpoint_ekycCompleted_${merchantId}`, "true");
+      showToast("success", resMsg || "Merchant eKYC completed successfully!");
+
+      // ✅ Proceed to Step 5: PAYMENT (Allowed ONLY after eKYC is completed!)
       setScreen("PAYMENT");
     } catch (err) {
-      showToast("error", err, "eKYC failed. Please try again.");
+      showToast("error", err, "eKYC verification failed. Please try again.");
     } finally {
       setDoingEkyc(false);
     }
   };
 
-  // ── Step 5 – Generate QR ─────────────────────────────────────────────────
+  // ── Step 5 – Generate QR / Initiate Payment ───────────────────────────────
 
   const handleGenerateQr = async () => {
+    // ENFORCE: Before eKYC completion you do NOT initiate payment!
+    if (!isEkycCompleted) {
+      showToast("error", "Merchant eKYC must be completed before initiating payments.");
+      setScreen("EKYC");
+      return;
+    }
+
     if (!isValidAmount) {
       showToast("error", "Please enter a valid amount greater than zero.");
       return;
@@ -263,7 +402,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       setTimeLeft(180);
       setShowQr(true);
 
-      showToast("success", response.message || "QR generated successfully!");
+      showToast("success", response.message || "Payment QR generated successfully!");
     } catch (err) {
       showToast("error", err, "Failed to generate QR. Please try again.");
     } finally {
@@ -280,7 +419,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setScreen("RECEIPT");
   };
 
-  // ── Step progress bar (shown only during onboarding steps) ───────────────
+  // ── Step progress bar ─────────────────────────────────────────────────────
 
   const currentStepIndex = ONBOARDING_STEPS.findIndex((s) => s.key === screen);
 
@@ -319,7 +458,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       {ONBOARDING_SCREEN_SET.has(screen) && (
         <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Setup Progress
+            Merchant Setup Progress
           </p>
           <div className="flex items-center gap-0">
             {ONBOARDING_STEPS.map((step, idx) => {
@@ -331,243 +470,278 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                   <div className="flex flex-col items-center gap-1.5 min-w-0">
                     <div
                       className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold transition-all ${isDone
-                        ? "bg-emerald-500 text-white"
-                        : isCurrent
-                          ? "bg-[#7c3aed] text-white ring-4 ring-[#7c3aed]/20"
-                          : "bg-slate-100 text-slate-400"
-                        }`}
+                          ? "bg-emerald-500 text-white"
+                          : isCurrent
+                            ? "bg-[#7c3aed] text-white ring-4 ring-[#7c3aed]/20"
+                            : "bg-slate-100 text-slate-400"
+                      }`}
                     >
-                      {isDone ? <Check className="h-4 w-4" /> : idx + 1}
-                    </div>
-                    <span
+                    {isDone ? <Check className="h-4 w-4" /> : idx + 1}
+                  </div>
+                  <span
                       className={`text-[10px] font-semibold leading-none whitespace-nowrap ${isDone
                         ? "text-emerald-600"
                         : isCurrent
                           ? "text-[#7c3aed]"
                           : "text-slate-400"
-                        }`}
+                      }`}
                     >
-                      {step.label}
-                    </span>
+                  {step.label}
+                </span>
                   </div>
 
-                  {/* Connector line (between steps) */}
-                  {idx < ONBOARDING_STEPS.length - 1 && (
-                    <div
-                      className={`mx-1 mb-5 h-0.5 flex-1 rounded-full transition-all ${idx < currentStepIndex ? "bg-emerald-400" : "bg-slate-200"
-                        }`}
-                    />
-                  )}
-                </React.Fragment>
-              );
+          {/* Connector line */}
+          {idx < ONBOARDING_STEPS.length - 1 && (
+            <div
+              className={`mx-1 mb-5 h-0.5 flex-1 rounded-full transition-all ${idx < currentStepIndex ? "bg-emerald-400" : "bg-slate-200"
+                }`}
+            />
+          )}
+        </React.Fragment>
+      );
             })}
-          </div>
-        </div>
+    </div>
+        </div >
       )}
 
-      {/* ── Main card ── */}
-      <section className="hp-card rounded-3xl border border-slate-100 bg-white p-8 shadow-sm sm:p-10">
-        <div className="mx-auto max-w-md">
+{/* ── Main card ── */ }
+<section className="hp-card rounded-3xl border border-slate-100 bg-white p-8 shadow-sm sm:p-10">
+  <div className="mx-auto max-w-md">
 
-          {/* ══════════════════════════════════════════════════════════
+    {/* ══════════════════════════════════════════════════════════
               SCREEN: REGISTER  (Step 1)
           ══════════════════════════════════════════════════════════ */}
-          {screen === "REGISTER" && (
-            <div className="space-y-6 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
-                <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
-              </div>
+    {screen === "REGISTER" && (
+      <div className="space-y-6 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
+          <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
+        </div>
 
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Register as UPI Merchant
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  One-time registration to activate your UPI Cash Point
-                  service. Your KYC details are used automatically.
-                </p>
-              </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Register as UPI Merchant
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            One-time registration to activate your UPI Cash Point
+            service. Your KYC details are used automatically.
+          </p>
+        </div>
 
-              {/* Flow overview */}
-              <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left space-y-2">
-                {[
-                  "Register your merchant account",
-                  "Verify via OTP sent to your mobile",
-                  "Complete biometric eKYC",
-                  "Start accepting UPI payments",
-                ].map((step, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[10px] font-bold text-white">
-                      {i + 1}
-                    </span>
-                    <p className="text-xs text-slate-600">{step}</p>
-                  </div>
+        {/* Flow overview */}
+        <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left space-y-2">
+          {[
+            "Register merchant account with payment network",
+            "Send and verify OTP sent to your mobile",
+            "Complete biometric fingerprint eKYC",
+            "Accept UPI payments & disburse cash",
+                ].map((stepDesc, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#7c3aed] text-[10px] font-bold text-white">
+              {i + 1}
+            </span>
+            <p className="text-xs text-slate-600">{stepDesc}</p>
+          </div>
                 ))}
-              </div>
+        </div>
 
-              <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left">
-                <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#7c3aed]" />
-                  <p className="text-xs leading-5 text-slate-600">
-                    Your registered PAN, Aadhaar, bank account, and shop
-                    details are securely sent to the payment network for
-                    merchant onboarding.
-                  </p>
-                </div>
-              </div>
+        <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#7c3aed]" />
+            <p className="text-xs leading-5 text-slate-600">
+              Your registered PAN, Aadhaar, bank account, and shop
+              details are securely sent to the payment network for
+              merchant onboarding.
+            </p>
+          </div>
+        </div>
 
-              <button
-                type="button"
-                onClick={handleRegister}
-                disabled={registering}
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] hover:shadow-lg disabled:opacity-50"
-              >
-                {registering ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Registering…</>
-                ) : (
-                  <><SmartphoneNfc className="h-5 w-5" /> Register Merchant</>
-                )}
-              </button>
-            </div>
+        <button
+          type="button"
+          onClick={handleRegister}
+          disabled={registering}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] hover:shadow-lg disabled:opacity-50"
+        >
+          {registering ? (
+            <><Loader2 className="h-5 w-5 animate-spin" /> Registering…</>
+          ) : (
+            <><SmartphoneNfc className="h-5 w-5" /> Register Merchant</>
           )}
+        </button>
+      </div>
+    )}
 
-          {/* ══════════════════════════════════════════════════════════
+    {/* ══════════════════════════════════════════════════════════
               SCREEN: SEND OTP  (Step 2)
           ══════════════════════════════════════════════════════════ */}
-          {screen === "SEND_OTP" && (
-            <div className="space-y-6 text-center">
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
-                <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
-              </div>
+    {screen === "SEND_OTP" && (
+      <div className="space-y-6 text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
+          <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
+        </div>
 
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Verify Your Merchant Account
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  An OTP will be sent to your registered mobile number to
-                  verify your merchant account.
-                </p>
-              </div>
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Verify Your Merchant Account
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            An OTP will be sent to your registered mobile number to
+            verify your merchant account.
+          </p>
+        </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
-                <span className="font-semibold">Merchant ID:</span>{" "}
-                <span className="font-mono">{merchantId}</span>
-              </div>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
+          <span className="font-semibold">Merchant ID:</span>{" "}
+          <span className="font-mono">{merchantId}</span>
+        </div>
 
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={sendingOtp}
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
-              >
-                {sendingOtp ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Sending OTP…</>
-                ) : (
-                  "Send OTP"
-                )}
-              </button>
-            </div>
+        <button
+          type="button"
+          onClick={handleSendOtp}
+          disabled={sendingOtp}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
+        >
+          {sendingOtp ? (
+            <><Loader2 className="h-5 w-5 animate-spin" /> Sending OTP…</>
+          ) : (
+            "Send OTP"
           )}
+        </button>
+      </div>
+    )}
 
-          {/* ══════════════════════════════════════════════════════════
+    {/* ══════════════════════════════════════════════════════════
               SCREEN: VERIFY OTP  (Step 3)
           ══════════════════════════════════════════════════════════ */}
-          {screen === "VERIFY_OTP" && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-xl font-bold text-slate-900">
-                  Enter OTP
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Enter the OTP sent to your registered mobile number.
-                </p>
-              </div>
+    {screen === "VERIFY_OTP" && (
+      <div className="space-y-6">
+        <div className="text-center">
+          <h2 className="text-xl font-bold text-slate-900">
+            Enter OTP
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Enter the OTP sent to your registered mobile number.
+          </p>
+        </div>
 
-              <input
-                type="text"
-                inputMode="numeric"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                placeholder="Enter OTP"
-                maxLength={6}
-                className="h-[54px] w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-center text-2xl font-bold tracking-[0.5em] text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10"
-              />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={otp}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+          placeholder="Enter OTP"
+          maxLength={6}
+          className="h-[54px] w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-center text-2xl font-bold tracking-[0.5em] text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10"
+        />
 
-              <button
-                type="button"
-                onClick={handleVerifyOtp}
-                disabled={verifyingOtp || otp.length < 4}
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
-              >
-                {verifyingOtp ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Verifying…</>
-                ) : (
-                  <><CheckCircle2 className="h-5 w-5" /> Verify OTP</>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleSendOtp}
-                disabled={sendingOtp}
-                className="w-full text-center text-sm font-semibold text-[#7c3aed] hover:underline disabled:opacity-50"
-              >
-                {sendingOtp ? "Resending…" : "Resend OTP"}
-              </button>
-            </div>
+        <button
+          type="button"
+          onClick={handleVerifyOtp}
+          disabled={verifyingOtp || otp.length < 4}
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
+        >
+          {verifyingOtp ? (
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Verifying OTP…</>
+          ) : (
+                  <><CheckCircle2 className="h-5 w-5" /> Verify OTP & Continue</>
           )}
+        </button>
 
-          {/* ══════════════════════════════════════════════════════════
+        <button
+          type="button"
+          onClick={handleSendOtp}
+          disabled={sendingOtp}
+          className="w-full text-center text-sm font-semibold text-[#7c3aed] hover:underline disabled:opacity-50"
+        >
+          {sendingOtp ? "Resending…" : "Resend OTP"}
+        </button>
+      </div>
+    )}
+
+    {/* ══════════════════════════════════════════════════════════
               SCREEN: EKYC  (Step 4)
           ══════════════════════════════════════════════════════════ */}
-          {screen === "EKYC" && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
-                  <ShieldCheck className="h-8 w-8 text-[#7c3aed]" />
-                </div>
-                <h2 className="text-xl font-bold text-slate-900">
-                  Complete Biometric eKYC
-                </h2>
-                <p className="mt-2 text-sm text-slate-500">
-                  Provide your biometric data to complete the merchant
-                  verification process.
-                </p>
-              </div>
+    {screen === "EKYC" && (
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
+            <ShieldCheck className="h-8 w-8 text-[#7c3aed]" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">
+            Complete Biometric eKYC
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            OTP verified successfully! Now complete biometric verification before accepting payments.
+          </p>
+        </div>
 
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-left text-xs text-slate-600">
-                <span className="font-semibold">Merchant ID:</span>{" "}
-                <span className="font-mono">{merchantId}</span>
+          {/* Status pill showing OTP is verified */}
+          <div className="flex items-center justify-between rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span className="font-semibold">OTP Status:</span>
+              <span className="font-bold text-emerald-700">VERIFIED</span>
+            </div>
+            <span className="font-mono text-slate-600">ID: {merchantId}</span>
+          </div>
+
+            {/* Scanner section */}
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Biometric RD Service</p>
+                  <p className="text-[11px] text-slate-500">
+                    {connectedDevice ? `Scanner: ${connectedDevice}` : "Mantra, Morpho, SecuGen, Startek"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleScanFingerprint}
+                  disabled={isScanning || doingEkyc}
+                  className="flex items-center gap-1.5 rounded-xl bg-[#7c3aed] px-3 py-2 text-xs font-bold text-white shadow-xs transition hover:bg-[#6d28d9] disabled:opacity-50"
+                >
+                  {isScanning ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Scanning…</>
+                  ) : (
+                    <><Fingerprint className="h-4 w-4" /> Scan Fingerprint</>
+                  )}
+                </button>
               </div>
 
               <div>
-                <label htmlFor="pidData" className="text-sm font-bold text-slate-700">
-                  Biometric Data (pidData)
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label htmlFor="pidData" className="text-xs font-semibold text-slate-700">
+                    PID XML Data <span className="text-red-500">*</span>
+                  </label>
+                  {pidData && (
+                    <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                      <Check className="h-3 w-3" /> Data Captured
+                    </span>
+                  )}
+                </div>
                 <textarea
                   id="pidData"
                   value={pidData}
                   onChange={(e) => setPidData(e.target.value)}
-                  placeholder="Paste the XML pidData from your biometric device"
-                  rows={6}
-                  className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10"
+                  placeholder="Click 'Scan Fingerprint' above or paste XML pidData here"
+                  rows={5}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-800 outline-none transition focus:border-[#7c3aed] focus:ring-2 focus:ring-[#7c3aed]/10"
                 />
               </div>
-
-              <button
-                type="button"
-                onClick={handleEkyc}
-                disabled={doingEkyc || !pidData.trim()}
-                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
-              >
-                {doingEkyc ? (
-                  <><Loader2 className="h-5 w-5 animate-spin" /> Processing eKYC…</>
-                ) : (
-                  <><ShieldCheck className="h-5 w-5" /> Complete eKYC</>
-                )}
-              </button>
             </div>
+
+            <button
+              type="button"
+              onClick={handleEkyc}
+              disabled={doingEkyc || !pidData.trim() || !isOtpVerified}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] disabled:opacity-50"
+            >
+              {doingEkyc ? (
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Submitting eKYC…</>
+              ) : (
+                  <><ShieldCheck className="h-5 w-5" /> Complete eKYC & Activate Payment</>
+              )}
+            </button>
+          </div>
           )}
 
           {/* ══════════════════════════════════════════════════════════
@@ -575,6 +749,30 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           ══════════════════════════════════════════════════════════ */}
           {screen === "PAYMENT" && (
             <div className="space-y-6">
+              {/* Check if eKYC is completed */}
+              {!isEkycCompleted && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                      <h4 className="text-xs font-bold text-amber-900">
+                        Biometric eKYC Pending
+                      </h4>
+                      <p className="mt-0.5 text-xs text-amber-700">
+                        You must complete biometric eKYC verification before accepting UPI Cashpoint payments.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setScreen(isOtpVerified ? "EKYC" : "VERIFY_OTP")}
+                        className="mt-2 text-xs font-bold text-[#7c3aed] hover:underline"
+                      >
+                        {isOtpVerified ? "Complete eKYC Now →" : "Verify OTP & Complete eKYC →"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f3e8ff]">
                   <QrCode className="h-5 w-5 text-[#7c3aed]" />
@@ -604,9 +802,9 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                     onChange={(e) => {
                       if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value);
                     }}
-                    disabled={showQr || isLoading}
+                    disabled={showQr || isLoading || !isEkycCompleted}
                     placeholder="Enter cash amount"
-                    className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400"
+                    className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -616,7 +814,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={handleGenerateQr}
-                  disabled={!isValidAmount || isLoading}
+                  disabled={!isValidAmount || isLoading || !isEkycCompleted}
                   className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#6d28d9] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 >
                   {isLoading ? (
@@ -780,12 +978,12 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
   );
 };
 
-// ── Small receipt row helper ──────────────────────────────────────────────────
-const Row = ({ label, value }: { label: string; value: string }) => (
+  // ── Small receipt row helper ──────────────────────────────────────────────────
+  const Row = ({label, value}: {label: string; value: string }) => (
   <div className="flex justify-between border-b border-slate-100 py-2 text-xs">
     <span className="text-slate-500">{label}</span>
     <span className="font-semibold text-slate-900">{value}</span>
   </div>
-);
+  );
 
-export default UpiCashPoint;
+  export default UpiCashPoint;
