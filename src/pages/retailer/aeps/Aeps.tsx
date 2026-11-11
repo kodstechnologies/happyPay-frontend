@@ -413,12 +413,14 @@ const Aeps = () => {
     Boolean(bioKycError && (
       bioKycError.toLowerCase().includes("activation is pending") ||
       bioKycError.toLowerCase().includes("pending at the bank") ||
-      bioKycError.toLowerCase().includes("pending from the bank")
+      bioKycError.toLowerCase().includes("pending from the bank") ||
+      bioKycError.toLowerCase().includes("aeps activation pending")
     )) ||
     Boolean(ekycPrompt?.message && (
       ekycPrompt.message.toLowerCase().includes("activation is pending") ||
       ekycPrompt.message.toLowerCase().includes("pending at the bank") ||
-      ekycPrompt.message.toLowerCase().includes("pending from the bank")
+      ekycPrompt.message.toLowerCase().includes("pending from the bank") ||
+      ekycPrompt.message.toLowerCase().includes("aeps activation pending")
     ));
 
   const token = getToken();
@@ -532,7 +534,17 @@ const Aeps = () => {
           (statusData as Record<string, unknown>)?.msg as string ||
           (statusData as Record<string, unknown>)?.message as string ||
           "eKYC verification failed at bank gateway";
-        setBioKycError(errorMsg);
+
+        // If the error contains "aeps activation pending", use a more user-friendly message
+        const lowerErrorMsg = errorMsg.toLowerCase();
+        if (lowerErrorMsg.includes("aeps activation pending") ||
+            lowerErrorMsg.includes("activation is pending") ||
+            lowerErrorMsg.includes("pending at the bank") ||
+            lowerErrorMsg.includes("pending from the bank")) {
+          setBioKycError("AEPS activation is pending from the bank.");
+        } else {
+          setBioKycError(errorMsg);
+        }
       }
 
       const isCompleted =
