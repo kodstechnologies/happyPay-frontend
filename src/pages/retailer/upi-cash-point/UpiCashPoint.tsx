@@ -21,6 +21,7 @@ import {
   merchantRegistrationSendOtpApi,
   merchantRegistrationVerifyApi,
   merchantEkycApi,
+  sellerOnboardingApi,
 } from "../../../apis/upiCashpoint.apis";
 import { rdService } from "../../../utils/rdService";
 import { useAuth } from "../../../context/AuthContext";
@@ -33,25 +34,27 @@ interface UpiCashPointProps {
 
 /**
  * Screens within the UPI Cashpoint flow — strictly in order:
- *   REGISTER → SEND_OTP → VERIFY_OTP → EKYC → PAYMENT → RECEIPT
+ *   REGISTER → SEND_OTP → VERIFY_OTP → EKYC → SELLER_ONBOARDING → PAYMENT → RECEIPT
  */
 type Screen =
-  | "REGISTER"    // Step 1 – trigger merchant registration
-  | "SEND_OTP"    // Step 2 – send OTP to the merchant's mobile
-  | "VERIFY_OTP"  // Step 3 – enter & verify OTP (must be "msg": "OTP VERIFIED.")
-  | "EKYC"        // Step 4 – complete biometric eKYC with pidData
-  | "PAYMENT"     // Step 5 – amount entry + QR generation (only after eKYC)
-  | "RECEIPT";    // Step 6 – success receipt
+  | "REGISTER"           // Step 1 – trigger merchant registration
+  | "SEND_OTP"           // Step 2 – send OTP to the merchant's mobile
+  | "VERIFY_OTP"         // Step 3 – enter & verify OTP
+  | "EKYC"               // Step 4 – complete biometric eKYC with pidData
+  | "SELLER_ONBOARDING"  // Step 5 – seller onboarding after eKYC
+  | "PAYMENT"            // Step 6 – amount entry + QR generation
+  | "RECEIPT";           // Step 7 – success receipt
 
 const MERCHANT_ID_KEY = "upiCashpoint_merchantId";
 
 // ─── Step progress config ─────────────────────────────────────────────────────
 
 const ONBOARDING_STEPS: { key: Screen; label: string }[] = [
-  { key: "REGISTER", label: "Register" },
-  { key: "SEND_OTP", label: "Send OTP" },
-  { key: "VERIFY_OTP", label: "Verify OTP" },
-  { key: "EKYC", label: "eKYC" },
+  { key: "REGISTER",          label: "Register" },
+  { key: "SEND_OTP",          label: "Send OTP" },
+  { key: "VERIFY_OTP",        label: "Verify OTP" },
+  { key: "EKYC",              label: "eKYC" },
+  { key: "SELLER_ONBOARDING", label: "Onboarding" },
 ];
 
 const ONBOARDING_SCREEN_SET = new Set<Screen>(
@@ -89,12 +92,27 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     return false;
   });
 
+  // Seller onboarding completed state
+  const [isSellerOnboarded, setIsSellerOnboarded] = useState<boolean>(() => {
+    if (isServerEkycCompleted) return true; // if server says eKYC done, onboarding is done too
+    if (resolvedMerchantId) {
+      return sessionStorage.getItem(`upiCashpoint_sellerOnboarded_${resolvedMerchantId}`) === "true";
+    }
+    return false;
+  });
+
+  // Seller onboarding loading
+  const [doingOnboarding, setDoingOnboarding] = useState(false);
+
   // Calculate starting screen based on actual verification progress
   const getInitialScreen = (): Screen => {
-    if (isServerEkycCompleted || (resolvedMerchantId && sessionStorage.getItem(`upiCashpoint_ekycCompleted_${resolvedMerchantId}`) === "true")) {
+    if (isServerEkycCompleted || (resolvedMerchantId && sessionStorage.getItem(`upiCashpoint_sellerOnboarded_${resolvedMerchantId}`) === "true")) {
       return "PAYMENT";
     }
     if (resolvedMerchantId) {
+      if (sessionStorage.getItem(`upiCashpoint_ekycCompleted_${resolvedMerchantId}`) === "true") {
+        return "SELLER_ONBOARDING";
+      }
       if (sessionStorage.getItem(`upiCashpoint_otpVerified_${resolvedMerchantId}`) === "true") {
         return "EKYC";
       }
@@ -172,7 +190,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     setTimeLeft(180);
     setOtp("");
     setPidData("");
-    setScreen(isEkycCompleted ? "PAYMENT" : isOtpVerified ? "EKYC" : merchantId ? "SEND_OTP" : "REGISTER");
+    setScreen(isSellerOnboarded ? "PAYMENT" : isEkycCompleted ? "SELLER_ONBOARDING" : isOtpVerified ? "EKYC" : merchantId ? "SEND_OTP" : "REGISTER");
   };
 
   // ── Step 1 – Merchant Registration ───────────────────────────────────────
@@ -352,8 +370,8 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
       sessionStorage.setItem(`upiCashpoint_ekycCompleted_${merchantId}`, "true");
       showToast("success", resMsg || "Merchant eKYC completed successfully!");
 
-      // ✅ Proceed to Step 5: PAYMENT (Allowed ONLY after eKYC is completed!)
-      setScreen("PAYMENT");
+      // ✅ Proceed to Step 5: SELLER ONBOARDING (after eKYC)
+      setScreen("SELLER_ONBOARDING");
     } catch (err) {
       showToast("error", err, "eKYC verification failed. Please try again.");
     } finally {
@@ -361,13 +379,62 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     }
   };
 
-  // ── Step 5 – Generate QR / Initiate Payment ───────────────────────────────
+  // ── Step 5 – Seller Onboarding ───────────────────────────────────────────
+
+  const handleSellerOnboarding = async () => {
+    if (!isEkycCompleted) {
+      showToast("error", "eKYC must be completed before seller onboarding.");
+      setScreen("EKYC");
+      return;
+    }
+    if (!merchantId) {
+      showToast("error", "Merchant ID not found. Please register first.");
+      setScreen("REGISTER");
+      return;
+    }
+
+    setDoingOnboarding(true);
+    try {
+      const coords = await getGeolocationCoordinates();
+
+      const res = await sellerOnboardingApi({
+        merchantId,
+        osVersion:         navigator.userAgent.slice(0, 50),
+        osType:            /Android/i.test(navigator.userAgent) ? "Android" : /iPhone|iPad/i.test(navigator.userAgent) ? "iOS" : "Web",
+        appVersion:        "1.0.0",
+        deviceFingerprint: `${navigator.userAgent}_${Date.now()}`,
+        ipaddress:         "0.0.0.0",   // server resolves real IP from request
+        latitude:          String(coords.latitude),
+        longitude:         String(coords.longitude),
+      });
+
+      const resMsg = String(res.data?.msg || res.data?.message || res.message || "").trim();
+      const statusUpper = String(res.data?.status || "").toUpperCase();
+
+      if (res.success === false || statusUpper === "ERROR" || statusUpper === "FAILED") {
+        throw new Error(resMsg || "Seller onboarding failed. Please try again.");
+      }
+
+      setIsSellerOnboarded(true);
+      sessionStorage.setItem(`upiCashpoint_sellerOnboarded_${merchantId}`, "true");
+      showToast("success", resMsg || "Seller onboarding completed! You can now accept payments.");
+
+      // ✅ Proceed to Step 6: PAYMENT
+      setScreen("PAYMENT");
+    } catch (err) {
+      showToast("error", err, "Seller onboarding failed. Please try again.");
+    } finally {
+      setDoingOnboarding(false);
+    }
+  };
+
+  // ── Step 6 – Generate QR / Initiate Payment ───────────────────────────────
 
   const handleGenerateQr = async () => {
-    // ENFORCE: Before eKYC completion you do NOT initiate payment!
-    if (!isEkycCompleted) {
-      showToast("error", "Merchant eKYC must be completed before initiating payments.");
-      setScreen("EKYC");
+    // ENFORCE: Before seller onboarding completion you do NOT initiate payment!
+    if (!isSellerOnboarded) {
+      showToast("error", "Seller onboarding must be completed before initiating payments.");
+      setScreen(isEkycCompleted ? "SELLER_ONBOARDING" : "EKYC");
       return;
     }
 
@@ -745,28 +812,84 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: PAYMENT  (Step 5 — amount entry + QR)
+              SCREEN: SELLER ONBOARDING  (Step 5)
+          ══════════════════════════════════════════════════════════ */}
+          {screen === "SELLER_ONBOARDING" && (
+            <div className="space-y-6 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#f3e8ff]">
+                <SmartphoneNfc className="h-8 w-8 text-[#7c3aed]" />
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-slate-900">
+                  Seller Onboarding
+                </h2>
+                <p className="mt-2 text-sm text-slate-500">
+                  eKYC verified! One final step — register your device with the payment network to activate UPI Cashpoint.
+                </p>
+              </div>
+
+              {/* Status pills */}
+              <div className="space-y-2 text-left">
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span className="font-semibold">OTP Status:</span>
+                  <span className="font-bold text-emerald-700">VERIFIED</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span className="font-semibold">eKYC Status:</span>
+                  <span className="font-bold text-emerald-700">COMPLETED</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#e9d5ff] bg-[#faf5ff] p-4 text-left">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#7c3aed]" />
+                  <p className="text-xs leading-5 text-slate-600">
+                    Your device information will be securely sent to the payment network to finalise merchant activation.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSellerOnboarding}
+                disabled={doingOnboarding}
+                className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#6d28d9] hover:shadow-lg disabled:opacity-50"
+              >
+                {doingOnboarding ? (
+                  <><Loader2 className="h-5 w-5 animate-spin" /> Activating…</>
+                ) : (
+                  <><SmartphoneNfc className="h-5 w-5" /> Complete Seller Onboarding</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* ══════════════════════════════════════════════════════════
+              SCREEN: PAYMENT  (Step 6 — amount entry + QR)
           ══════════════════════════════════════════════════════════ */}
           {screen === "PAYMENT" && (
             <div className="space-y-6">
-              {/* Check if eKYC is completed */}
-              {!isEkycCompleted && (
+              {/* Check if seller onboarding is completed */}
+              {!isSellerOnboarded && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <div className="flex items-start gap-3">
                     <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
                     <div>
                       <h4 className="text-xs font-bold text-amber-900">
-                        Biometric eKYC Pending
+                        Seller Onboarding Pending
                       </h4>
                       <p className="mt-0.5 text-xs text-amber-700">
-                        You must complete biometric eKYC verification before accepting UPI Cashpoint payments.
+                        You must complete seller onboarding before accepting UPI Cashpoint payments.
                       </p>
                       <button
                         type="button"
-                        onClick={() => setScreen(isOtpVerified ? "EKYC" : "VERIFY_OTP")}
+                        onClick={() => setScreen(isEkycCompleted ? "SELLER_ONBOARDING" : isOtpVerified ? "EKYC" : "VERIFY_OTP")}
                         className="mt-2 text-xs font-bold text-[#7c3aed] hover:underline"
                       >
-                        {isOtpVerified ? "Complete eKYC Now →" : "Verify OTP & Complete eKYC →"}
+                        {isEkycCompleted ? "Complete Onboarding →" : isOtpVerified ? "Complete eKYC →" : "Verify OTP →"}
                       </button>
                     </div>
                   </div>
@@ -802,7 +925,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                     onChange={(e) => {
                       if (/^\d*\.?\d{0,2}$/.test(e.target.value)) setAmount(e.target.value);
                     }}
-                    disabled={showQr || isLoading || !isEkycCompleted}
+                    disabled={showQr || isLoading || !isSellerOnboarded}
                     placeholder="Enter cash amount"
                     className="min-w-0 flex-1 bg-transparent text-lg font-semibold text-slate-900 outline-none placeholder:font-normal placeholder:text-slate-400 disabled:opacity-60"
                   />
@@ -814,7 +937,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                 <button
                   type="button"
                   onClick={handleGenerateQr}
-                  disabled={!isValidAmount || isLoading || !isEkycCompleted}
+                  disabled={!isValidAmount || isLoading || !isSellerOnboarded}
                   className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl bg-[#7c3aed] text-lg font-bold text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#6d28d9] hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 disabled:hover:shadow-none"
                 >
                   {isLoading ? (
@@ -913,7 +1036,7 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
           )}
 
           {/* ══════════════════════════════════════════════════════════
-              SCREEN: RECEIPT  (Step 6)
+              SCREEN: RECEIPT  (Step 7)
           ══════════════════════════════════════════════════════════ */}
           {screen === "RECEIPT" && (
             <div className="animate-in fade-in zoom-in-95 space-y-5 duration-300">

@@ -374,7 +374,7 @@ export interface CashWithdrawalPayload extends AepsServicePayload {
 
 export interface SendAepsOtpPayload {
   outlet_id: string;
-  referenceKey:string;
+  referenceKey: string;
   latitude: string;
   longitude: string;
   aadhaar: string;

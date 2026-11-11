@@ -406,7 +406,7 @@ const Aeps = () => {
   const isBankRegistrationRequired =
     !isBankRegistrationCompleted &&
     (Boolean(bioKycError && bioKycError.toLowerCase().includes("outlet not yet registered with bank")) ||
-     Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
+      Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
 
   // Check if the error is about pending activation at the bank - in this case, show "Do Bio KYC" button
   const isBankActivationPending =
@@ -450,6 +450,16 @@ const Aeps = () => {
     authUserAepsOutletId ||
     tokenOutletId
   );
+
+  /*
+   * Step 0 = Retailer 2FA
+   * Step 1 = Mobile Number
+   * Step 2 = Aadhaar Number
+   * Step 3 = Bank Selection
+   * Step 4 = Review
+   * Step 5 = Services (Cash Withdrawal, Balance Enquiry)
+   */
+  const [step, setStep] = useState<Step>(0);
 
   // Helper to resolve effective outletId across state, props, token, and prompt
   const getEffectiveOutletId = useCallback(
@@ -523,6 +533,14 @@ const Aeps = () => {
           (statusData as Record<string, unknown>)?.message as string ||
           "eKYC verification failed at bank gateway";
         setBioKycError(errorMsg);
+
+        // If error indicates pending activation at bank, reset to step 0
+        const errorMsgLower = String(errorMsg).toLowerCase();
+        if (errorMsgLower.includes("activation is pending") ||
+          errorMsgLower.includes("pending at the bank") ||
+          errorMsgLower.includes("pending from the bank")) {
+          setStep(0);
+        }
       }
 
       const isCompleted =
@@ -570,16 +588,6 @@ const Aeps = () => {
     hasCheckedKycRef.current = true;
     void checkKycStatus();
   }, [isAuthLoading, isBioKycDone, isOnboarded, checkKycStatus]);
-
-  /*
-   * Step 0 = Retailer 2FA
-   * Step 1 = Mobile Number
-   * Step 2 = Aadhaar Number
-   * Step 3 = Bank Selection
-   * Step 4 = Review
-   * Step 5 = Services (Cash Withdrawal, Balance Enquiry)
-   */
-  const [step, setStep] = useState<Step>(0);
 
   // Re-verify and request location permission on first entering AePS if not yet cached
   useEffect(() => {
@@ -2210,7 +2218,8 @@ const Aeps = () => {
         const pendingMessage = response?.data?.message || response?.message || "Your AePS activation is pending at the bank. Please try again later.";
         setBioKycError(pendingMessage);
         setBioKycCompletedLocally(false); // Ensure banner stays visible
-        
+        setStep(0); // Reset to step 0 to show the "Do Bio KYC" banner
+
         if (refreshUser) {
           await refreshUser();
         }
@@ -2442,8 +2451,8 @@ const Aeps = () => {
                     {isBankRegistrationRequired
                       ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
                       : isBioKycPending || isBankActivationPending
-                      ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
-                      : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
+                        ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
+                        : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
                   </p>
                   {bioKycError && (
                     <p className="mt-2 text-xs font-semibold text-red-600 flex items-center gap-1.5">
@@ -2835,10 +2844,10 @@ const Aeps = () => {
 
   const filteredBanks = bankSearchTerm
     ? availableBanks.filter(
-        (b) =>
-          b.name.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
-          (b.iin && b.iin.includes(bankSearchTerm.trim()))
-      )
+      (b) =>
+        b.name.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+        (b.iin && b.iin.includes(bankSearchTerm.trim()))
+    )
     : availableBanks;
 
   const isCustomerFormValid =
@@ -3052,13 +3061,12 @@ const Aeps = () => {
                 }
                 setIsBankDropdownOpen(!isBankDropdownOpen);
               }}
-              className={`flex h-12 w-full cursor-pointer items-center gap-3 rounded-xl border bg-white px-3.5 py-2 text-sm transition focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-500/15 ${
-                isBankDropdownOpen
-                  ? "border-purple-600 ring-2 ring-purple-500/15"
-                  : selectedBank
+              className={`flex h-12 w-full cursor-pointer items-center gap-3 rounded-xl border bg-white px-3.5 py-2 text-sm transition focus-within:border-purple-600 focus-within:ring-2 focus-within:ring-purple-500/15 ${isBankDropdownOpen
+                ? "border-purple-600 ring-2 ring-purple-500/15"
+                : selectedBank
                   ? "border-purple-600 font-semibold text-slate-900"
                   : "border-slate-200 text-slate-400"
-              }`}
+                }`}
             >
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-purple-50 text-purple-700">
                 <Building2 className="h-4 w-4" />
@@ -3085,9 +3093,8 @@ const Aeps = () => {
               )}
 
               <ChevronDown
-                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${
-                  isBankDropdownOpen ? "rotate-180 text-purple-600" : ""
-                }`}
+                className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-200 ${isBankDropdownOpen ? "rotate-180 text-purple-600" : ""
+                  }`}
               />
             </div>
 
@@ -3127,17 +3134,15 @@ const Aeps = () => {
                         key={bank.iin || bank.id || bank.bank_id || bank.name}
                         type="button"
                         onClick={() => handleBankSelect(bank)}
-                        className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs sm:text-sm transition ${
-                          isCurrentSelected
-                            ? "bg-purple-50 text-purple-700 font-bold"
-                            : "text-slate-700 hover:bg-purple-50/50 hover:text-purple-700 font-medium"
-                        }`}
+                        className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs sm:text-sm transition ${isCurrentSelected
+                          ? "bg-purple-50 text-purple-700 font-bold"
+                          : "text-slate-700 hover:bg-purple-50/50 hover:text-purple-700 font-medium"
+                          }`}
                       >
                         <div className="flex items-center gap-2.5 truncate">
                           <Building2
-                            className={`h-4 w-4 shrink-0 ${
-                              isCurrentSelected ? "text-purple-600" : "text-slate-400"
-                            }`}
+                            className={`h-4 w-4 shrink-0 ${isCurrentSelected ? "text-purple-600" : "text-slate-400"
+                              }`}
                           />
                           <span className="truncate">{bank.name}</span>
                         </div>

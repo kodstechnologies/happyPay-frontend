@@ -232,10 +232,55 @@ export const merchantEkycApi = async (
   return response.data;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SELLER ONBOARDING
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SellerOnboardingPayload {
+  merchantId: string | number;
+  osVersion: string;
+  osType: string;
+  appVersion: string;
+  deviceFingerprint: string;
+  ipaddress: string;
+  latitude: string | number;
+  longitude: string | number;
+}
+
+export interface SellerOnboardingResponseData {
+  status?: boolean | string | number;
+  message?: string;
+  msg?: string;
+  [key: string]: unknown;
+}
+
+export interface SellerOnboardingApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: SellerOnboardingResponseData;
+}
+
+/**
+ * Seller onboarding — called after successful eKYC.
+ *
+ * POST /api/v1/upi-cashpoint/seller-onboarding
+ */
+export const sellerOnboardingApi = async (
+  payload: SellerOnboardingPayload
+): Promise<SellerOnboardingApiResponse> => {
+  const response = await api.post<SellerOnboardingApiResponse>(
+    "/api/v1/upi-cashpoint/seller-onboarding",
+    payload
+  );
+  return response.data;
+};
+
 export default {
   initiateUpiCashpointPaymentApi,
   merchantRegisterApi,
   merchantRegistrationSendOtpApi,
   merchantRegistrationVerifyApi,
   merchantEkycApi,
+  sellerOnboardingApi,
 };
