@@ -218,26 +218,16 @@ export interface MerchantEkycApiResponse {
 
 /**
  * Complete merchant eKYC with biometric data.
- * Call this after successful merchant registration and before OTP verification.
+ * The backend receives JSON and forwards to the provider as multipart/form-data.
  *
  * POST /api/v1/upi-cashpoint/ekyc
- * Sends data as multipart/form-data
  */
 export const merchantEkycApi = async (
   payload: MerchantEkycPayload
 ): Promise<MerchantEkycApiResponse> => {
-  const formData = new FormData();
-  formData.append('merchantId', String(payload.merchantId));
-  formData.append('pidData', payload.pidData);
-
   const response = await api.post<MerchantEkycApiResponse>(
     "/api/v1/upi-cashpoint/ekyc",
-    formData,
-    {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    }
+    payload
   );
   return response.data;
 };
