@@ -533,14 +533,6 @@ const Aeps = () => {
           (statusData as Record<string, unknown>)?.message as string ||
           "eKYC verification failed at bank gateway";
         setBioKycError(errorMsg);
-
-        // If error indicates pending activation at bank, reset to step 0
-        const errorMsgLower = String(errorMsg).toLowerCase();
-        if (errorMsgLower.includes("activation is pending") ||
-          errorMsgLower.includes("pending at the bank") ||
-          errorMsgLower.includes("pending from the bank")) {
-          setStep(0);
-        }
       }
 
       const isCompleted =
@@ -2212,19 +2204,6 @@ const Aeps = () => {
       });
 
       console.log("[AePS] doBioEkyc response:", response);
-
-      // Check if backend returned PENDING status (bank activation pending)
-      if (response?.data?.eKYCStatus === "PENDING") {
-        const pendingMessage = response?.data?.message || response?.message || "Your AePS activation is pending at the bank. Please try again later.";
-        setBioKycError(pendingMessage);
-        setBioKycCompletedLocally(false); // Ensure banner stays visible
-        setStep(0); // Reset to step 0 to show the "Do Bio KYC" banner
-
-        if (refreshUser) {
-          await refreshUser();
-        }
-        return;
-      }
 
       setBioKycSuccess("Biometric eKYC completed successfully!");
       setBioKycCompletedLocally(true);
