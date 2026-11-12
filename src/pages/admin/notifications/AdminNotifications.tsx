@@ -183,6 +183,16 @@ export default function AdminNotifications() {
                           {notification.title}
                         </h3>
                         <p className="mt-1 text-sm text-slate-500">{notification.body}</p>
+                        {notification.imageUrl && (
+                          <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
+                            <img
+                              src={notification.imageUrl}
+                              alt="Notification image"
+                              className="h-auto w-full max-w-sm object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+                        )}
                         <p className="mt-2 text-xs font-semibold text-slate-400">{formatTime(notification.createdAt)}</p>
                       </div>
                       {!notification.isRead && (

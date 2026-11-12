@@ -403,6 +403,18 @@ export default function RetailerNotifications() {
                       {notification.body}
                     </p>
 
+                    {/* NOTIFICATION IMAGE */}
+                    {notification.imageUrl && (
+                      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                        <img
+                          src={notification.imageUrl}
+                          alt="Notification image"
+                          className="h-auto w-full max-w-sm object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
                     {/* ACTION LINKS & ACTIONS */}
                     <div className="mt-2.5 flex items-center justify-between gap-2">
                       {/* {notification.data?.screen ? (

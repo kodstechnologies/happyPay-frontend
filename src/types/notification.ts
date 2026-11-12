@@ -13,6 +13,7 @@ export type NotificationType =
   | "MAINTENANCE"
   | "REGISTRATION_SUCCESS"
   | "NEW_RETAILER_REGISTRATION"
+  | "CUSTOM_NOTIFICATION"
   | string;
 
 export interface NotificationItem {
@@ -22,6 +23,7 @@ export interface NotificationItem {
   type: NotificationType;
   title: string;
   body: string;
+  imageUrl?: string | null;
   data?: Record<string, unknown>;
   isRead: boolean;
   readAt?: string | Date | null;

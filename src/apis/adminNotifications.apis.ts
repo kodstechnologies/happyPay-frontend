@@ -27,3 +27,14 @@ export function markNotificationAsRead(notificationId: string) {
 export function markAllNotificationsAsRead() {
   return api.patch<Envelope<{ modifiedCount: number }>>("/api/v1/auth/admin/notifications/read-all").then(unwrap);
 }
+
+export function sendCustomNotification(payload: {
+  retailerId: string | "ALL";
+  title: string;
+  body: string;
+  imageUrl?: string;
+}): Promise<unknown>;
+export function sendCustomNotification(formData: FormData): Promise<unknown>;
+export function sendCustomNotification(payload: FormData | Record<string, unknown>): Promise<unknown> {
+  return api.post<Envelope<unknown>>("/api/v1/notifications/custom", payload).then(unwrap);
+}

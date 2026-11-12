@@ -230,7 +230,7 @@ const AccountStep = ({
         distributorId,
       });
 
-      const id = res.data.user._id;
+      const id = res.data.user.id || res.data.user._id;
       setUserId(id);
       setOtpVerified(true);
       showToast("success", res.message || "OTP verified successfully!");

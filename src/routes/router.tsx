@@ -55,6 +55,7 @@ import AdminPlanManagement from "../pages/admin/plan-management/AdminPlanManagem
 import CreatePlan from "../pages/admin/plan-management/CreatePlan";
 import EditPlan from "../pages/admin/plan-management/EditPlan";
 import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
+import SendNotification from "../pages/admin/send-notification/SendNotification";
 
 import Fingerprint from "../pages/dev/fingerPrint";
 
@@ -108,6 +109,7 @@ const Router: RouteObject[] = [
           { path: "support", element: <AdminSupport /> },
           { path: "audit-logs", element: <AdminAuditLogs /> },
           { path: "notifications", element: <AdminNotifications /> },
+          { path: "send-notification", element: <SendNotification /> },
           { path: "plan-management", element: <AdminPlanManagement /> },
           { path: "plan-management/create", element: <CreatePlan /> },
           { path: "plan-management/view/:id", element: <ViewPlanDetails /> },
