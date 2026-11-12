@@ -39,6 +39,7 @@ export interface SendOtpResult {
 }
 
 export interface RegisterUser {
+  id?: string;
   _id: string;
   registrationStatus: string;
   currentRegistrationStep: string;
