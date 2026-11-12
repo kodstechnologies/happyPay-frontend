@@ -464,7 +464,11 @@ const ShopDetailsStep = ({
 
     setSendingEmailOtp(true);
     try {
-      const res = await sendRetailerEmailOtp({ userId, email: email.trim() });
+      const payload: { userId?: string; email: string } = { email: email.trim() };
+      if (userId) {
+        payload.userId = userId;
+      }
+      const res = await sendRetailerEmailOtp(payload);
       setEmailOtpSent(true);
       showToast("success", res?.message || "OTP sent to your email!");
     } catch (err: unknown) {
@@ -501,11 +505,14 @@ const ShopDetailsStep = ({
 
     setVerifyingEmailOtp(true);
     try {
-      const res = await verifyRetailerEmailOtp({
-        userId,
+      const payload: { userId?: string; email: string; otp: string } = {
         email: email.trim(),
         otp: emailOtp.trim(),
-      });
+      };
+      if (userId) {
+        payload.userId = userId;
+      }
+      const res = await verifyRetailerEmailOtp(payload);
       setEmailVerified(true);
       setEmailOtpError("");
       showToast("success", res?.message || "Email verified successfully");

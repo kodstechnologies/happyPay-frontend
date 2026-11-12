@@ -199,7 +199,7 @@ export interface CurrentRegistrationStepResult {
 
 
 export function sendRetailerEmailOtp(payload: {
-  userId: string;
+  userId?: string;
   email: string;
 }) {
   return api.patch<ApiEnvelope<SendEmailOtpResult>>("/api/v1/email-otp/send", payload).then(unwrap);
@@ -208,7 +208,7 @@ export function sendRetailerEmailOtp(payload: {
 
 
 export function verifyRetailerEmailOtp(payload: {
-  userId: string;
+  userId?: string;
   email: string;
   otp: string;
 }) {
