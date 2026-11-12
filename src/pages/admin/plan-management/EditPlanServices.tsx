@@ -35,15 +35,17 @@ const SERVICE_CONFIG = {
   "DMT": [],
   "CMS": [],
   "UPI CASH POINT": [],
-  "ADHAR PAY": []
+  "ADHAR PAY": [],
+  "PAYOUT": ["transfer to bank"]
 };
 
-const AVAILABLE_SERVICES = ["AEPS", "DMT", "BBPS", "CMS", "UPI CASH POINT", "ADHAR PAY"];
+const AVAILABLE_SERVICES = ["AEPS", "DMT", "BBPS", "CMS", "UPI CASH POINT", "ADHAR PAY", "PAYOUT"];
 
 interface PricingSlabCardProps {
   slab: PricingSlab;
   slabIndex: number;
   calculationType: "FIXED" | "PERCENTAGE";
+  serviceName?: string;
   onUpdate: (field: keyof PricingSlab, value: number | string | null) => void;
   onRemove: () => void;
 }
@@ -52,6 +54,7 @@ const PricingSlabCard = ({
   slab,
   slabIndex,
   calculationType,
+  serviceName,
   onUpdate,
   onRemove,
 }: PricingSlabCardProps) => {
@@ -93,6 +96,9 @@ const PricingSlabCard = ({
     (slab.retailerAmount !== undefined && slab.retailerAmount !== null && String(slab.retailerAmount) !== "") ||
     (slab.distributorAmount !== undefined && slab.distributorAmount !== null && String(slab.distributorAmount) !== "") ||
     (slab.adminAmount !== undefined && slab.adminAmount !== null && String(slab.adminAmount) !== "");
+
+  // Use "Commission" for AEPS, otherwise "Charge"
+  const chargeLabel = serviceName === "AEPS" ? "Commission" : "Charge";
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 shadow-sm transition-all hover:border-blue-200">
@@ -176,10 +182,10 @@ const PricingSlabCard = ({
         </div>
       </div>
 
-      {/* Charge Amount */}
+      {/* Charge/Commission Amount */}
       <div className="mt-3">
         <label className="mb-1 block text-xs font-medium text-gray-700">
-          Charge ({unitSymbol})
+          {chargeLabel} ({unitSymbol})
         </label>
         <div className="flex rounded-lg shadow-2xs">
           <span className="inline-flex items-center px-2.5 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-600 text-xs font-semibold">
@@ -197,7 +203,7 @@ const PricingSlabCard = ({
               )
             }
             className="w-full rounded-r-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-            placeholder={`Enter charge in ${unitSymbol}`}
+            placeholder={`Enter ${chargeLabel.toLowerCase()} in ${unitSymbol}`}
           />
         </div>
       </div>
@@ -803,6 +809,7 @@ const EditPlanServices = ({
                                             slab={slab}
                                             slabIndex={slabIndex}
                                             calculationType={pricing.calculationType}
+                                            serviceName={service.serviceName}
                                             onUpdate={(field, value) =>
                                               updateSlabForCategory(
                                                 serviceIndex,
@@ -932,6 +939,7 @@ const EditPlanServices = ({
                                       slab={slab}
                                       slabIndex={slabIndex}
                                       calculationType={pricing.calculationType}
+                                      serviceName={service.serviceName}
                                       onUpdate={(field, value) =>
                                         updateSlab(
                                           serviceIndex,
