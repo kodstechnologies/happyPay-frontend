@@ -52,9 +52,13 @@ import {
   type CashWithdrawalPayload,
   type CashDepositPayload,
   type AepsServicePayload,
+  type VerifyTfaResult,
+  type MiniStatementResult,
+  type Envelope,
   getBankList,
 } from "../../../services/api/retailer/aepsApi";
 import { getRetailerAadhaarAndMobile } from "../../../services/api/retailer/retailerAuthApi";
+import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import {
   ensureConfirmedLocation,
   initAepsLocation,
@@ -1331,16 +1335,36 @@ const Aeps = () => {
         ts: pidData.ts || new Date().toISOString(),
       };
 
-      const result = await verifyTfa(payload);
+      const result: Envelope<VerifyTfaResult> = await verifyTfa(payload);
 
       console.log("verifyTfa response:", result);
 
       setRetailerAuthenticated(true);
       setCapturedPidData("");
       setTfaError("");
-      setTfaStatusMessage(
-        "TFA verified successfully."
-      );
+
+      // Display wallet balance if available in response, otherwise fetch it
+      if (result?.data?.wallet) {
+        const wallet = result.data.wallet;
+        const balance = wallet.availableBalance || wallet.balance || 0;
+        setTfaStatusMessage(
+          `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
+        );
+      } else {
+        // Fallback: fetch wallet balance separately
+        try {
+          const walletResponse = await getWalletBalanceApi();
+          const balance = walletResponse.data.availableBalance || walletResponse.data.balance || 0;
+          setTfaStatusMessage(
+            `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
+          );
+        } catch (walletError) {
+          console.error("Failed to fetch wallet balance:", walletError);
+          setTfaStatusMessage(
+            "TFA verified successfully."
+          );
+        }
+      }
     } catch (error: unknown) {
       console.error(
         "Retailer 2FA verification failed:",
@@ -1610,7 +1634,7 @@ const Aeps = () => {
         try {
           const payload = await prepareAepsPayload(pidData);
           console.log("Mini statement payload:", payload);
-          const result = await miniStatement(payload);
+          const result: Envelope<MiniStatementResult> = await miniStatement(payload);
           console.log("Mini statement result:", result);
 
           const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
@@ -1621,6 +1645,16 @@ const Aeps = () => {
           }
 
           setMiniStatementResult(resultData as MiniStatementData);
+
+          // Display wallet balance if available in response
+          if (result.data?.wallet) {
+            const wallet = result.data.wallet;
+            const balance = wallet.availableBalance || wallet.balance || 0;
+            showToast("success", `Mini statement fetched successfully. Wallet balance: ₹${balance.toFixed(2)}`);
+          } else {
+            showToast("success", "Mini statement fetched successfully");
+          }
+
           setShowMiniStatement(true);
         } catch (error) {
           console.error("Mini statement failed:", error);

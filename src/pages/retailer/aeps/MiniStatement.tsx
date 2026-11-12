@@ -1,7 +1,7 @@
 import { showToast } from "../../../utils/toast";
 import { useState } from "react";
 import { rdService } from "../../../utils/rdService";
-import { miniStatement, parsePidXml } from "../../../services/api/retailer/aepsApi";
+import { miniStatement, parsePidXml, type MiniStatementResult, type Envelope } from "../../../services/api/retailer/aepsApi";
 import { ensureConfirmedLocation } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
 import {
@@ -189,14 +189,22 @@ const MiniStatement = ({
         payload.ts = new Date().toISOString();
       }
 
-      const result = await miniStatement(payload);
+      const result: Envelope<MiniStatementResult> = await miniStatement(payload);
       const resultData = (result.data || {}) as Record<string, unknown>;
 
       const parsedTxns = parseProviderTransactions(resultData);
       setTransactions(parsedTxns);
       setStatementData(resultData as MiniStatementData);
       setShowReceipt(true);
-      showToast("success", "Mini statement fetched successfully!");
+
+      // Display wallet balance if available in response
+      if (result.data?.wallet) {
+        const wallet = result.data.wallet;
+        const balance = wallet.availableBalance || wallet.balance || 0;
+        showToast("success", `Mini statement fetched successfully. Wallet balance: ₹${balance.toFixed(2)}`);
+      } else {
+        showToast("success", "Mini statement fetched successfully!");
+      }
     } catch (err) {
       console.error("Mini statement execution failed:", err);
       const errMsg = err instanceof Error ? err.message : "Failed to fetch mini statement from bank";

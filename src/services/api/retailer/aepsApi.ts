@@ -293,8 +293,47 @@ export function checkAepsLoginStatus(outletId?: string) {
   >("/api/v1/aeps/login-status", { outlet_id: outletId || "" }).then(unwrap);
 }
 
+export interface VerifyTfaResult {
+  provider?: unknown;
+  wallet?: {
+    walletId: string;
+    userId: string;
+    balance: number;
+    holdBalance: number;
+    availableBalance: number;
+    currency: string;
+    status: string;
+  };
+  transaction?: {
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
+export interface MiniStatementResult {
+  wallet?: {
+    walletId: string;
+    userId: string;
+    balance: number;
+    holdBalance: number;
+    availableBalance: number;
+    currency: string;
+    status: string;
+  };
+  transaction?: {
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+}
+
 export function verifyTfa(payload: TfaPayload) {
-  return api.post<Envelope<unknown>>("/api/v1/aeps/verify-tfa", payload).then(unwrap);
+  return api.post<Envelope<VerifyTfaResult>>("/api/v1/aeps/verify-tfa", payload).then(unwrap);
 }
 
 export interface OnboardMerchantResult {
@@ -388,7 +427,7 @@ export function balanceEnquiry(payload: AepsServicePayload) {
 }
 
 export function miniStatement(payload: AepsServicePayload) {
-  return api.post<Envelope<unknown>>("/api/v1/aeps/mini-statement", payload).then(unwrap);
+  return api.post<Envelope<MiniStatementResult>>("/api/v1/aeps/mini-statement", payload).then(unwrap);
 }
 
 export function cashWithdrawal(payload: CashWithdrawalPayload) {
