@@ -37,6 +37,8 @@ export default function EditProfileModal({
   const [activeTab, setActiveTab] = useState<"personal" | "shop">("personal");
 
   // Form states
+  const [firstName, setFirstName] = useState(profile.firstName || "");
+  const [lastName, setLastName] = useState(profile.lastName || "");
   const [fullName, setFullName] = useState(profile.fullName || "");
   const [fatherName, setFatherName] = useState(profile.fatherName || "");
   const [motherName, setMotherName] = useState(profile.motherName || "");
@@ -194,10 +196,10 @@ export default function EditProfileModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
 
-    if (!fullName.trim()) {
-      showToast("error", "Full name is required.");
+
+    if (!firstName.trim()) {
+      showToast("error", "First name is required.");
       return;
     }
 
@@ -205,7 +207,9 @@ export default function EditProfileModal({
       setIsSubmitting(true);
 
       const payload = {
-        fullName: fullName.trim(),
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        fullName: fullName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim(),
         fatherName: fatherName.trim(),
         motherName: motherName.trim(),
         gender,
@@ -280,21 +284,49 @@ export default function EditProfileModal({
       <form id="edit-profile-form" onSubmit={handleSubmit} className="space-y-4">
         {activeTab === "personal" ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                placeholder="Enter full name"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Full Name *
+                  First Name *
                 </label>
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
                   required
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
-                  placeholder="Enter full name"
+                  placeholder="Enter first name"
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Last Name
+                </label>
+                <input
+                  type="text"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  placeholder="Enter last name"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Father's Name

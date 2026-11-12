@@ -48,6 +48,7 @@ export const logout = () => {
   // 3. Clear auth tokens
   localStorage.removeItem("token");
   localStorage.removeItem("role");
+  localStorage.removeItem("userRole");
   clearTokens();
 
   // 4. Clear FCM push notification token
@@ -74,4 +75,4 @@ export const logout = () => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("hp:auth:logout"));
   }
-};
+};

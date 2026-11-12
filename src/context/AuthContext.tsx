@@ -68,6 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await getAuthenticatedRetailer();
       if (res?.data) {
         setUser(res.data);
+        if (res.data?.role?.name) {
+          localStorage.setItem("userRole", res.data.role.name);
+        }
         setIsAuthenticated(true);
         return res.data;
       } else {
@@ -90,6 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUserState(null);
     setIsAuthenticated(false);
     setIsLoading(false);
+    localStorage.removeItem("userRole");
   }, []);
 
   useEffect(() => {
@@ -98,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUserState(null);
       setIsAuthenticated(false);
       setIsLoading(false);
+      localStorage.removeItem("userRole");
     };
 
     window.addEventListener("hp:auth:logout", handleLogoutEvent);
@@ -119,6 +124,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (res?.data) {
           inMemoryAuthUser = res.data;
           setUserState(res.data);
+          if (res.data?.role?.name) {
+            localStorage.setItem("userRole", res.data.role.name);
+          }
           setIsAuthenticated(true);
         } else {
           throw new Error("Invalid response from auth verification endpoint");

@@ -62,6 +62,8 @@ export interface RetailerFullProfile {
   email: string;
   isEmailVerified: boolean;
   fullName: string;
+  firstName: string;
+  lastName: string;
   fatherName?: string;
   motherName?: string;
   gender?: string;
@@ -101,6 +103,8 @@ export interface RetailerFullProfile {
 
 export interface UpdateProfilePayload {
   fullName?: string;
+  firstName?: string;
+  lastName?: string;
   fatherName?: string;
   motherName?: string;
   gender?: string;

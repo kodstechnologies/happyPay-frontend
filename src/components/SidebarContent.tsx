@@ -34,6 +34,7 @@ const SidebarContent = ({
   const navigate = useNavigate();
   const location = useLocation();
   const [settlementOpen, setSettlementOpen] = useState(false);
+  const userRole = localStorage.getItem("userRole") || "retailer";
 
   const goTo = (path: string) => {
     navigate(path);
@@ -89,12 +90,14 @@ const SidebarContent = ({
             onClick={() => goTo("/retailer/wallet")}
           />
 
-          <SidebarItem
-            label="Distributor"
-            icon={<Users />}
-            active={location.pathname.startsWith("/retailer/distributor")}
-            onClick={() => goTo("/retailer/distributor")}
-          />
+          {userRole !== "retailer" && (
+            <SidebarItem
+              label="Distributor"
+              icon={<Users />}
+              active={location.pathname.startsWith("/retailer/distributor")}
+              onClick={() => goTo("/retailer/distributor")}
+            />
+          )}
         </SidebarSection>
 
         {/* SERVICES */}

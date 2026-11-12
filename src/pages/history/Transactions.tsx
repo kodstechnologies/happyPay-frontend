@@ -33,6 +33,7 @@ const SERVICE_OPTIONS = [
   { label: "All Services", value: "ALL" },
   { label: "Settlement", value: "SETTLEMENT" },
   { label: "AEPS", value: "AEPS" },
+  { label: "AEPS 2FA", value: "AEPS_TFA" },
   { label: "DMT", value: "DMT" },
   { label: "BBPS", value: "BBPS" },
   { label: "CMS", value: "CMS" },

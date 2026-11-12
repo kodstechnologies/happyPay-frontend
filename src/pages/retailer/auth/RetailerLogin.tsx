@@ -194,10 +194,13 @@ const RetailerLogin = () => {
         deviceName: navigator.platform || "Web browser",
       });
 
-      const { accessToken, refreshToken, user } = response.data;
+      const { accessToken, refreshToken, user, role } = response.data;
       setTokens(accessToken, refreshToken);
       localStorage.setItem("token", accessToken);
       localStorage.setItem("role", "retailer");
+      if (role?.name) {
+        localStorage.setItem("userRole", role.name);
+      }
       login(user as any);
       setOtpVerified(true);
 

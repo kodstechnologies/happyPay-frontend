@@ -661,6 +661,20 @@ export default function Profile() {
 
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
+                        <span className="text-slate-400 block text-[11px]">First Name</span>
+                        <span className="font-semibold text-slate-800">
+                          {profile.firstName || "—"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">Last Name</span>
+                        <span className="font-semibold text-slate-800">
+                          {profile.lastName || "—"}
+                        </span>
+                      </div>
+
+                      <div>
                         <span className="text-slate-400 block text-[11px]">Full Name</span>
                         <span className="font-semibold text-slate-800">
                           {profile.fullName || "—"}

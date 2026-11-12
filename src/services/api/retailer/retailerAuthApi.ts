@@ -30,6 +30,9 @@ export interface RetailerLoginResult {
   };
   accessToken: string;
   refreshToken: string;
+  role?: {
+    name: string;
+  };
 }
 export interface SendOtpResult {
   message: string;
@@ -652,6 +655,9 @@ export interface RetailerUser {
   status: string;
   isActive: boolean;
   isMpinSet?: boolean;
+  role?: {
+    name: string;
+  };
 }
 
 export function getAuthenticatedRetailer() {
