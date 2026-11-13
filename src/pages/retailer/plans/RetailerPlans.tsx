@@ -15,6 +15,8 @@ import {
   Crown,
   History,
   X,
+  Wallet,
+  Info,
 
 } from "lucide-react";
 import { showToast } from "../../../utils/toast";
@@ -25,6 +27,7 @@ import {
   type Plan,
   type UserSubscription,
 } from "../../../apis/pricingApi";
+import { getWalletBalanceApi, type WalletBalanceData } from "../../../apis/wallet.apis";
 
 export default function RetailerPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -34,12 +37,29 @@ export default function RetailerPlans() {
   const [activeTab, setActiveTab] = useState<"available" | "subscribed">("available");
   const [searchQuery, setSearchQuery] = useState("");
 
+  // Wallet balance state
+  const [walletBalance, setWalletBalance] = useState<WalletBalanceData | null>(null);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+
   // Plan Details Modal
   const [selectedPlanDetails, setSelectedPlanDetails] = useState<Plan | null>(null);
 
   // Subscribe Confirmation Modal
   const [planToSubscribe, setPlanToSubscribe] = useState<Plan | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+
+  // Fetch wallet balance
+  const fetchWalletBalance = useCallback(async () => {
+    setLoadingWallet(true);
+    try {
+      const response = await getWalletBalanceApi();
+      setWalletBalance(response.data);
+    } catch (error) {
+      console.error("Failed to fetch wallet balance:", error);
+    } finally {
+      setLoadingWallet(false);
+    }
+  }, []);
 
   // Fetch all data
   const fetchData = useCallback(async (isRefresh = false) => {
@@ -64,6 +84,9 @@ export default function RetailerPlans() {
 
       setPlans(plansArray);
       setSubscriptions(subsArray);
+      
+      // Also fetch wallet balance
+      await fetchWalletBalance();
     } catch (error) {
       console.error("Failed to load plans data:", error);
       showToast("error", error, "Could not load plans data. Please try again.");
@@ -71,7 +94,7 @@ export default function RetailerPlans() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [fetchWalletBalance]);
 
   useEffect(() => {
     (async () => {
@@ -124,10 +147,22 @@ export default function RetailerPlans() {
   const handleConfirmSubscribe = async () => {
     if (!planToSubscribe) return;
 
+    // Check wallet balance before subscribing
+    const availableBalance = walletBalance?.availableBalance || 0;
+    const subscriptionAmount = planToSubscribe.subscriptionAmount || 0;
+
+    if (availableBalance < subscriptionAmount) {
+      showToast(
+        "error",
+        `Insufficient wallet balance. Required: ₹${subscriptionAmount.toFixed(2)}, Available: ₹${availableBalance.toFixed(2)}`
+      );
+      return;
+    }
+
     setSubscribing(true);
     try {
       await subscribeToPlan(planToSubscribe._id);
-      showToast("success", `Successfully subscribed to ${planToSubscribe.name}!`);
+      showToast("success", `Successfully subscribed to ${planToSubscribe.name}! ₹${subscriptionAmount.toFixed(2)} deducted from your wallet.`);
       setPlanToSubscribe(null);
       // Re-fetch to update state
       await fetchData(true);
@@ -176,6 +211,20 @@ export default function RetailerPlans() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Wallet Balance Display */}
+          <div className="flex items-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-2.5 shadow-2xs">
+            <Wallet className="h-4 w-4 text-purple-600" />
+            <div className="flex flex-col">
+              <span className="text-[10px] font-semibold text-purple-700 uppercase tracking-wider">Wallet Balance</span>
+              <span className="text-sm font-bold text-slate-900">
+                {loadingWallet ? (
+                  <span className="text-slate-400">Loading...</span>
+                ) : (
+                  `₹${(walletBalance?.availableBalance || 0).toFixed(2)}`
+                )}
+              </span>
+            </div>
+          </div>
           <button
             onClick={() => fetchData(true)}
             disabled={refreshing}
@@ -385,6 +434,17 @@ export default function RetailerPlans() {
                       </span>
                     </div>
 
+                    {/* Subscription Amount */}
+                    <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 p-3 border border-slate-200">
+                      <div className="flex items-center gap-2">
+                        <Wallet className="h-4 w-4 text-slate-600" />
+                        <span className="text-xs font-semibold text-slate-600">Subscription:</span>
+                      </div>
+                      <span className="text-xs font-extrabold text-slate-900">
+                        ₹{(plan.subscriptionAmount || 0).toFixed(2)}
+                      </span>
+                    </div>
+
                     {/* Services Included */}
                     <div className="mt-4 space-y-2">
                       <div className="flex items-center justify-between text-xs">
@@ -444,7 +504,12 @@ export default function RetailerPlans() {
                       ) : (
                         <button
                           onClick={() => setPlanToSubscribe(plan)}
-                          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 hover:shadow-md transition-all active:scale-[0.98]"
+                          disabled={!loadingWallet && (walletBalance?.availableBalance || 0) < (plan.subscriptionAmount || 0)}
+                          className={`flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition-all active:scale-[0.98] ${
+                            (!loadingWallet && (walletBalance?.availableBalance || 0) < (plan.subscriptionAmount || 0))
+                              ? "bg-slate-400 cursor-not-allowed"
+                              : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 hover:shadow-md"
+                          }`}
                         >
                           <Sparkles className="h-4 w-4" />
                           <span>{activeSubscription ? "Switch to this Plan" : "Subscribe Now"}</span>
@@ -584,7 +649,7 @@ export default function RetailerPlans() {
               </div>
             </div>
 
-            <div className="mt-5 rounded-2xl border border-purple-100 bg-purple-50/50 p-4 space-y-2">
+            <div className="mt-5 rounded-2xl border border-purple-100 bg-purple-50/50 p-4 space-y-3">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500 font-medium">Plan:</span>
                 <span className="font-bold text-slate-900">{planToSubscribe.name}</span>
@@ -601,11 +666,64 @@ export default function RetailerPlans() {
                   {planToSubscribe.services?.length || 0} configured
                 </span>
               </div>
+              <div className="border-t border-purple-200 pt-3 flex justify-between text-xs">
+                <span className="text-slate-500 font-medium">Subscription Amount:</span>
+                <span className="font-bold text-purple-900">₹{(planToSubscribe.subscriptionAmount || 0).toFixed(2)}</span>
+              </div>
             </div>
 
-            {activeSubscription && (
+            {/* Wallet Balance Section */}
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                <Wallet className="h-4 w-4 text-purple-600" />
+                <span>Wallet Balance</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-500">Available Balance:</span>
+                <span className="font-bold text-slate-900">
+                  {loadingWallet ? (
+                    <span className="text-slate-400">Loading...</span>
+                  ) : (
+                    `₹${(walletBalance?.availableBalance || 0).toFixed(2)}`
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-slate-500">Subscription Cost:</span>
+                <span className="font-bold text-purple-700">
+                  ₹{(planToSubscribe.subscriptionAmount || 0).toFixed(2)}
+                </span>
+              </div>
+              <div className="border-t border-slate-100 pt-2 flex justify-between text-xs">
+                <span className="text-slate-500 font-medium">Remaining Balance:</span>
+                <span className={`font-bold ${
+                  (walletBalance?.availableBalance || 0) >= (planToSubscribe.subscriptionAmount || 0)
+                    ? "text-emerald-600"
+                    : "text-red-600"
+                }`}>
+                  {loadingWallet ? (
+                    <span className="text-slate-400">Loading...</span>
+                  ) : (
+                    `₹${Math.max(0, (walletBalance?.availableBalance || 0) - (planToSubscribe.subscriptionAmount || 0)).toFixed(2)}`
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Insufficient Balance Warning */}
+            {!loadingWallet && (walletBalance?.availableBalance || 0) < (planToSubscribe.subscriptionAmount || 0) && (
+              <div className="mt-3 flex items-start gap-2 rounded-xl bg-red-50 p-3 text-xs text-red-800 border border-red-200">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                <span>
+                  Insufficient wallet balance. Please add funds to your wallet before subscribing.
+                </span>
+              </div>
+            )}
+
+            {/* Plan Overwrite Warning */}
+            {activeSubscription && (walletBalance?.availableBalance || 0) >= (planToSubscribe.subscriptionAmount || 0) && (
               <div className="mt-3 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 border border-amber-200">
-                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
                 <span>
                   Subscribing to this plan will replace your current active plan and reset your validity period.
                 </span>
@@ -623,9 +741,13 @@ export default function RetailerPlans() {
               </button>
               <button
                 type="button"
-                disabled={subscribing}
+                disabled={subscribing || (!loadingWallet && (walletBalance?.availableBalance || 0) < (planToSubscribe.subscriptionAmount || 0))}
                 onClick={handleConfirmSubscribe}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm hover:from-purple-700 hover:to-indigo-700 disabled:opacity-50 transition-all"
+                className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-xs sm:text-sm font-bold text-white shadow-sm transition-all ${
+                  (!loadingWallet && (walletBalance?.availableBalance || 0) < (planToSubscribe.subscriptionAmount || 0))
+                    ? "bg-slate-400 cursor-not-allowed"
+                    : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
+                } disabled:opacity-50`}
               >
                 {subscribing ? (
                   <>
