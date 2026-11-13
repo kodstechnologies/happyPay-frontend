@@ -12,7 +12,6 @@ import {
   ShieldAlert,
   Clock,
   Receipt,
-  Upload,
   Edit3,
   CheckCircle2,
   AlertCircle,
@@ -1326,7 +1325,7 @@ export default function Profile() {
                   {documentItems.map((doc) => {
                     const isRejected = doc.status === "REJECTED";
                     const isApproved = doc.status === "APPROVED";
-                    const hasFile = Boolean(doc.url);
+                    // const hasFile = Boolean(doc.url);
 
                     return (
                       <div
@@ -1379,8 +1378,7 @@ export default function Profile() {
                               : "border border-purple-200 bg-purple-50 text-[#7c3aed] hover:bg-purple-100"
                           }`}
                         >
-                          <Upload className="h-3.5 w-3.5" />
-                          <span>{hasFile ? "Replace" : "Upload"}</span>
+                       
                         </button>
                       </div>
                     );
