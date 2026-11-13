@@ -178,6 +178,13 @@ const ShopDetailsStep = ({
   const [pan, setPan] = useState("");
   const [panFile, setPanFile] = useState<File | null>(null);
 
+  // File upload error states
+  const [panFileError, setPanFileError] = useState("");
+  const [insideShopFileError, setInsideShopFileError] = useState("");
+  const [outsideShopFileError, setOutsideShopFileError] = useState("");
+  const [shopLocationFileError, setShopLocationFileError] = useState("");
+  const [businessProofFileError, setBusinessProofFileError] = useState("");
+
   // -------- Existing uploaded files from previous step/session --------
   const [existingPanDoc, setExistingPanDoc] = useState<string | null>(null);
   const [existingInsideShop, setExistingInsideShop] = useState<string | null>(null);
@@ -192,6 +199,16 @@ const ShopDetailsStep = ({
   const [masterDataLoading, setMasterDataLoading] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
+
+  // File size validation (5 MB limit)
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+
+  const validateFileSize = (file: File): boolean => {
+    if (file.size > MAX_FILE_SIZE) {
+      return false;
+    }
+    return true;
+  };
 
   // ========================================
   // POPULATE FROM INITIAL DATA
@@ -549,24 +566,64 @@ const ShopDetailsStep = ({
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const f = e.target.files?.[0];
-    if (f) setBusinessProofFile(f);
+    if (f) {
+      if (validateFileSize(f)) {
+        setBusinessProofFile(f);
+        setBusinessProofFileError("");
+      } else {
+        const sizeInMB = (f.size / (1024 * 1024)).toFixed(2);
+        setBusinessProofFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      }
+    }
   };
   const handleInsideShopUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setInsideShopFile(f);
+    if (f) {
+      if (validateFileSize(f)) {
+        setInsideShopFile(f);
+        setInsideShopFileError("");
+      } else {
+        const sizeInMB = (f.size / (1024 * 1024)).toFixed(2);
+        setInsideShopFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      }
+    }
   };
   const handleOutsideShopUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setOutsideShopFile(f);
+    if (f) {
+      if (validateFileSize(f)) {
+        setOutsideShopFile(f);
+        setOutsideShopFileError("");
+      } else {
+        const sizeInMB = (f.size / (1024 * 1024)).toFixed(2);
+        setOutsideShopFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      }
+    }
   };
   const handleShopLocationUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setShopLocationFile(f);
+    if (f) {
+      if (validateFileSize(f)) {
+        setShopLocationFile(f);
+        setShopLocationFileError("");
+      } else {
+        const sizeInMB = (f.size / (1024 * 1024)).toFixed(2);
+        setShopLocationFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      }
+    }
   };
 
   const handlePanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (f) setPanFile(f);
+    if (f) {
+      if (validateFileSize(f)) {
+        setPanFile(f);
+        setPanFileError("");
+      } else {
+        const sizeInMB = (f.size / (1024 * 1024)).toFixed(2);
+        setPanFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      }
+    }
   };
 
   const handlePanChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -835,7 +892,7 @@ const ShopDetailsStep = ({
           htmlFor="shop-email"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Email ID
+          Email ID <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <Mail
@@ -963,7 +1020,7 @@ const ShopDetailsStep = ({
               htmlFor="shop-pan"
               className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
             >
-              PAN Number
+              PAN Number <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <CreditCard
@@ -984,13 +1041,13 @@ const ShopDetailsStep = ({
               />
             </div>
             <p className="mt-2 text-[12px] leading-5 text-[#9299a7]">
-              Enter your 10-character PAN number.
+              Enter your 10-character PAN number. Maximum file size: 5 MB.
             </p>
           </div>
 
           <div>
             <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-              PAN Document
+              PAN Document <span className="text-red-500">*</span>
             </label>
             <input
               ref={panInputRef}
@@ -1003,7 +1060,10 @@ const ShopDetailsStep = ({
             <button
               type="button"
               onClick={() => panInputRef.current?.click()}
-              className="group flex h-[54px] w-full items-center justify-between gap-3 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+              className={`group flex h-[54px] w-full items-center justify-between gap-3 rounded-xl border px-4 text-left transition ${panFileError
+                ? "border-[#d85b5b] bg-[#fef2f2]"
+                : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+                }`}
             >
               <div className="flex min-w-0 items-center gap-3">
                 {panFile || existingPanDoc ? (
@@ -1017,8 +1077,8 @@ const ShopDetailsStep = ({
                     strokeWidth={2}
                   />
                 )}
-                <p className="truncate text-[14px] font-medium text-[#172033]">
-                  {panFile ? panFile.name : existingPanDoc ? "PAN Document uploaded (Click to replace)" : "Upload PAN Document"}
+                <p className={`truncate text-[14px] font-medium ${panFileError ? "text-[#d85b5b]" : "text-[#172033]"}`}>
+                  {panFileError || (panFile ? panFile.name : existingPanDoc ? "PAN Document uploaded (Click to replace)" : "Upload PAN Document")}
                 </p>
               </div>
               <Upload
@@ -1026,6 +1086,11 @@ const ShopDetailsStep = ({
                 strokeWidth={2.3}
               />
             </button>
+            {panFileError && (
+              <p className="mt-1.5 text-[12px] font-medium text-[#d85b5b]">
+                {panFileError}
+              </p>
+            )}
           </div>
         </div>
 
@@ -1035,7 +1100,7 @@ const ShopDetailsStep = ({
             htmlFor="shop-name"
             className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
           >
-            Shop Name
+            Shop Name <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <Store
@@ -1064,6 +1129,7 @@ const ShopDetailsStep = ({
             onChange={setCategory}
             icon={<Shapes />}
             options={categories}
+            required
           />
           <SelectField
             label="Property Type"
@@ -1072,6 +1138,7 @@ const ShopDetailsStep = ({
             onChange={setPropertyType}
             icon={<Building2 />}
             options={propertyTypes}
+            required
           />
         </div>
 
@@ -1081,7 +1148,7 @@ const ShopDetailsStep = ({
             htmlFor="shop-address"
             className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
           >
-            Complete Shop Address
+            Complete Shop Address <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <MapPin
@@ -1109,7 +1176,7 @@ const ShopDetailsStep = ({
                 htmlFor="shop-pincode"
                 className="block text-[14px] font-semibold text-[#172033]"
               >
-                Pincode
+                Pincode <span className="text-red-500">*</span>
               </label>
               {pincodeInfo?.state && (
                 <span className="text-[11px] font-semibold text-[#7c3aed]">
@@ -1157,7 +1224,7 @@ const ShopDetailsStep = ({
           </div>
           <div>
             <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-              City
+              City <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -1170,7 +1237,7 @@ const ShopDetailsStep = ({
           </div>
           <div>
             <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-              State
+              State <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <select
@@ -1226,7 +1293,7 @@ const ShopDetailsStep = ({
         {/* District */}
         <div className="mt-5">
           <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-            District
+            District <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <select
@@ -1282,7 +1349,7 @@ const ShopDetailsStep = ({
         <div className="mt-5 space-y-3">
           <div className="flex items-center justify-between">
             <label className="block text-[14px] font-semibold text-[#172033]">
-              Shop Location (Coordinates)
+              Shop Location (Coordinates) <span className="text-red-500">*</span>
             </label>
             <button
               type="button"
@@ -1300,7 +1367,7 @@ const ShopDetailsStep = ({
                 htmlFor="shop-latitude"
                 className="mb-1.5 block text-xs font-semibold text-slate-600"
               >
-                Latitude (-90 to 90) <span className="text-red-500">*</span>
+                Latitude (-90 to 90)
               </label>
               <div className="relative">
                 <input
@@ -1331,7 +1398,7 @@ const ShopDetailsStep = ({
                 htmlFor="shop-longitude"
                 className="mb-1.5 block text-xs font-semibold text-slate-600"
               >
-                Longitude (-180 to 180) <span className="text-red-500">*</span>
+                Longitude (-180 to 180)
               </label>
               <div className="relative">
                 <input
@@ -1369,33 +1436,39 @@ const ShopDetailsStep = ({
         {/* Photos */}
         <PhotoUpload
           label="Inside Shop Photo"
-          description="Take a photo of yourself inside the shop."
+          description="Take a photo of yourself inside the shop. Max size: 5 MB."
           file={insideShopFile}
           existingUrl={existingInsideShop}
           inputRef={insideShopInputRef}
           onChange={handleInsideShopUpload}
+          required
+          error={insideShopFileError}
         />
         <PhotoUpload
           label="Outside Shop Photo"
-          description="Take a clear photo of the shop exterior."
+          description="Take a clear photo of the shop exterior. Max size: 5 MB."
           file={outsideShopFile}
           existingUrl={existingOutsideShop}
           inputRef={outsideShopInputRef}
           onChange={handleOutsideShopUpload}
+          required
+          error={outsideShopFileError}
         />
         <PhotoUpload
           label="Shop Location Photo"
-          description="Capture a photo showing the shop location."
+          description="Capture a photo showing the shop location. Max size: 5 MB."
           file={shopLocationFile}
           existingUrl={existingShopLocation}
           inputRef={shopLocationInputRef}
           onChange={handleShopLocationUpload}
+          required
+          error={shopLocationFileError}
         />
 
         {/* Business Proof Type */}
         <div className="mt-5">
           <label className="mb-2 block text-sm font-semibold text-[#172033]">
-            Address / Business Proof
+            Address / Business Proof <span className="text-red-500">*</span>
           </label>
           <div className="relative">
             <FileBadge
@@ -1406,9 +1479,9 @@ const ShopDetailsStep = ({
               name="businessProof"
               value={businessProof}
               onChange={(e) => setBusinessProof(e.target.value)}
-              className={`h-[52px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-11 pr-12 text-sm font-medium outline-none focus:border-[#7c3aed] focus:bg-white ${businessProof
-                ? "border-[#7c3aed] text-[#172033]"
-                : "border-[#dfe1e6] text-[#a1a8b5]"
+              className={`h-[52px] w-full appearance-none rounded-xl border bg-[#fafbfd] pl-11 pr-12 text-sm font-medium outline-none focus:border-[#7c3aed] focus:bg-white text-black ${businessProof
+                ? "border-[#7c3aed]"
+                : "border-[#dfe1e6]"
                 }`}
             >
               <option value="" disabled>
@@ -1430,12 +1503,14 @@ const ShopDetailsStep = ({
         {/* Business Proof Upload */}
         <PhotoUpload
           label="Business Proof Document"
-          description="Upload the selected business/address proof."
+          description="Upload the selected business/address proof. Max size: 5 MB."
           file={businessProofFile}
           existingUrl={existingBusinessProof}
           inputRef={businessProofInputRef}
           onChange={handleBusinessProofUpload}
           accept="image/*,.pdf"
+          required
+          error={businessProofFileError}
         />
 
         {/* Save button */}
@@ -1472,6 +1547,7 @@ const SelectField = ({
   onChange,
   icon,
   options,
+  required = false,
 }: {
   label: string;
   name?: string;
@@ -1479,10 +1555,11 @@ const SelectField = ({
   onChange: (v: string) => void;
   icon: React.ReactNode;
   options: MasterDataItem[];
+  required?: boolean;
 }) => (
   <div>
     <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-      {label}
+      {label} {required && <span className="text-red-500">*</span>}
     </label>
     <div className="relative">
       <span className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[#8992a3] [&>svg]:h-5 [&>svg]:w-5">
@@ -1523,6 +1600,8 @@ const PhotoUpload = ({
   inputRef,
   onChange,
   accept = "image/*",
+  required = false,
+  error = "",
 }: {
   label: string;
   description: string;
@@ -1531,6 +1610,8 @@ const PhotoUpload = ({
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   accept?: string;
+  required?: boolean;
+  error?: string;
 }) => {
   const isUploaded = !!file || !!existingUrl;
   const displayText = file ? file.name : existingUrl ? "Document uploaded (Click to replace)" : description;
@@ -1540,12 +1621,14 @@ const PhotoUpload = ({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className={`group mt-5 flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${isUploaded
-          ? "border-[#b9e8da] bg-[#f4fcf9]"
-          : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        className={`group mt-5 flex w-full items-center gap-4 rounded-xl border px-4 py-4 text-left transition ${error
+          ? "border-[#d85b5b] bg-[#fef2f2]"
+          : isUploaded
+            ? "border-[#b9e8da] bg-[#f4fcf9]"
+            : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
           }`}
       >
-        <div className="flex h-12 w-14 shrink-0 items-center justify-center rounded-xl bg-[#e7f8f3]">
+        <div className={`flex h-12 w-14 shrink-0 items-center justify-center rounded-xl ${error ? "bg-[#fee2e2]" : "bg-[#e7f8f3]"}`}>
           {isUploaded ? (
             <CheckCircle2 className="h-5 w-5 text-[#08ae82]" strokeWidth={2.3} />
           ) : (
@@ -1553,18 +1636,23 @@ const PhotoUpload = ({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-bold text-[#172033]">{label}</h3>
+          <h3 className="text-sm font-bold text-[#172033]">{label} {required && <span className="text-red-500">*</span>}</h3>
           <p
-            className={`mt-1 truncate text-sm ${isUploaded ? "font-medium text-[#08ae82]" : "text-[#8992a3]"
+            className={`mt-1 truncate text-sm ${error ? "text-[#d85b5b]" : isUploaded ? "font-medium text-[#08ae82]" : "text-[#8992a3]"
               }`}
           >
-            {displayText}
+            {error || displayText}
           </p>
         </div>
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f8f3]">
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${error ? "bg-[#fee2e2]" : "bg-[#e7f8f3]"}`}>
           <Upload className="h-4.5 w-4.5 text-[#08ae82]" strokeWidth={2.4} />
         </div>
       </button>
+      {error && (
+        <p className="mt-1.5 text-[12px] font-medium text-[#d85b5b]">
+          {error}
+        </p>
+      )}
       <input
         ref={inputRef}
         type="file"

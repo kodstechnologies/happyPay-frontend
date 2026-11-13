@@ -36,8 +36,21 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
     const [aadhaarNumber, setAadhaarNumber] = useState("");
     const [aadhaarFile, setAadhaarFile] = useState<File | null>(null);
     const [existingAadhaarFile, setExistingAadhaarFile] = useState<string | null>(null);
+    const [aadhaarFileError, setAadhaarFileError] = useState("");
 
     const [submitting, setSubmitting] = useState(false);
+
+    // File size validation (5 MB limit)
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+
+    const validateFileSize = (file: File): boolean => {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+        setAadhaarFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+        return false;
+      }
+      return true;
+    };
 
     useEffect(() => {
       if (!initialData) return;
@@ -61,7 +74,10 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
       const file = event.target.files?.[0];
 
       if (file) {
-        setAadhaarFile(file);
+        if (validateFileSize(file)) {
+          setAadhaarFile(file);
+          setAadhaarFileError("");
+        }
       }
     };
 
@@ -237,7 +253,7 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
       {/* AADHAAR NUMBER */}
       <div>
         <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-          Aadhaar Number
+          Aadhaar Number <span className="text-red-500">*</span>
         </label>
 
         <div className="relative">
@@ -262,9 +278,12 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
       <button
         type="button"
         onClick={() => aadhaarInputRef.current?.click()}
-        className="group flex w-full items-center gap-4 rounded-xl border border-[#dfe1e6] bg-[#fafbfd] px-4 py-3.5 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+        className={`group flex w-full items-center gap-4 rounded-xl border px-4 py-3.5 text-left transition ${aadhaarFileError
+          ? "border-[#d85b5b] bg-[#fef2f2]"
+          : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+          }`}
       >
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#f3e8ff]">
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${aadhaarFileError ? "bg-[#fee2e2]" : "bg-[#f3e8ff]"}`}>
           {aadhaarFile || existingAadhaarFile ? (
             <CheckCircle2
               className="h-5 w-5 text-[#08ae82]"
@@ -280,15 +299,15 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
 
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-bold text-[#172033]">
-            Aadhaar Document
+            Aadhaar Document <span className="text-red-500">*</span>
           </h3>
 
-          <p className="mt-1 truncate text-sm text-[#8992a3]">
-            {aadhaarFile
+          <p className={`mt-1 truncate text-sm ${aadhaarFileError ? "text-[#d85b5b]" : "text-[#8992a3]"}`}>
+            {aadhaarFileError || (aadhaarFile
               ? aadhaarFile.name
               : existingAadhaarFile
                 ? "Aadhaar Document uploaded (Click to replace)"
-                : "Upload Aadhaar front and back images."}
+                : "Upload Aadhaar front and back images.")}
           </p>
         </div>
 
@@ -297,6 +316,11 @@ const AadhaarStep = forwardRef<AadhaarStepHandle, AadhaarStepProps>(
           strokeWidth={2.3}
         />
       </button>
+      {aadhaarFileError && (
+        <p className="mt-1.5 text-[12px] font-medium text-[#d85b5b]">
+          {aadhaarFileError}
+        </p>
+      )}
 
       <input
         ref={aadhaarInputRef}

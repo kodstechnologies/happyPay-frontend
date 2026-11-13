@@ -51,6 +51,7 @@ const AboutRetailerStep = forwardRef<
   const [lastName, setLastName] = useState("");
   const [selfie, setSelfie] = useState<File | null>(null);
   const [existingSelfie, setExistingSelfie] = useState<string | null>(null);
+  const [selfieError, setSelfieError] = useState("");
   const [gender, setGender] = useState("");
   const [maritalStatus, setMaritalStatus] = useState("");
   const [education, setEducation] = useState("");
@@ -59,6 +60,19 @@ const AboutRetailerStep = forwardRef<
   const [motherName, setMotherName] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+
+  // File size validation (5 MB limit)
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+
+  const validateFileSize = (file: File): boolean => {
+    if (file.size > MAX_FILE_SIZE) {
+      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+      setSelfieError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      return false;
+    }
+    setSelfieError("");
+    return true;
+  };
 
   const [prevInitialData, setPrevInitialData] = useState(initialData);
 
@@ -122,7 +136,12 @@ const AboutRetailerStep = forwardRef<
   // ==========================================================
   const handleSelfieUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setSelfie(file);
+    if (file) {
+      if (validateFileSize(file)) {
+        setSelfie(file);
+        setSelfieError("");
+      }
+    }
   };
 
   // ==========================================================
@@ -224,7 +243,7 @@ const AboutRetailerStep = forwardRef<
           htmlFor="retailer-first-name"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          First Name
+          First Name <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <UserRound
@@ -250,7 +269,7 @@ const AboutRetailerStep = forwardRef<
           htmlFor="retailer-last-name"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Last Name
+          Last Name <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <UserRound
@@ -325,12 +344,13 @@ const AboutRetailerStep = forwardRef<
       {/* SELFIE */}
       <div>
         <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-          Selfie
+          Selfie <span className="text-red-500">*</span>
         </label>
         <input
           ref={selfieInputRef}
           type="file"
           accept="image/*"
+          capture="user"
           name="selfie"
           onChange={handleSelfieUpload}
           className="hidden"
@@ -338,9 +358,11 @@ const AboutRetailerStep = forwardRef<
         <button
           type="button"
           onClick={() => selfieInputRef.current?.click()}
-          className={`flex min-h-[150px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition-all ${selfie || existingSelfie
-              ? "border-[#b9e8d4] bg-[#f3fcf8]"
-              : "border-[#dfe3e9] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f3f6ff]"
+          className={`flex min-h-[150px] w-full flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition-all ${selfieError
+              ? "border-[#d85b5b] bg-[#fef2f2]"
+              : selfie || existingSelfie
+                ? "border-[#b9e8d4] bg-[#f3fcf8]"
+                : "border-[#dfe3e9] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f3f6ff]"
             }`}
         >
           {selfie || existingSelfie ? (
@@ -357,18 +379,23 @@ const AboutRetailerStep = forwardRef<
             </>
           ) : (
             <>
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#edf1fc]">
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${selfieError ? "bg-[#fee2e2]" : "bg-[#edf1fc]"}`}>
                 <Camera className="h-6 w-6 text-[#7c3aed]" strokeWidth={2} />
               </div>
               <span className="mt-3 text-[14px] font-semibold text-[#172033]">
                 Upload Selfie
               </span>
-              <span className="mt-1 text-[12px] text-[#8992a3]">
-                Click to select an image
+              <span className={`mt-1 text-[12px] ${selfieError ? "text-[#d85b5b]" : "text-[#8992a3]"}`}>
+                {selfieError || "Click to select an image"}
               </span>
             </>
           )}
         </button>
+        {selfieError && (
+          <p className="mt-2 text-[12px] font-medium text-[#d85b5b]">
+            {selfieError}
+          </p>
+        )}
       </div>
 
       {/* DOB */}
@@ -377,7 +404,7 @@ const AboutRetailerStep = forwardRef<
           htmlFor="retailer-dob"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Date of Birth
+          Date of Birth <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <CalendarDays
@@ -407,6 +434,7 @@ const AboutRetailerStep = forwardRef<
         onChange={setGender}
         icon={<UsersRound />}
         options={["Male", "Female", "Other"]}
+        required
       />
 
       {/* MARITAL STATUS */}
@@ -417,6 +445,7 @@ const AboutRetailerStep = forwardRef<
         onChange={setMaritalStatus}
         icon={<Heart />}
         options={["Single", "Married", "Divorced", "Widowed", "Other"]}
+        required
       />
 
       {/* EDUCATIONAL QUALIFICATION */}
@@ -425,7 +454,7 @@ const AboutRetailerStep = forwardRef<
           htmlFor="retailer-education"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Educational Qualification
+          Educational Qualification <span className="text-red-500">*</span>
         </label>
         <div className="relative">
           <GraduationCap
@@ -473,6 +502,7 @@ interface SelectFieldProps {
   onChange: (value: string) => void;
   icon: React.ReactNode;
   options: string[];
+  required?: boolean;
 }
 
 const SelectField = ({
@@ -482,10 +512,11 @@ const SelectField = ({
   onChange,
   icon,
   options,
+  required = false,
 }: SelectFieldProps) => (
   <div>
     <label className="mb-2.5 block text-[14px] font-semibold text-[#172033]">
-      {label}
+      {label} {required && <span className="text-red-500">*</span>}
     </label>
     <div className="relative">
       <div className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-[#8992a3] [&>svg]:h-5 [&>svg]:w-5">

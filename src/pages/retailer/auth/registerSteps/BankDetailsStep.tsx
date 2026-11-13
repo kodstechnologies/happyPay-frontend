@@ -276,7 +276,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       {/* BANK NAME */}
       <div>
         <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-          Bank Name
+          Bank Name <span className="text-red-500">*</span>
         </label>
 
         <div className="relative" ref={dropdownRef}>
@@ -409,7 +409,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       {/* IFSC CODE */}
       <div>
         <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-          IFSC Code
+          IFSC Code <span className="text-red-500">*</span>
         </label>
 
         <div className="relative">
@@ -442,7 +442,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       {/* ACCOUNT NUMBER */}
       <div>
         <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-          Account Number
+          Account Number <span className="text-red-500">*</span>
         </label>
 
         <div className="relative">
@@ -471,7 +471,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
       {/* CONFIRM ACCOUNT NUMBER */}
       <div>
         <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-          Confirm Account Number
+          Confirm Account Number <span className="text-red-500">*</span>
         </label>
 
         <div className="relative">

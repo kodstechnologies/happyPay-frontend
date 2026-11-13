@@ -12,10 +12,23 @@ const PanVerificationStep = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [panFile, setPanFile] = useState<File | null>(null);
+  const [panFileError, setPanFileError] = useState("");
   const [panNumber, setPanNumber] = useState("");
   const [nameAsPerPan, setNameAsPerPan] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [fatherName, setFatherName] = useState("");
+
+  // File size validation (5 MB limit)
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB in bytes
+
+  const validateFileSize = (file: File): boolean => {
+    if (file.size > MAX_FILE_SIZE) {
+      const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+      setPanFileError(`File size (${sizeInMB} MB) exceeds 5 MB limit`);
+      return false;
+    }
+    return true;
+  };
 
   const handlePanUpload = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -23,7 +36,10 @@ const PanVerificationStep = () => {
     const file = event.target.files?.[0];
 
     if (file) {
-      setPanFile(file);
+      if (validateFileSize(file)) {
+        setPanFile(file);
+        setPanFileError("");
+      }
     }
   };
 
@@ -32,7 +48,7 @@ const PanVerificationStep = () => {
       {/* PAN CARD UPLOAD */}
       <div>
         <label className="mb-3 block text-sm font-semibold text-[#172033]">
-          PAN Card
+          PAN Card <span className="text-red-500">*</span>
         </label>
 
         <input
@@ -46,11 +62,14 @@ const PanVerificationStep = () => {
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="group flex min-h-[92px] w-full items-center gap-4 rounded-xl border-2 border-dashed border-[#dfe1e6] bg-[#fafbfd] px-4 py-4 text-left transition hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+          className={`group flex min-h-[92px] w-full items-center gap-4 rounded-xl border-2 border-dashed px-4 py-4 text-left transition ${panFileError
+            ? "border-[#d85b5b] bg-[#fef2f2]"
+            : "border-[#dfe1e6] bg-[#fafbfd] hover:border-[#7c3aed] hover:bg-[#f7f9ff]"
+            }`}
         >
           <div
             className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
-              panFile ? "bg-[#e9f9f4]" : "bg-[#f3e8ff]"
+              panFile ? "bg-[#e9f9f4]" : panFileError ? "bg-[#fee2e2]" : "bg-[#f3e8ff]"
             }`}
           >
             {panFile ? (
@@ -71,26 +90,31 @@ const PanVerificationStep = () => {
               {panFile ? "PAN Card Uploaded" : "Upload PAN Card"}
             </h3>
 
-            <p className="mt-1 truncate text-sm text-[#8992a3]">
-              {panFile
+            <p className={`mt-1 truncate text-sm ${panFileError ? "text-[#d85b5b]" : "text-[#8992a3]"}`}>
+              {panFileError || (panFile
                 ? panFile.name
-                : "Upload a clear image of your PAN card."}
+                : "Upload a clear image of your PAN card.")}
             </p>
 
-            {!panFile && (
+            {!panFile && !panFileError && (
               <p className="mt-1 text-xs text-[#a1a8b5]">
                 Image or PDF format
               </p>
             )}
           </div>
 
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#f3e8ff] transition group-hover:bg-[#e4e9ff]">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition group-hover:bg-[#e4e9ff] ${panFileError ? "bg-[#fee2e2]" : "bg-[#f3e8ff]"}`}>
             <Upload
               className="h-5 w-5 text-[#7c3aed]"
               strokeWidth={2.3}
             />
           </div>
         </button>
+        {panFileError && (
+          <p className="mt-1.5 text-[12px] font-medium text-[#d85b5b]">
+            {panFileError}
+          </p>
+        )}
       </div>
 
       {/* PAN NUMBER */}

@@ -1283,7 +1283,7 @@ export default function Profile() {
                       </button>
                     </div>
                   ) : (
-                    /* Empty State */
+
                     <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 p-8 text-center bg-slate-50/50">
                       <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 text-[#7c3aed] mb-3 border border-purple-100">
                         <Building2 className="h-7 w-7" />

@@ -118,17 +118,44 @@ export default function EditProfileModal({
     // Load state list
     fetchUpiStateListApi()
       .then((res) => {
-        const raw = res.data;
+        console.log("State list API response:", res);
+        let raw: unknown = res.data;
+
+        // Extract the states array from the nested structure
+        if (raw && typeof raw === "object" && "data" in raw) {
+          const dataObj = (raw as Record<string, unknown>).data;
+          if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+            raw = (dataObj as Record<string, unknown>).data;
+          } else {
+            raw = dataObj;
+          }
+        }
+
+        // Map API response fields (description, code) to expected interface (stateName, stateCode)
         if (Array.isArray(raw)) {
-          setStateList(raw as UpiState[]);
+          const mappedStates = (raw as Array<{ description: string; code: string }>).map((item) => ({
+            stateCode: item.code,
+            stateName: item.description,
+          }));
+          console.log("Setting state list with mapped array:", mappedStates);
+          setStateList(mappedStates);
         } else if (raw && typeof raw === "object") {
           const nested = (raw as Record<string, unknown>).states ||
             (raw as Record<string, unknown>).data ||
             (raw as Record<string, unknown>).stateList;
-          if (Array.isArray(nested)) setStateList(nested as UpiState[]);
+          if (Array.isArray(nested)) {
+            const mappedStates = (nested as Array<{ description: string; code: string }>).map((item) => ({
+              stateCode: item.code,
+              stateName: item.description,
+            }));
+            console.log("Setting state list with mapped nested array:", mappedStates);
+            setStateList(mappedStates);
+          }
         }
       })
-      .catch(() => { /* silently ignore */ })
+      .catch((err) => {
+        console.error("Error fetching state list:", err);
+      })
       .finally(() => setStatesLoading(false));
 
     return () => {
@@ -171,17 +198,43 @@ export default function EditProfileModal({
     setDistrictsLoading(true);
     try {
       const res = await fetchUpiDistrictApi(selectedCode);
-      const raw = res.data;
+      console.log("District API response:", res);
+
+      let raw: unknown = res.data;
+
+      // Extract the districts array from the nested structure
+      if (raw && typeof raw === "object" && "data" in raw) {
+        const dataObj = (raw as Record<string, unknown>).data;
+        if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+          raw = (dataObj as Record<string, unknown>).data;
+        } else {
+          raw = dataObj;
+        }
+      }
+
+      // Map API response fields (description, code) to expected interface (districtName, districtCode)
       if (Array.isArray(raw)) {
-        setDistrictList(raw as UpiDistrict[]);
+        const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
+          districtCode: item.code,
+          districtName: item.description,
+        }));
+        console.log("Setting district list with mapped array:", mappedDistricts);
+        setDistrictList(mappedDistricts);
       } else if (raw && typeof raw === "object") {
         const nested = (raw as Record<string, unknown>).districts ||
           (raw as Record<string, unknown>).data ||
           (raw as Record<string, unknown>).districtList;
-        if (Array.isArray(nested)) setDistrictList(nested as UpiDistrict[]);
+        if (Array.isArray(nested)) {
+          const mappedDistricts = (nested as Array<{ description: string; code: string }>).map((item) => ({
+            districtCode: item.code,
+            districtName: item.description,
+          }));
+          console.log("Setting district list with mapped nested array:", mappedDistricts);
+          setDistrictList(mappedDistricts);
+        }
       }
-    } catch {
-      // Silently ignore
+    } catch (err) {
+      console.error("Error fetching district list:", err);
     } finally {
       setDistrictsLoading(false);
     }
