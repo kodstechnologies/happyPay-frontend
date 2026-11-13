@@ -42,6 +42,8 @@ export default function EditProfileModal({
   const [fullName, setFullName] = useState(profile.fullName || "");
   const [fatherName, setFatherName] = useState(profile.fatherName || "");
   const [motherName, setMotherName] = useState(profile.motherName || "");
+  const [mobile, setMobile] = useState(profile.mobile || "");
+  const [email, setEmail] = useState(profile.email || "");
   const [gender, setGender] = useState(profile.gender || "Male");
   const [maritalStatus, setMaritalStatus] = useState(profile.maritalStatus || "Single");
   const [educationalQualification, setEducationalQualification] = useState(
@@ -265,6 +267,8 @@ export default function EditProfileModal({
         fullName: fullName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim(),
         fatherName: fatherName.trim(),
         motherName: motherName.trim(),
+        mobile: mobile.trim(),
+        email: email.trim(),
         gender,
         maritalStatus,
         educationalQualification: educationalQualification.trim(),
@@ -382,6 +386,36 @@ export default function EditProfileModal({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Mobile Number *
+                </label>
+                <input
+                  type="text"
+                  value={mobile}
+                  onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                  required
+                  maxLength={10}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  placeholder="Enter 10-digit mobile number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  placeholder="Enter email address"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Father's Name
                 </label>
                 <input
@@ -467,7 +501,7 @@ export default function EditProfileModal({
 
             <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
               <span className="font-semibold text-slate-700">Note: </span>
-              Mobile number, Email, PAN number, and Aadhaar number are verified identifiers and cannot be altered directly.
+              PAN number and Aadhaar number are verified identifiers and cannot be altered directly.
             </div>
           </div>
         ) : (
