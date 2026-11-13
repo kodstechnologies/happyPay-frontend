@@ -466,7 +466,7 @@ const RetailerLogin = () => {
                     }}
                     className="mt-1.5 text-[13px] font-bold text-[#7c3aed] hover:underline"
                   >
-                    Register as a Retailer
+                    Register as a Retailer/ Distributor
                   </button>
                 </div>
 
