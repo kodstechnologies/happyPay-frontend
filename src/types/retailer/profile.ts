@@ -54,6 +54,17 @@ export interface RetailerBank {
   isActive?: boolean;
 }
 
+export type BankApprovalStatus = "pending" | "approved" | "rejected";
+
+export interface PendingRetailerBank extends RetailerBank {
+  _id?: string;
+  approvalStatus: BankApprovalStatus;
+  rejectionReason?: string | null;
+  submittedAt?: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+}
+
 export interface RetailerFullProfile {
   id: string;
   _id?: string;
@@ -82,6 +93,7 @@ export interface RetailerFullProfile {
   businessProofType?: MasterDataRef | string | null;
   businessProofDocument?: string;
   banks?: RetailerBank[];
+  pendingBanks?: PendingRetailerBank[];
   primaryBank?: RetailerBank | null;
   outletId?: string | null;
   eKYCStatus?: string | null;

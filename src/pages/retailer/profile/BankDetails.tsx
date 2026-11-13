@@ -7,6 +7,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  Clock,
   FileText,
   LoaderCircle,
   Save,
@@ -14,7 +15,7 @@ import {
   Upload,
   User,
   WalletCards,
-
+  XCircle,
   Search,
 } from "lucide-react";
 
@@ -23,7 +24,7 @@ import {
   updateRetailerProfile,
 } from "../../../services/api/retailer/retailerProfileApi";
 import { getSettlementBankList, type SettlementBank } from "../../../services/api/retailer/retailerAuthApi";
-import type { RetailerFullProfile, RetailerBank } from "../../../types/retailer/profile";
+import type { RetailerFullProfile, RetailerBank, PendingRetailerBank } from "../../../types/retailer/profile";
 
 const ACCOUNT_TYPES = [
   "Current Account",
@@ -41,8 +42,8 @@ export default function BankDetails() {
   const [profile, setProfile] = useState<RetailerFullProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
-  
+  // Track whether the retailer just submitted a bank (shows pending approval banner)
+  const [bankJustSubmitted, setBankJustSubmitted] = useState(false);
 
   // Bank list options & pagination
   const [availableBanks, setAvailableBanks] = useState<SettlementBank[]>([]);
@@ -297,7 +298,8 @@ export default function BankDetails() {
             setBranchName(updatedPrimary.branchName || "");
           }
         }
-        showToast("success", "Bank account details successfully updated and synchronized!");
+        setBankJustSubmitted(true);
+        showToast("success", "Bank details submitted! Pending admin approval before activation.");
       } else {
         throw new Error("Failed to update bank details.");
       }
@@ -429,6 +431,65 @@ export default function BankDetails() {
                 </p>
               </div>
             </section>
+
+            {/* ── Pending approval banner (shown right after submission) ── */}
+            {bankJustSubmitted && (
+              <section className="flex items-start gap-3.5 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+                  <Clock size={22} />
+                </div>
+                <div className="text-xs">
+                  <h3 className="font-bold text-amber-900">Pending Admin Approval</h3>
+                  <p className="mt-0.5 leading-relaxed text-amber-800">
+                    Your bank account has been submitted and is awaiting approval from the HappyPay admin team. You will be notified once it is reviewed.
+                  </p>
+                </div>
+              </section>
+            )}
+
+            {/* ── Pending banks list (from profile) ── */}
+            {(profile?.pendingBanks ?? []).length > 0 && (
+              <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-3 text-sm font-bold text-slate-800">Pending Bank Accounts</h3>
+                <div className="space-y-3">
+                  {(profile!.pendingBanks as PendingRetailerBank[]).map((bank) => (
+                    <div
+                      key={bank._id ?? bank.accountNumber}
+                      className={`flex items-center justify-between gap-4 rounded-xl border p-4 ${
+                        bank.approvalStatus === "rejected"
+                          ? "border-rose-200 bg-rose-50"
+                          : "border-amber-200 bg-amber-50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 truncate">{bank.name}</p>
+                        <p className="mt-0.5 font-mono text-[11px] text-slate-500">
+                          •••• {bank.accountNumber.slice(-4)} &nbsp;·&nbsp; {bank.ifscCode}
+                        </p>
+                        {bank.approvalStatus === "rejected" && bank.rejectionReason && (
+                          <p className="mt-1 text-[11px] font-semibold text-rose-700">
+                            Rejected: {bank.rejectionReason}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                          bank.approvalStatus === "rejected"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-amber-100 text-amber-800"
+                        }`}
+                      >
+                        {bank.approvalStatus === "rejected" ? (
+                          <><XCircle size={12} /> Rejected</>
+                        ) : (
+                          <><Clock size={12} /> Pending</>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* ==================================================
                 EDIT BANK SECTION: SYNCHRONIZED FORM

@@ -1650,9 +1650,9 @@ const Aeps = () => {
           if (result.data?.wallet) {
             const wallet = result.data.wallet;
             const balance = wallet.availableBalance || wallet.balance || 0;
-            showToast("success", `Mini statement fetched successfully. Wallet balance: ₹${balance.toFixed(2)}`);
+            showToast("success", `Mini statement fetched successfully. You received ₹1 cashback! Wallet balance: ₹${balance.toFixed(2)}`);
           } else {
-            showToast("success", "Mini statement fetched successfully");
+            showToast("success", "Mini statement fetched successfully. You received ₹1 cashback!");
           }
 
           setShowMiniStatement(true);

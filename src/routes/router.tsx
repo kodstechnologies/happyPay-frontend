@@ -52,6 +52,7 @@ import AdminCmsConfig from "../pages/admin/cms/AdminCmsConfig";
 import AdminNotifications from "../pages/admin/notifications/AdminNotifications";
 import AdminBanners from "../pages/admin/banners/AdminBanners";
 import AdminPlanManagement from "../pages/admin/plan-management/AdminPlanManagement";
+import BankApproval from "../pages/admin/bank-approval/BankApproval";
 import CreatePlan from "../pages/admin/plan-management/CreatePlan";
 import EditPlan from "../pages/admin/plan-management/EditPlan";
 import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
@@ -111,6 +112,7 @@ const Router: RouteObject[] = [
           { path: "notifications", element: <AdminNotifications /> },
           { path: "send-notification", element: <SendNotification /> },
           { path: "plan-management", element: <AdminPlanManagement /> },
+          { path: "bank-approvals", element: <BankApproval /> },
           { path: "plan-management/create", element: <CreatePlan /> },
           { path: "plan-management/view/:id", element: <ViewPlanDetails /> },
           { path: "plan-management/edit/:id", element: <EditPlan /> },

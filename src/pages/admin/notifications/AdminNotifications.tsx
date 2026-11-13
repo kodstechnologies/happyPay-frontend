@@ -1,5 +1,6 @@
-import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw, Filter, CheckCheck, User, Building2, ShieldCheck } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   getNotifications,
   markNotificationAsRead,
@@ -11,6 +12,9 @@ export default function AdminNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "registrations" | "banks" | "kyc">("all");
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   const fetchNotifications = async () => {
     try {
@@ -52,19 +56,25 @@ export default function AdminNotifications() {
 
   const markAllAsRead = async () => {
     try {
+      setActionInProgress("all");
       await markAllNotificationsAsRead();
       setNotifications(notifications.map(n => ({ ...n, isRead: true })));
     } catch (error) {
       console.error("Failed to mark all as read:", error);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
   const markAsRead = async (id: string) => {
     try {
+      setActionInProgress(id);
       await markNotificationAsRead(id);
       setNotifications(notifications.map(n => (n._id === id ? { ...n, isRead: true } : n)));
     } catch (error) {
       console.error("Failed to mark as read:", error);
+    } finally {
+      setActionInProgress(null);
     }
   };
 
@@ -84,15 +94,136 @@ export default function AdminNotifications() {
 
   const getNotificationType = (type: string) => {
     if (type === "NEW_RETAILER_REGISTRATION") return "success";
+    if (type === "BANK_PENDING_APPROVAL") return "warning";
+    if (type === "BANK_APPROVED") return "success";
+    if (type === "BANK_REJECTED") return "danger";
     if (type === "KYC_APPROVED") return "success";
-    if (type === "KYC_REJECTED") return "warning";
+    if (type === "KYC_REJECTED") return "danger";
     return "info";
   };
 
-  const filteredNotifications = notifications.filter(n =>
-    n.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    n.body.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const renderNotificationIcon = (type: string) => {
+    const notificationType = getNotificationType(type);
+
+    if (type.includes("REGISTRATION")) {
+      return (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <User className="h-5 w-5" />
+        </div>
+      );
+    }
+
+    if (type.includes("BANK")) {
+      return (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-[#7c3aed]">
+          <Building2 className="h-5 w-5" />
+        </div>
+      );
+    }
+
+    if (type.includes("KYC")) {
+      return (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+          <ShieldCheck className="h-5 w-5" />
+        </div>
+      );
+    }
+
+    switch (notificationType) {
+      case "success":
+        return (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <Check className="h-5 w-5" />
+          </div>
+        );
+      case "danger":
+        return (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+        );
+      case "warning":
+        return (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+        );
+      case "info":
+      default:
+        return (
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <Info className="h-5 w-5" />
+          </div>
+        );
+    }
+  };
+
+  // Returns the URL to navigate to when a notification is clicked (if any)
+  const getNotificationLink = (notification: Notification): string | null => {
+    const retailerId = notification.data?.retailerId as string | undefined;
+    if (!retailerId) return null;
+
+    const type = notification.type;
+    if (
+      type === "NEW_RETAILER_REGISTRATION" ||
+      type === "BANK_PENDING_APPROVAL" ||
+      type === "KYC_APPROVED" ||
+      type === "KYC_REJECTED"
+    ) {
+      return `/admin/retailers/${retailerId}`;
+    }
+    return null;
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.isRead) {
+      markAsRead(notification._id);
+    }
+    // Navigate if there's a deep link
+    const link = getNotificationLink(notification);
+    if (link) {
+      navigate(link);
+    }
+  };
+
+  const unreadCount = useMemo(() => {
+    return notifications.filter((n) => !n.isRead).length;
+  }, [notifications]);
+
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter((n) => {
+      // Tab filter
+      if (activeTab === "unread" && n.isRead) return false;
+      if (
+        activeTab === "registrations" &&
+        !n.type.includes("REGISTRATION")
+      ) {
+        return false;
+      }
+      if (
+        activeTab === "banks" &&
+        !n.type.includes("BANK")
+      ) {
+        return false;
+      }
+      if (
+        activeTab === "kyc" &&
+        !n.type.includes("KYC")
+      ) {
+        return false;
+      }
+
+      // Search filter
+      if (!searchTerm.trim()) return true;
+      const term = searchTerm.toLowerCase();
+      return (
+        n.title.toLowerCase().includes(term) ||
+        n.body.toLowerCase().includes(term) ||
+        n.type.toLowerCase().includes(term)
+      );
+    });
+  }, [notifications, activeTab, searchTerm]);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-5 p-4">
@@ -133,74 +264,206 @@ export default function AdminNotifications() {
           <button
             type="button"
             onClick={markAllAsRead}
-            className="flex h-9 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors"
+            disabled={unreadCount === 0 || actionInProgress === "all"}
+            className="flex h-9 items-center justify-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 transition-colors disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <Check className="h-4 w-4 text-[#087f5b]" />
+            <CheckCheck className="h-4 w-4 text-emerald-600" />
             Mark all read
           </button>
         </div>
       </section>
 
+      {/* FILTER & SEARCH BAR */}
+      <section className="flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-3 shadow-[0_4px_20px_-10px_rgba(15,23,42,0.06)] sm:flex-row sm:items-center sm:justify-between">
+        {/* TAB BUTTONS */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setActiveTab("all")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "all"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            All ({notifications.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("unread")}
+            className={`relative rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "unread"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Unread
+            {unreadCount > 0 && (
+              <span
+                className={`ml-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold ${
+                  activeTab === "unread"
+                    ? "bg-white text-[#315bd1]"
+                    : "bg-rose-500 text-white"
+                }`}
+              >
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("registrations")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "registrations"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Registrations
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("banks")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "banks"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Bank Approvals
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("kyc")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "kyc"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            KYC Reviews
+          </button>
+        </div>
+
+        {/* SEARCH INPUT */}
+        <div className="relative w-full sm:w-64">
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search notifications..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-1.5 pl-8 pr-3 text-xs text-slate-900 placeholder-slate-400 transition focus:border-[#315bd1] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#315bd1]/15"
+          />
+        </div>
+      </section>
+
       {/* List */}
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <Loader2 className="h-8 w-8 text-slate-300 animate-spin mb-4" />
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Loader2 className="mb-3 h-8 w-8 animate-spin text-[#315bd1]" />
             <h3 className="text-sm font-bold text-slate-900">Loading notifications...</h3>
+            <p className="mt-1 text-xs text-slate-400">Fetching latest system alerts</p>
           </div>
         ) : filteredNotifications.length > 0 ? (
           <div className="divide-y divide-slate-100">
             {filteredNotifications.map((notification) => {
+              const hasLink = !!getNotificationLink(notification);
+              const isUnread = !notification.isRead;
               const notificationType = getNotificationType(notification.type);
+
               return (
                 <div
                   key={notification._id}
-                  className={`flex gap-4 p-5 transition-colors hover:bg-slate-50 ${
-                    !notification.isRead ? "bg-blue-50/50" : ""
+                  onClick={() => handleNotificationClick(notification)}
+                  className={`group flex cursor-pointer items-start gap-3.5 p-4 transition-all duration-150 hover:bg-slate-50/90 sm:p-5 ${
+                    isUnread
+                      ? "border-l-4 border-l-[#315bd1] bg-blue-50/40"
+                      : "border-l-4 border-l-transparent"
                   }`}
                 >
-                  <div className="mt-1 shrink-0">
-                    {notificationType === "info" && (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                        <Info className="h-5 w-5" />
-                      </div>
-                    )}
-                    {notificationType === "success" && (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                        <Check className="h-5 w-5" />
-                      </div>
-                    )}
-                    {notificationType === "warning" && (
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-600">
-                        <AlertTriangle className="h-5 w-5" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h3 className={`text-sm font-bold ${!notification.isRead ? "text-slate-900" : "text-slate-700"}`}>
+                  {/* ICON */}
+                  <div className="pt-0.5">{renderNotificationIcon(notification.type)}</div>
+
+                  {/* CONTENT */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3
+                          className={`text-sm tracking-tight ${
+                            isUnread ? "font-bold text-slate-900" : "font-medium text-slate-700"
+                          }`}
+                        >
                           {notification.title}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-500">{notification.body}</p>
-                        {notification.imageUrl && (
-                          <div className="mt-3 overflow-hidden rounded-lg border border-slate-200">
-                            <img
-                              src={notification.imageUrl}
-                              alt="Notification image"
-                              className="h-auto w-full max-w-sm object-cover"
-                              loading="lazy"
-                            />
-                          </div>
+
+                        {isUnread && (
+                          <span className="inline-flex items-center rounded-full bg-[#315bd1]/10 px-2 py-0.5 text-[10px] font-bold text-[#315bd1]">
+                            New
+                          </span>
                         )}
-                        <p className="mt-2 text-xs font-semibold text-slate-400">{formatTime(notification.createdAt)}</p>
-                      </div>
-                      {!notification.isRead && (
-                        <button
-                          onClick={() => markAsRead(notification._id)}
-                          className="shrink-0 text-xs font-bold text-[#315bd1] hover:text-[#23429b] transition-colors"
+
+                        <span
+                          className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${
+                            notificationType === "success"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : notificationType === "danger"
+                              ? "bg-rose-50 text-rose-700"
+                              : notificationType === "warning"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-600"
+                          }`}
                         >
-                          Mark read
+                          {notification.type.replace(/_/g, " ")}
+                        </span>
+                      </div>
+
+                      <time className="shrink-0 text-xs font-medium text-slate-400">
+                        {formatTime(notification.createdAt)}
+                      </time>
+                    </div>
+
+                    <p className="mt-1 text-xs leading-relaxed text-slate-600 sm:text-sm">
+                      {notification.body}
+                    </p>
+
+                    {/* NOTIFICATION IMAGE */}
+                    {notification.imageUrl && (
+                      <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+                        <img
+                          src={notification.imageUrl}
+                          alt="Notification image"
+                          className="h-auto w-full max-w-sm object-cover"
+                          loading="lazy"
+                        />
+                      </div>
+                    )}
+
+                    {/* ACTION LINKS & ACTIONS */}
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      {hasLink && (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#315bd1] transition group-hover:underline">
+                          View Retailer →
+                        </span>
+                      )}
+
+                      {isUnread && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notification._id);
+                          }}
+                          disabled={actionInProgress === notification._id}
+                          className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-semibold text-[#315bd1] transition hover:bg-[#315bd1]/10"
+                        >
+                          <Check className="h-3 w-3" />
+                          <span>Mark as read</span>
                         </button>
                       )}
                     </div>
@@ -210,14 +473,40 @@ export default function AdminNotifications() {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 mb-4">
-              <Bell className="h-8 w-8 text-slate-300" />
+          /* EMPTY STATE */
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-[#315bd1]">
+              {searchTerm || activeTab !== "all" ? (
+                <Filter className="h-8 w-8" />
+              ) : (
+                <Bell className="h-8 w-8" />
+              )}
             </div>
-            <h3 className="text-sm font-bold text-slate-900">No notifications found</h3>
-            <p className="mt-1 text-sm text-slate-500">
-              You're all caught up!
+
+            <h3 className="text-base font-bold text-slate-900">
+              {searchTerm || activeTab !== "all"
+                ? "No matching notifications"
+                : "No notifications found"}
+            </h3>
+
+            <p className="mt-1.5 max-w-sm text-xs leading-relaxed text-slate-500 sm:text-sm">
+              {searchTerm || activeTab !== "all"
+                ? "Try adjusting your search keywords or switching filters to view other alerts."
+                : "You're all caught up! New retailer registrations, bank approvals, and KYC reviews will appear here."}
             </p>
+
+            {(searchTerm || activeTab !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm("");
+                  setActiveTab("all");
+                }}
+                className="mt-4 rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-[#315bd1] shadow-sm transition hover:bg-slate-50"
+              >
+                Clear filters
+              </button>
+            )}
           </div>
         )}
       </section>
