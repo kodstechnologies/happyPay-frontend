@@ -39,7 +39,6 @@ export interface FundRequest {
   };
   reviewedAt?: string;
   adminNotes?: string;
-  isBiometricVerified?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,12 +54,6 @@ export interface CreateFundRequestPayload {
   branchName: string;
   receiptSlip: string;
   notes?: string;
-}
-
-export interface BiometricVerificationPayload {
-  devicePid?: string;
-  biometricData?: string;
-  [key: string]: unknown;
 }
 
 export interface ResubmitFundRequestPayload {
@@ -184,16 +177,6 @@ export function getMyFundRequestStats() {
  */
 export function getBankList() {
   return api.get<ApiEnvelope<{ name: string; code: string; bank_id: string }[]>>("/api/v1/wallet/banklist").then(unwrap);
-}
-
-/**
- * Verify biometric and credit wallet for approved fund request
- */
-export function verifyBiometricAndCreditWallet(id: string, withdrawalData: BiometricVerificationPayload) {
-  return api.post<ApiEnvelope<FundRequest>>(
-    `/api/v1/fund-requests/${id}/verify-biometric`,
-    withdrawalData
-  ).then(unwrap);
 }
 
 /**

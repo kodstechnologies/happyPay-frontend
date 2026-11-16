@@ -13,8 +13,6 @@ import {
   Loader2,
   RefreshCw,
   Search,
-  Fingerprint,
-  ShieldCheck,
   X,
 } from "lucide-react";
 import {
@@ -22,7 +20,8 @@ import {
   getMyFundRequests,
   getMyFundRequestStats,
   getBankList,
-  
+  resubmitFundRequest,
+
   type FundRequest,
   type FundRequestStats,
   type Bank,
@@ -32,6 +31,7 @@ const PAYMENT_MODES = [
   "UPI",
   "NEFT",
   "IMPS",
+  "RTGS",
   "CASH",
   "CHEQUE",
   "OTHER",
@@ -42,7 +42,7 @@ export default function FundRequest() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Form state
-  const [paymentMode, setPaymentMode] = useState<"UPI" | "NEFT" | "IMPS" | "CASH" | "CHEQUE" | "OTHER">("UPI");
+  const [paymentMode, setPaymentMode] = useState<"UPI" | "NEFT" | "IMPS" | "RTGS" | "CASH" | "CHEQUE" | "OTHER">("UPI");
   const [rrn, setRrn] = useState("");
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
@@ -75,9 +75,10 @@ export default function FundRequest() {
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [bankSearchTerm, setBankSearchTerm] = useState("");
 
-  // Biometric verification state
-  const [biometricModalOpen, setBiometricModalOpen] = useState(false);
+  // Resubmit modal state
+  const [resubmitModalOpen, setResubmitModalOpen] = useState(false);
   const [selectedFundRequest, setSelectedFundRequest] = useState<FundRequest | null>(null);
+  const [isResubmitting, setIsResubmitting] = useState(false);
 
   const fetchFundRequests = useCallback(async () => {
     try {
@@ -257,6 +258,69 @@ export default function FundRequest() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleResubmit = async () => {
+    if (!selectedFundRequest) return;
+
+    try {
+      setIsResubmitting(true);
+
+      const formData = new FormData();
+      formData.append("paymentMode", paymentMode);
+      if (rrn.trim()) formData.append("rrn", rrn.trim());
+      formData.append("amount", amount);
+      formData.append("paymentDate", paymentDate);
+      formData.append("bank", bank.trim());
+      formData.append("ifscCode", ifscCode.trim().toUpperCase());
+      formData.append("accountNumber", accountNumber.trim());
+      formData.append("branchName", branchName.trim());
+      if (receiptFile) formData.append("receiptSlip", receiptFile);
+      if (notes.trim()) formData.append("notes", notes.trim());
+
+      const res = await resubmitFundRequest(selectedFundRequest._id, formData);
+
+      if (res?.success) {
+        showToast("success", "Fund request resubmitted successfully");
+        setResubmitModalOpen(false);
+        setSelectedFundRequest(null);
+        // Reset form
+        setPaymentMode("UPI");
+        setRrn("");
+        setAmount("");
+        setPaymentDate("");
+        setBank("");
+        setIfscCode("");
+        setAccountNumber("");
+        setBranchName("");
+        setReceiptFile(null);
+        setReceiptFileName("");
+        setNotes("");
+        fetchFundRequests();
+      }
+    } catch (err: unknown) {
+      console.error("Failed to resubmit fund request:", err);
+      showToast("error", err, "Failed to resubmit fund request");
+    } finally {
+      setIsResubmitting(false);
+    }
+  };
+
+  const handleOpenResubmitModal = (request: FundRequest) => {
+    setSelectedFundRequest(request);
+    // Pre-fill form with existing data
+    setPaymentMode(request.paymentMode);
+    setRrn(request.rrn || "");
+    setAmount(request.amount.toString());
+    setPaymentDate(request.paymentDate.split("T")[0]);
+    setBank(request.bank);
+    setIfscCode(request.ifscCode);
+    setAccountNumber(request.accountNumber);
+    setBranchName(request.branchName);
+    setReceiptFileName("");
+    setReceiptFile(null);
+    setNotes(request.notes || "");
+    setResubmitModalOpen(true);
   };
 
   const getStatusBadge = (status: string) => {
@@ -765,9 +829,6 @@ export default function FundRequest() {
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-[0.16em] text-[#6b7280]">
                         RRN
                       </th>
-                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-[0.16em] text-[#6b7280]">
-                        Action
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -815,23 +876,15 @@ export default function FundRequest() {
                             {request.rrn || "—"}
                           </td>
                           <td className="px-4 py-4">
-                            {request.status === "APPROVED" && !request.isBiometricVerified ? (
+                            {request.status === "REJECTED" ? (
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setSelectedFundRequest(request);
-                                  setBiometricModalOpen(true);
-                                }}
+                                onClick={() => handleOpenResubmitModal(request)}
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-[#7c3aed] px-3 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#6d28d9] transition-all"
                               >
-                                <Fingerprint className="h-3.5 w-3.5" />
-                                Verify
+                                <RefreshCw className="h-3.5 w-3.5" />
+                                Resubmit
                               </button>
-                            ) : request.isBiometricVerified ? (
-                              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#d1fae5] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-[#059669] border border-[#34d399]">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Verified
-                              </span>
                             ) : (
                               <span className="text-xs text-[#6b7280]">—</span>
                             )}
@@ -914,29 +967,29 @@ export default function FundRequest() {
           </div>
         )}
 
-        {/* Biometric Verification Modal */}
-        {biometricModalOpen && selectedFundRequest && (
+        {/* Resubmit Modal */}
+        {resubmitModalOpen && selectedFundRequest && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150">
+            <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 sticky top-0 bg-white">
                 <div className="flex items-center gap-3">
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-50 text-[#7c3aed]">
-                    <Fingerprint className="h-6 w-6" />
+                    <RefreshCw className="h-6 w-6" />
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-[#171717]">
-                      Biometric Verification
+                      Resubmit Fund Request
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Verify biometric to credit ₹{Number(selectedFundRequest.amount).toLocaleString("en-IN")} to your wallet
+                      Update and resubmit your rejected fund request
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => {
-                    setBiometricModalOpen(false);
+                    setResubmitModalOpen(false);
                     setSelectedFundRequest(null);
                   }}
                   className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
@@ -947,44 +1000,249 @@ export default function FundRequest() {
 
               {/* Modal Body */}
               <div className="px-6 py-5 space-y-4">
-                {/* Fund Request Details */}
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <h3 className="text-xs font-bold text-slate-700 mb-3">Fund Request Details</h3>
-                  <div className="grid grid-cols-2 gap-3 text-xs">
-                    <div>
-                      <p className="text-slate-500">Amount</p>
-                      <p className="font-bold text-slate-900">₹{Number(selectedFundRequest.amount).toLocaleString("en-IN")}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Bank</p>
-                      <p className="font-semibold text-slate-900">{selectedFundRequest.bank}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Account</p>
-                      <p className="font-mono font-semibold text-slate-900">
-                        {selectedFundRequest.accountNumber
-                          ? `•••• •••• ${selectedFundRequest.accountNumber.slice(-4)}`
-                          : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">IFSC</p>
-                      <p className="font-mono font-semibold text-slate-900">{selectedFundRequest.ifscCode}</p>
+                {/* Rejection Reason */}
+                {selectedFundRequest.rejectionReason && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <h3 className="text-xs font-bold text-red-700 mb-2">Rejection Reason</h3>
+                    <p className="text-xs text-red-900">{selectedFundRequest.rejectionReason}</p>
+                  </div>
+                )}
+
+                {/* Form */}
+                <div className="space-y-4">
+                  {/* Payment Mode */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      Payment Mode *
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setDropdownOpen(!dropdownOpen)}
+                        className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-left text-sm text-[#1f2937] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                      >
+                        {paymentMode}
+                      </button>
+                      {dropdownOpen && (
+                        <div className="absolute z-10 mt-1 w-full rounded-xl border-2 border-[#d1d5db] bg-white shadow-xl">
+                          {PAYMENT_MODES.map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => {
+                                setPaymentMode(mode);
+                                setDropdownOpen(false);
+                              }}
+                              className="w-full px-4 py-3 text-left text-sm text-[#6b7280] hover:bg-[#f8f5ff] hover:text-[#7c3aed] transition first:rounded-t-xl last:rounded-b-xl"
+                            >
+                              {mode}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                {/* Info */}
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <div className="flex items-start gap-3">
-                    <ShieldCheck className="h-5 w-5 text-amber-600 mt-0.5" />
-                    <div className="text-xs text-amber-900">
-                      <p className="font-bold mb-1">Biometric Verification Required</p>
-                      <p>
-                        Complete biometric verification using your Aadhaar to credit the approved amount to your wallet.
-                        This ensures secure authentication as per NPCI guidelines.
-                      </p>
+                  {/* RRN (optional) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      RRN / Reference Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={rrn}
+                      onChange={(e) => setRrn(e.target.value)}
+                      placeholder="Enter RRN if available"
+                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                    />
+                  </div>
+
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      Amount (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="Enter amount"
+                      min="1"
+                      step="0.01"
+                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                    />
+                  </div>
+
+                  {/* Payment Date */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      Payment Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={paymentDate}
+                      onChange={(e) => setPaymentDate(e.target.value)}
+                      max={new Date().toISOString().split("T")[0]}
+                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                    />
+                  </div>
+
+                  {/* Bank Details Section */}
+                  <div className="rounded-2xl border-2 border-[#d1d5db] bg-gradient-to-br from-[#f9fafb] to-white p-5 shadow-sm">
+                    <h3 className="mb-4 text-sm font-bold text-[#374151] flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-[#7c3aed]" />
+                      Bank Details
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                          Bank Name *
+                        </label>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setBankDropdownOpen(!bankDropdownOpen)}
+                            className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-left text-sm text-[#1f2937] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                          >
+                            {bank || "Select bank"}
+                          </button>
+                          {bankDropdownOpen && (
+                            <div className="absolute z-10 mt-1 w-full rounded-xl border-2 border-[#d1d5db] bg-white shadow-xl">
+                              {/* Search Input */}
+                              <div className="border-b border-[#e5e7eb] p-2">
+                                <div className="relative">
+                                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9ca3af]" />
+                                  <input
+                                    type="text"
+                                    value={bankSearchTerm}
+                                    onChange={(e) => setBankSearchTerm(e.target.value)}
+                                    placeholder="Search bank..."
+                                    className="w-full rounded-lg border border-[#d1d5db] bg-white pl-9 pr-3 py-2 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                              </div>
+                              {/* Bank List */}
+                              <div className="max-h-48 overflow-y-auto">
+                                {bankList.length > 0 ? (
+                                  bankList
+                                    .filter((bankItem) =>
+                                      bankItem.bankName?.toLowerCase().includes(bankSearchTerm.toLowerCase())
+                                    )
+                                    .map((bankItem) => (
+                                      <button
+                                        key={bankItem._id}
+                                        type="button"
+                                        onClick={() => {
+                                          setBank(bankItem.bankName);
+                                          setBankDropdownOpen(false);
+                                          setBankSearchTerm("");
+                                        }}
+                                        className="w-full px-4 py-3 text-left text-sm text-[#6b7280] hover:bg-[#f8f5ff] hover:text-[#7c3aed] transition"
+                                      >
+                                        {bankItem.bankName}
+                                      </button>
+                                    ))
+                                ) : (
+                                  <div className="px-4 py-3 text-sm text-[#6b7280]">
+                                    No banks available
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                          IFSC Code *
+                        </label>
+                        <input
+                          type="text"
+                          value={ifscCode}
+                          onChange={(e) => {
+                            const value = e.target.value
+                              .toUpperCase()
+                              .replace(/[^A-Z0-9]/g, "")
+                              .slice(0, 11);
+                            setIfscCode(value);
+                          }}
+                          placeholder="e.g., SBIN0001234"
+                          maxLength={11}
+                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                          Account Number *
+                        </label>
+                        <input
+                          type="text"
+                          value={accountNumber}
+                          onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+                          placeholder="Enter account number"
+                          maxLength={18}
+                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                          Branch Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={branchName}
+                          onChange={(e) => setBranchName(e.target.value)}
+                          placeholder="Enter branch name"
+                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                        />
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Receipt Upload */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      Receipt Slip (Optional for resubmit)
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full rounded-2xl border-2 border-dashed border-[#d1d5db] bg-gradient-to-br from-[#f9fafb] to-white px-4 py-8 text-center transition-all hover:border-[#7c3aed] hover:bg-[#f8f5ff] hover:shadow-md"
+                    >
+                      {receiptFileName ? (
+                        <div className="flex items-center justify-center gap-2">
+                          <FileText className="h-6 w-6 text-[#7c3aed]" />
+                          <span className="text-sm font-medium text-[#1f2937]">{receiptFileName}</span>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <Upload className="mx-auto h-10 w-10 text-[#9ca3af]" />
+                          <p className="text-xs text-[#6b7280]">
+                            Click to upload new receipt (JPG, PNG, PDF - Max 5MB)
+                          </p>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Notes (optional) */}
+                  <div>
+                    <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+                      Notes (Optional)
+                    </label>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      placeholder="Add any additional notes..."
+                      rows={3}
+                      maxLength={500}
+                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all resize-none"
+                    />
                   </div>
                 </div>
 
@@ -993,7 +1251,7 @@ export default function FundRequest() {
                   <button
                     type="button"
                     onClick={() => {
-                      setBiometricModalOpen(false);
+                      setResubmitModalOpen(false);
                       setSelectedFundRequest(null);
                     }}
                     className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
@@ -1002,17 +1260,21 @@ export default function FundRequest() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      // For now, simulate biometric verification
-                      // In production, integrate with actual RD Service
-                      showToast("success", "Biometric verification feature will be integrated with AEPS withdrawal flow");
-                      setBiometricModalOpen(false);
-                      setSelectedFundRequest(null);
-                    }}
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#6d28d9]"
+                    onClick={handleResubmit}
+                    disabled={isResubmitting}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#6d28d9] disabled:opacity-50"
                   >
-                    <Fingerprint className="h-4 w-4" />
-                    Verify Biometric
+                    {isResubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>Resubmitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-4 w-4" />
+                        <span>Resubmit Request</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
