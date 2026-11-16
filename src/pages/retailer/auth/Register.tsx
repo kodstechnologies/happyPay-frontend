@@ -15,7 +15,7 @@ import {
 
 import StepIndicator from "../../../components/common/StepIndicator";
 import AccountStep from "./registerSteps/AccountSteps";
-import ShopDetailsStep from "./registerSteps/ShopDetailsStep";
+import ShopDetailsStep, { type ShopDetailsStepHandle } from "./registerSteps/ShopDetailsStep";
 import AboutRetailerStep, { type AboutRetailerStepHandle } from "./registerSteps/AboutRetailerStep";
 // import PanVerificationStep from "./registerSteps/PanVerificationStep";
 import AadhaarStep, { type AadhaarStepHandle } from "./registerSteps/AadhaarStep";
@@ -146,6 +146,7 @@ const RetailerRegister = ({
   }
 
   // Refs for step components that use imperative handles
+  const shopDetailsStepRef = useRef<ShopDetailsStepHandle>(null);
   const aboutStepRef = useRef<AboutRetailerStepHandle>(null);
   const aadhaarStepRef = useRef<AadhaarStepHandle>(null);
   const bankStepRef = useRef<BankDetailsStepHandle>(null);
@@ -223,6 +224,10 @@ const RetailerRegister = ({
     setSubmittingStep(true);
     try {
       // Handle step-specific submission before moving forward
+      if (currentStep === 1 && shopDetailsStepRef.current) {
+        const success = await shopDetailsStepRef.current.submit();
+        if (!success) return;
+      }
       if (currentStep === 2 && aboutStepRef.current) {
         const success = await aboutStepRef.current.submit();
         if (!success) return;
@@ -238,9 +243,7 @@ const RetailerRegister = ({
 
       if (currentStep < steps.length - 1) {
         setCurrentStep((prev) => prev + 1);
-
         scrollToTop();
-
         return;
       }
     } finally {
@@ -469,6 +472,7 @@ const RetailerRegister = ({
                       }
                     >
                       <ShopDetailsStep
+                        ref={shopDetailsStepRef}
                         userId={retailerUserId || (distributorId ? localStorage.getItem("subRetailerUserId") : localStorage.getItem("retailerUserId")) || undefined}
                         distributorId={distributorId}
                         initialData={registrationData}
@@ -564,8 +568,8 @@ const RetailerRegister = ({
                       </span>
                     </button>
 
-                    {/* NEXT — hidden on step 0 & 1 (those steps self-advance) */}
-                    {currentStep !== 0 && currentStep !== 1 && currentStep !== 4 && (
+                    {/* NEXT — hidden on step 0 & 1 during fresh registration, shown when resuming or on steps 2, 3, 4 */}
+                    {(retailerUserId || (currentStep !== 0 && currentStep !== 1)) && (
                       <button
                         type="button"
                         onClick={nextStep}

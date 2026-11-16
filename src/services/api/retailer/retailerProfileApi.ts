@@ -84,9 +84,61 @@ export function rejectBank(retailerId: string, pendingBankId: string, reasonOfRe
   ).then(unwrap);
 }
 
-export function resubmitBank(retailerId: string, pendingBankId: string, newBankDetails: Record<string, unknown>) {
+export function resubmitBank(pendingBankId: string, newBankDetails: Record<string, unknown>) {
   return api.patch<ApiEnvelope<RetailerFullProfile>>(
-    `/api/v1/auth/admin/retailers/${retailerId}/banks/${pendingBankId}/resubmit`,
+    `/api/v1/auth/retailer/banks/${pendingBankId}/resubmit`,
     newBankDetails
+  ).then(unwrap);
+}
+
+// ============================================================
+// MOBILE & EMAIL UPDATE WITH OTP (using existing OTP routes)
+// ============================================================
+
+export interface SendMobileOtpResponse {
+  mobile: string;
+  expiresInSeconds: number;
+}
+
+export interface VerifyMobileOtpResponse {
+  mobile: string;
+  message: string;
+}
+
+export interface SendEmailOtpResponse {
+  email: string;
+  expiresInSeconds: number;
+}
+
+export interface VerifyEmailOtpResponse {
+  email: string;
+  message: string;
+}
+
+export function sendMobileUpdateOtp(newMobile: string, userId: string, currentMobile: string) {
+  return api.post<ApiEnvelope<SendMobileOtpResponse>>(
+    "/api/v1/otp/send",
+    { mobile: newMobile, userId, isUpdate: true, currentMobile }
+  ).then(unwrap);
+}
+
+export function verifyMobileUpdateOtp(otp: string, userId: string) {
+  return api.post<ApiEnvelope<VerifyMobileOtpResponse>>(
+    "/api/v1/otp/verify",
+    { otp, userId, isUpdate: true }
+  ).then(unwrap);
+}
+
+export function sendEmailUpdateOtp(newEmail: string, userId: string) {
+  return api.patch<ApiEnvelope<SendEmailOtpResponse>>(
+    "/api/v1/email-otp/send",
+    { email: newEmail, userId, isUpdate: true }
+  ).then(unwrap);
+}
+
+export function verifyEmailUpdateOtp(otp: string, userId: string, email: string) {
+  return api.patch<ApiEnvelope<VerifyEmailOtpResponse>>(
+    "/api/v1/email-otp/verify",
+    { email, otp, userId, isUpdate: true }
   ).then(unwrap);
 }

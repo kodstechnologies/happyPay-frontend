@@ -7,59 +7,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { AuditLog } from "../../../types/admin/audit";
-
-
-const dummyAuditLogs: AuditLog[] = [
-  {
-    id: "LOG001", adminId: "ADM01", userName: "Super Admin", role: "Super Admin",
-    action: "Admin Login", entity: "Auth", description: "Successful login from desktop device.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-    createdBy: { name: "System", role: "System" }, updatedBy: { name: "System", role: "System" },
-    ipAddress: "192.168.1.45"
-  },
-  {
-    id: "LOG002", adminId: "ADM01", userName: "Super Admin", role: "Super Admin",
-    action: "KYC Approved", entity: "Retailer", entityId: "RET-98231", description: "Approved KYC documents for Ramesh Store.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 45).toISOString(),
-    createdBy: { name: "Super Admin", role: "Super Admin" }, updatedBy: { name: "Super Admin", role: "Super Admin" },
-    ipAddress: "192.168.1.45"
-  },
-  {
-    id: "LOG003", adminId: "ADM02", userName: "John Doe", role: "Manager",
-    action: "Commission Changed", entity: "Commission Config", entityId: "COMM-004", description: "Updated AePS Cash Withdraw commission to 0.40%.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    createdBy: { name: "John Doe", role: "Manager" }, updatedBy: { name: "John Doe", role: "Manager" },
-    ipAddress: "10.0.0.15"
-  },
-  {
-    id: "LOG004", adminId: "ADM02", userName: "John Doe", role: "Manager",
-    action: "Retailer Suspended", entity: "Retailer", entityId: "RET-11942", description: "Suspended retailer account due to suspicious activity.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
-    createdBy: { name: "John Doe", role: "Manager" }, updatedBy: { name: "John Doe", role: "Manager" },
-    ipAddress: "10.0.0.15"
-  },
-  {
-    id: "LOG005", adminId: "ADM01", userName: "Super Admin", role: "Super Admin",
-    action: "Limit Changed", entity: "Transaction Limits", entityId: "LIM-092", description: "Increased daily DMT limit for verified retailers to ₹2,00,000.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    createdBy: { name: "Super Admin", role: "Super Admin" }, updatedBy: { name: "Super Admin", role: "Super Admin" },
-    ipAddress: "192.168.1.45"
-  },
-  {
-    id: "LOG006", adminId: "ADM03", userName: "Alice Smith", role: "Support",
-    action: "KYC Rejected", entity: "Retailer", entityId: "RET-77412", description: "Rejected PAN card upload (illegible).",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
-    createdBy: { name: "Alice Smith", role: "Support" }, updatedBy: { name: "Alice Smith", role: "Support" },
-    ipAddress: "172.16.0.8"
-  },
-  {
-    id: "LOG007", adminId: "ADM01", userName: "Super Admin", role: "Super Admin",
-    action: "Admin Registered", entity: "Admin", entityId: "ADM03", description: "Created new Support admin account for Alice Smith.",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    createdBy: { name: "Super Admin", role: "Super Admin" }, updatedBy: { name: "Super Admin", role: "Super Admin" },
-    ipAddress: "192.168.1.45"
-  },
-];
+import { getAdminAuditLogs } from "../../../apis/adminAudit.apis";
+import { showToast } from "../../../utils/toast";
 
 const formatDate = (value?: string) =>
   value
@@ -87,42 +36,33 @@ export default function AdminAuditLogs() {
     setLoading(true);
     setError("");
 
-    setTimeout(() => {
-      let filteredLogs = [...dummyAuditLogs];
+    try {
+      const res = await getAdminAuditLogs({
+        page,
+        limit: 20,
+        search: search || undefined,
+        action: action || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      });
 
-      if (search) {
-        const query = search.toLowerCase();
-        filteredLogs = filteredLogs.filter(
-          log =>
-            log.userName.toLowerCase().includes(query) ||
-            log.action.toLowerCase().includes(query) ||
-            log.entity.toLowerCase().includes(query) ||
-            log.description.toLowerCase().includes(query)
-        );
+      if (res) {
+        setLogs(res.logs || []);
+        setTotal(res.total ?? 0);
+        setTotalPages(res.totalPages || 1);
       }
-
-      if (action) {
-        filteredLogs = filteredLogs.filter(log => log.action === action);
-      }
-
-      if (fromDate) {
-        const from = new Date(fromDate).getTime();
-        filteredLogs = filteredLogs.filter(log => new Date(log.createdAt).getTime() >= from);
-      }
-
-      if (toDate) {
-        // Set to end of the day for inclusive filtering
-        const to = new Date(toDate);
-        to.setHours(23, 59, 59, 999);
-        filteredLogs = filteredLogs.filter(log => new Date(log.createdAt).getTime() <= to.getTime());
-      }
-
-      setLogs(filteredLogs);
-      setTotal(filteredLogs.length);
-      setTotalPages(Math.ceil(filteredLogs.length / 20) || 1);
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "Unable to load audit logs.";
+      setError(message);
+      showToast("error", message);
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   }, [
+    page,
     search,
     action,
     fromDate,
@@ -141,7 +81,6 @@ export default function AdminAuditLogs() {
 
   const applySearch = () => {
     setPage(1);
-    void loadLogs();
   };
 
   return (
@@ -192,13 +131,25 @@ export default function AdminAuditLogs() {
               className="mt-2 min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm font-normal outline-none focus:border-[#315bd1] focus:bg-white"
             >
               <option value="">All actions</option>
-              <option>Admin Registered</option>
               <option>Admin Login</option>
+              <option>Admin Logout</option>
+              <option>Admin Registered</option>
               <option>KYC Approved</option>
               <option>KYC Rejected</option>
               <option>Retailer Suspended</option>
+              <option>Retailer Activated</option>
+              <option>Retailer Blocked</option>
+              <option>Retailer Unblocked</option>
               <option>Limit Changed</option>
               <option>Commission Changed</option>
+              <option>Bank Approved</option>
+              <option>Bank Rejected</option>
+              <option>Converted to Distributor</option>
+              <option>Notification Sent</option>
+              <option>Banner Created</option>
+              <option>Banner Updated</option>
+              <option>Banner Deleted</option>
+              <option>Other</option>
             </select>
           </label>
 
@@ -232,7 +183,10 @@ export default function AdminAuditLogs() {
 
           <button
             type="button"
-            onClick={applySearch}
+            onClick={() => {
+              setPage(1);
+              void loadLogs();
+            }}
             className="flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#315bd1] px-4 text-xs font-bold text-white hover:bg-[#274dbd]"
           >
             <Search className="h-4 w-4" />
@@ -326,7 +280,7 @@ export default function AdminAuditLogs() {
                     Updated by
                   </th>
                   <th>
-                    Created / Updated
+                    Created / IP
                   </th>
                 </tr>
               </thead>
@@ -391,7 +345,7 @@ export default function AdminAuditLogs() {
                       <p>{formatDate(log.createdAt)}</p>
 
                       <p className="mt-1 text-[10px] text-slate-400">
-                        Updated: {formatDate(log.updatedAt)}
+                        IP: {log.ipAddress || "-"}
                       </p>
                     </td>
                   </tr>

@@ -1,6 +1,7 @@
 import axios from "axios";
 import { getToken } from "../utils/auth";
 import { getAdminToken, clearAdminSession } from "../utils/adminAuth";
+import { logout } from "../utils/auth";
 
 const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || "http://localhost:7000",
@@ -64,6 +65,27 @@ api.interceptors.response.use(
                 window.location.href = "/admin/login";
             }
         }
+
+        // If retailer/distributor is blocked/suspended (403), logout and redirect to login
+        if (status === 403 && !isUrlAdmin && !isPortalAdmin) {
+            const message = error?.response?.data?.message || "";
+            if (message.toLowerCase().includes("blocked") || 
+                message.toLowerCase().includes("suspended") ||
+                message.toLowerCase().includes("inactive")) {
+                logout();
+                if (typeof window !== "undefined" && !window.location.pathname.includes("/retailer/login")) {
+                    window.location.href = "/retailer/login";
+                }
+            }
+        }
+
+        // Extract error message from API response envelope
+        const responseData = error?.response?.data;
+        if (responseData?.message) {
+            error.message = responseData.message;
+            error.statusCode = responseData.statusCode || status;
+        }
+
         return Promise.reject(error);
     }
 );

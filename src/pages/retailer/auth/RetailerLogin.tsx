@@ -111,8 +111,12 @@ const RetailerLogin = () => {
       setOtpVerified(false);
       setOtpSent(true);
       setResendTimer(60);
-    } catch (err: any) {
-      setError(err.message || "Failed to send OTP");
+    } catch (err: unknown) {
+      // Extract error message from API response or fallback to generic message
+      const apiMessage = (err as any)?.response?.data?.message;
+      const errorMessage = apiMessage || (err as Error)?.message || "Failed to send OTP";
+      setError(errorMessage);
+      showToast("error", errorMessage);
     } finally {
       setSubmitting(false);
     }

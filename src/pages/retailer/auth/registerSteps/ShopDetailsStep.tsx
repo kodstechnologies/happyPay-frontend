@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback, forwardRef, useImperativeHandle } from "react";
 import {
   Mail,
   Store,
@@ -36,6 +36,10 @@ import {
   getProofTypes,
   type MasterDataItem,
 } from "../../../../services/api/masterData/masterDataApi";
+
+export type ShopDetailsStepHandle = {
+  submit: () => Promise<boolean>;
+};
 
 interface ApiErrorData {
   message?: string;
@@ -116,12 +120,8 @@ type ShopDetailsStepProps = {
   initialData?: CurrentRegistrationStepResult | null;
 };
 
-const ShopDetailsStep = ({
-  userId: userIdProp,
-  distributorId,
-  onShopDetailsSaved,
-  initialData,
-}: ShopDetailsStepProps) => {
+const ShopDetailsStep = forwardRef<ShopDetailsStepHandle, ShopDetailsStepProps>(
+  ({ userId: userIdProp, distributorId, onShopDetailsSaved, initialData }, ref) => {
   // Fall back to localStorage so the step works even if the prop wasn't passed
   const userId = userIdProp || localStorage.getItem("retailerUserId") || undefined;
   const insideShopInputRef = useRef<HTMLInputElement | null>(null);
@@ -131,10 +131,10 @@ const ShopDetailsStep = ({
   const panInputRef = useRef<HTMLInputElement | null>(null);
 
   // -------- Email OTP phase --------
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialData?.email || "");
   const [emailOtp, setEmailOtp] = useState("");
   const [emailOtpSent, setEmailOtpSent] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(initialData?.isEmailVerified || false);
   const [sendingEmailOtp, setSendingEmailOtp] = useState(false);
   const [verifyingEmailOtp, setVerifyingEmailOtp] = useState(false);
   const [emailOtpError, setEmailOtpError] = useState("");
@@ -213,64 +213,97 @@ const ShopDetailsStep = ({
   // ========================================
   // POPULATE FROM INITIAL DATA
   // ========================================
-  const [prevInitialData, setPrevInitialData] = useState(initialData);
+  useEffect(() => {
+    if (!initialData) return;
 
-  if (initialData !== prevInitialData) {
-    setPrevInitialData(initialData);
-    if (initialData) {
-      if (initialData.email) {
-        setEmail(initialData.email);
-      }
-      if (initialData.isEmailVerified) {
-        setEmailVerified(true);
-      }
+    const fd = initialData.filledData;
+    if (fd) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (fd.panNumber) setPan(fd.panNumber);
+       
+      if (fd.panDocument) setExistingPanDoc(fd.panDocument);
 
-      const fd = initialData.filledData;
-      if (fd) {
-        if (fd.panNumber) setPan(fd.panNumber);
-        if (fd.panDocument) setExistingPanDoc(fd.panDocument);
+      if (fd.shop) {
+         
+        if (fd.shop.name) setShopName(fd.shop.name);
 
-        if (fd.shop) {
-          if (fd.shop.name) setShopName(fd.shop.name);
-
-          const catVal = fd.shop.category;
-          if (catVal) {
-            setCategory(typeof catVal === "object" ? catVal._id : catVal);
-          }
-
-          const propVal = fd.shop.propertyType;
-          if (propVal) {
-            setPropertyType(typeof propVal === "object" ? propVal._id : propVal);
-          }
-
-          const addr = fd.shop.completeAddress || fd.shop.address?.addressLine;
-          if (addr) setAddress(addr);
-
-          if (fd.shop.address?.city) setCity(fd.shop.address.city);
-          if (fd.shop.address?.state) setState(fd.shop.address.state);
-          if (fd.shop.address?.stateCode) setStateCode(fd.shop.address.stateCode);
-          if (fd.shop.address?.districtName) setDistrictName(fd.shop.address.districtName);
-          if (fd.shop.address?.districtCode) setDistrictCode(fd.shop.address.districtCode);
-          if (fd.shop.address?.pincode) {
-            setPincode(fd.shop.address.pincode);
-          }
-
-          if (fd.shop.location?.latitude != null) setLatitude(fd.shop.location.latitude);
-          if (fd.shop.location?.longitude != null) setLongitude(fd.shop.location.longitude);
+        const catVal = fd.shop.category;
+        if (catVal) {
+           
+          setCategory(typeof catVal === "object" ? catVal._id : catVal);
         }
 
-        if (fd.shopInsidePhoto) setExistingInsideShop(fd.shopInsidePhoto);
-        if (fd.shopOutsidePhoto) setExistingOutsideShop(fd.shopOutsidePhoto);
-        if (fd.shopLocationPhoto) setExistingShopLocation(fd.shopLocationPhoto);
-
-        const proofVal = fd.businessProofType;
-        if (proofVal) {
-          setBusinessProof(typeof proofVal === "object" ? proofVal._id : proofVal);
+        const propVal = fd.shop.propertyType;
+        if (propVal) {
+           
+          setPropertyType(typeof propVal === "object" ? propVal._id : propVal);
         }
-        if (fd.businessProofDocument) setExistingBusinessProof(fd.businessProofDocument);
+
+        const addr = fd.shop.completeAddress || fd.shop.address?.addressLine;
+        if (addr) {
+           
+          setAddress(addr);
+        }
+
+        if (fd.shop.address?.city) {
+           
+          setCity(fd.shop.address.city);
+        }
+        if (fd.shop.address?.state) {
+           
+          setState(fd.shop.address.state);
+        }
+        if (fd.shop.address?.stateCode) {
+           
+          setStateCode(fd.shop.address.stateCode);
+        }
+        if (fd.shop.address?.districtName) {
+           
+          setDistrictName(fd.shop.address.districtName);
+        }
+        if (fd.shop.address?.districtCode) {
+           
+          setDistrictCode(fd.shop.address.districtCode);
+        }
+        if (fd.shop.address?.pincode) {
+           
+          setPincode(fd.shop.address.pincode);
+        }
+
+        if (fd.shop.location?.latitude != null) {
+           
+          setLatitude(fd.shop.location.latitude);
+        }
+        if (fd.shop.location?.longitude != null) {
+           
+          setLongitude(fd.shop.location.longitude);
+        }
+      }
+
+      if (fd.shopInsidePhoto) {
+         
+        setExistingInsideShop(fd.shopInsidePhoto);
+      }
+      if (fd.shopOutsidePhoto) {
+         
+        setExistingOutsideShop(fd.shopOutsidePhoto);
+      }
+      if (fd.shopLocationPhoto) {
+         
+        setExistingShopLocation(fd.shop.locationPhoto);
+      }
+
+      const proofVal = fd.businessProofType;
+      if (proofVal) {
+         
+        setBusinessProof(typeof proofVal === "object" ? proofVal._id : proofVal);
+      }
+      if (fd.businessProofDocument) {
+         
+        setExistingBusinessProof(fd.businessProofDocument);
       }
     }
-  }
+  }, [initialData]);
 
   // Load state list on mount
   useEffect(() => {
@@ -813,25 +846,95 @@ const ShopDetailsStep = ({
   // ==========================================================
   // SUBMIT FULL SHOP DETAILS
   // ==========================================================
-  const handleSubmit = async () => {
-    if (!userId) return showToast("error", "User not registered.");
-    if (!emailVerified) return showToast("error", "Please verify your email first.");
-    if (!pan) return showToast("error", "PAN number is required.");
-    if (!panFile) return showToast("error", "PAN document is required.");
-    if (!shopName.trim()) return showToast("error", "Shop name is required.");
-    if (!category) return showToast("error", "Shop category is required.");
-    if (!propertyType) return showToast("error", "Property type is required.");
-    if (!address.trim()) return showToast("error", "Shop address is required.");
-    if (!city.trim()) return showToast("error", "City is required.");
-    if (!state.trim()) return showToast("error", "State is required.");
-    if (!pincode.trim()) return showToast("error", "Pincode is required.");
-    if (pincode.length !== 6) return showToast("error", "Pincode must be exactly 6 digits.");
-    if (pincodeError) return showToast("error", pincodeError);
-    if (!businessProof) return showToast("error", "Business proof type is required.");
-    if (latitude == null || isNaN(latitude)) return showToast("error", "Latitude is required.");
-    if (longitude == null || isNaN(longitude)) return showToast("error", "Longitude is required.");
-    if (latitude < -90 || latitude > 90) return showToast("error", "Latitude must be between -90 and 90.");
-    if (longitude < -180 || longitude > 180) return showToast("error", "Longitude must be between -180 and 180.");
+  const handleSubmit = async (): Promise<boolean> => {
+    if (!userId) {
+      showToast("error", "User not registered.");
+      return false;
+    }
+    if (!emailVerified) {
+      showToast("error", "Please verify your email first.");
+      return false;
+    }
+    if (!pan) {
+      showToast("error", "PAN number is required.");
+      return false;
+    }
+    if (!panFile && !existingPanDoc) {
+      showToast("error", "PAN document is required.");
+      return false;
+    }
+    if (!shopName.trim()) {
+      showToast("error", "Shop name is required.");
+      return false;
+    }
+    if (!category) {
+      showToast("error", "Shop category is required.");
+      return false;
+    }
+    if (!propertyType) {
+      showToast("error", "Property type is required.");
+      return false;
+    }
+    if (!address.trim()) {
+      showToast("error", "Shop address is required.");
+      return false;
+    }
+    if (!city.trim()) {
+      showToast("error", "City is required.");
+      return false;
+    }
+    if (!state.trim()) {
+      showToast("error", "State is required.");
+      return false;
+    }
+    if (!pincode.trim()) {
+      showToast("error", "Pincode is required.");
+      return false;
+    }
+    if (pincode.length !== 6) {
+      showToast("error", "Pincode must be exactly 6 digits.");
+      return false;
+    }
+    if (pincodeError) {
+      showToast("error", pincodeError);
+      return false;
+    }
+    if (!businessProof) {
+      showToast("error", "Business proof type is required.");
+      return false;
+    }
+    if (!businessProofFile && !existingBusinessProof) {
+      showToast("error", "Business proof document is required.");
+      return false;
+    }
+    if (!insideShopFile && !existingInsideShop) {
+      showToast("error", "Inside shop photo is required.");
+      return false;
+    }
+    if (!outsideShopFile && !existingOutsideShop) {
+      showToast("error", "Outside shop photo is required.");
+      return false;
+    }
+    if (!shopLocationFile && !existingShopLocation) {
+      showToast("error", "Shop location photo is required.");
+      return false;
+    }
+    if (latitude == null || isNaN(latitude)) {
+      showToast("error", "Latitude is required.");
+      return false;
+    }
+    if (longitude == null || isNaN(longitude)) {
+      showToast("error", "Longitude is required.");
+      return false;
+    }
+    if (latitude < -90 || latitude > 90) {
+      showToast("error", "Latitude must be between -90 and 90.");
+      return false;
+    }
+    if (longitude < -180 || longitude > 180) {
+      showToast("error", "Longitude must be between -180 and 180.");
+      return false;
+    }
 
     setSubmitting(true);
     try {
@@ -860,13 +963,19 @@ const ShopDetailsStep = ({
       });
 
       onShopDetailsSaved?.();
+      return true;
     } catch (err: unknown) {
       const msg = getApiErrorMessage(err, "Failed to save shop details");
       showToast("error", msg);
+      return false;
     } finally {
       setSubmitting(false);
     }
   };
+
+  useImperativeHandle(ref, () => ({
+    submit: handleSubmit,
+  }));
 
   // ==========================================================
   // RENDER
@@ -1513,20 +1622,13 @@ const ShopDetailsStep = ({
           error={businessProofFileError}
         />
 
-        {/* Save button */}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="mt-6 flex h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#7c3aed] text-[14px] font-bold text-white transition hover:opacity-90 disabled:opacity-50"
-        >
-          {submitting ? (
-            <Loader2 className="h-5 w-5 animate-spin" />
-          ) : (
-            <CheckCircle2 className="h-5 w-5" strokeWidth={2.2} />
-          )}
-          {submitting ? "SAVING..." : "SAVE SHOP DETAILS"}
-        </button>
+        {/* Submitting indicator */}
+        {submitting && (
+          <div className="flex items-center justify-center gap-2 text-[12px] text-[#7c3aed]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Saving shop details...
+          </div>
+        )}
       </fieldset>
 
       <div className="flex items-center justify-center gap-2 pt-1 text-[11px] text-[#9aa1ae]">
@@ -1535,7 +1637,9 @@ const ShopDetailsStep = ({
       </div>
     </div>
   );
-};
+});
+
+ShopDetailsStep.displayName = "ShopDetailsStep";
 
 /* ============================================================
    SelectField

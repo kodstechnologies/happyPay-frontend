@@ -4,7 +4,7 @@ import {
   Building2,
   CreditCard,
   CheckCircle2,
-
+  Hash,
   ShieldCheck,
   Star,
   Search,
@@ -12,6 +12,8 @@ import {
   ChevronDown,
   Loader2,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
@@ -68,7 +70,37 @@ export default function BankModal({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
+
+  const handleIfscChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 11);
+
+    setIfscCode(value);
+  };
+
+  const handleAccountNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+      .replace(/\D/g, "")
+      .slice(0, 18);
+
+    setAccountNumber(value);
+  };
+
+  const handleConfirmAccountNumberChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value
+      .replace(/\D/g, "")
+      .slice(0, 18);
+
+    setConfirmAccountNumber(value);
+  };
+
+  const accountsMatch =
+    accountNumber.length > 0 &&
+    confirmAccountNumber.length > 0 &&
+    accountNumber === confirmAccountNumber;
 
   useEffect(() => {
     if (!open) return;
@@ -157,18 +189,20 @@ export default function BankModal({
       showToast("error", "Please select or enter the bank name.");
       return false;
     }
-    const cleanAcc = accountNumber.trim();
-    if (!cleanAcc || cleanAcc.length < 8) {
-      showToast("error", "Please enter a valid bank account number (minimum 8 digits).");
+    if (!ifscCode) {
+      showToast("error", "IFSC code is required.");
       return false;
     }
-    if (cleanAcc !== confirmAccountNumber.trim()) {
+    if (ifscCode.length !== 11) {
+      showToast("error", "Please enter a valid 11-character IFSC code.");
+      return false;
+    }
+    if (!accountNumber) {
+      showToast("error", "Account number is required.");
+      return false;
+    }
+    if (accountNumber !== confirmAccountNumber) {
       showToast("error", "Account numbers do not match.");
-      return false;
-    }
-    const cleanIfsc = ifscCode.trim().toUpperCase();
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(cleanIfsc)) {
-      showToast("error", "Please enter a valid 11-digit IFSC code (e.g., HDFC0001234).");
       return false;
     }
     return true;
@@ -195,9 +229,9 @@ export default function BankModal({
         bankId: bankToEdit?._id,
         bankName: bankName.trim(),
         bank_code: effectiveBankCode ? String(effectiveBankCode) : undefined,
-        accountNumber: accountNumber.trim(),
-        confirmAccountNumber: confirmAccountNumber.trim(),
-        ifscCode: ifscCode.trim().toUpperCase(),
+        accountNumber: accountNumber,
+        confirmAccountNumber: confirmAccountNumber,
+        ifscCode: ifscCode,
         branchName: branchName.trim(),
         isPrimary: isOnlyBank || isPrimary,
       };
@@ -380,15 +414,37 @@ export default function BankModal({
                 Account Number <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
+                <CreditCard
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  strokeWidth={2}
+                />
                 <input
-                  type="text"
+                  type={showAccountNumber ? "text" : "password"}
                   value={accountNumber}
-                  onChange={(e) => setAccountNumber(e.target.value.replace(/\s+/g, ""))}
+                  onChange={handleAccountNumberChange}
                   placeholder="Enter account number"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 transition"
+                  maxLength={18}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className={`w-full rounded-xl border bg-white pl-10 pr-10 py-2.5 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    accountNumber
+                      ? "border-[#7c3aed]"
+                      : "border-slate-200"
+                  } focus:border-[#7c3aed] focus:ring-[#7c3aed]/20`}
                   required
                 />
-                <CreditCard className="absolute right-3 top-2.5 h-4 w-4 text-slate-300 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setShowAccountNumber(!showAccountNumber)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  tabIndex={-1}
+                >
+                  {showAccountNumber ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -397,24 +453,37 @@ export default function BankModal({
                 Confirm Account Number <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
+                <CreditCard
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  strokeWidth={2}
+                />
                 <input
-                  type="text"
+                  type="password"
                   value={confirmAccountNumber}
-                  onChange={(e) =>
-                    setConfirmAccountNumber(e.target.value.replace(/\s+/g, ""))
-                  }
+                  onChange={handleConfirmAccountNumberChange}
                   placeholder="Re-enter account number"
-                  className={`w-full rounded-xl border px-3.5 py-2.5 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
-                    confirmAccountNumber && accountNumber === confirmAccountNumber
-                      ? "border-emerald-300 bg-emerald-50/20 focus:border-emerald-500 focus:ring-emerald-500/20"
-                      : "border-slate-200 bg-white focus:border-[#7c3aed] focus:ring-[#7c3aed]/20"
-                  }`}
+                  maxLength={18}
+                  inputMode="numeric"
+                  autoComplete="off"
+                  className={`w-full rounded-xl border pl-10 pr-3.5 py-2.5 text-xs font-mono text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    accountsMatch
+                      ? "border-[#08ae82]"
+                      : confirmAccountNumber
+                        ? "border-[#d85b5b]"
+                        : "border-slate-200"
+                  } focus:border-[#7c3aed] focus:ring-[#7c3aed]/20`}
                   required
                 />
-                {confirmAccountNumber && accountNumber === confirmAccountNumber && (
-                  <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-emerald-500 pointer-events-none" />
+                {accountsMatch && (
+                  <CheckCircle2 className="absolute right-3 top-2.5 h-4 w-4 text-[#08ae82] pointer-events-none" />
                 )}
               </div>
+              {confirmAccountNumber.length > 0 &&
+                accountNumber !== confirmAccountNumber && (
+                  <p className="mt-2 text-xs font-medium text-[#d85b5b]">
+                    Account numbers do not match.
+                  </p>
+                )}
             </div>
           </div>
 
@@ -424,15 +493,27 @@ export default function BankModal({
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 IFSC Code <span className="text-rose-500">*</span>
               </label>
-              <input
-                type="text"
-                maxLength={11}
-                value={ifscCode}
-                onChange={(e) => setIfscCode(e.target.value.toUpperCase().trim())}
-                placeholder="e.g. HDFC0001234"
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-mono uppercase text-slate-900 placeholder:text-slate-400 focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 transition"
-                required
-              />
+              <div className="relative">
+                <Hash
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                  strokeWidth={2}
+                />
+                <input
+                  type="text"
+                  name="ifscCode"
+                  value={ifscCode}
+                  onChange={handleIfscChange}
+                  placeholder="e.g. HDFC0001234"
+                  maxLength={11}
+                  autoComplete="off"
+                  className={`w-full rounded-xl border bg-white pl-10 pr-3.5 py-2.5 text-xs font-mono uppercase text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition ${
+                    ifscCode
+                      ? "border-[#7c3aed]"
+                      : "border-slate-200"
+                  } focus:border-[#7c3aed] focus:ring-[#7c3aed]/20`}
+                  required
+                />
+              </div>
               <span className="mt-1 block text-[10px] text-slate-400">
                 11-character bank branch code
               </span>

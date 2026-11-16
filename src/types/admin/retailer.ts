@@ -50,6 +50,8 @@ export interface AdminRetailer {
   role?: "distributor" | "retailer";
   kycRejectionReason?: string;
   reasonOfRejection?: string;
+  walletBalance?: number;
+  balance?: number;
   createdAt?: string;
   updatedAt?: string;
 }

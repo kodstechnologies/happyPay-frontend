@@ -1,5 +1,5 @@
 import { showToast } from "../../../utils/toast";
-import { Eye, RefreshCw, Search, Store, Ban, CheckCircle, Users, Layers } from "lucide-react";
+import { Eye, RefreshCw, Search, Store, Ban, CheckCircle, Users, Layers, ArrowUpRight } from "lucide-react";
 import Pagination from "../../../components/common/Pagination";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,7 @@ import { DUMMY_RETAILERS, updateDummyRetailerStatus } from "./mockRetailers";
 import {
   getAdminRetailers,
   updateAdminRetailerAccountStatus,
+  convertRetailerToDistributor,
 } from "../../../apis/adminRetailer.apis";
 
 const kycBadge: Record<string, { bg: string; text: string; border: string; dot: string }> = {
@@ -183,6 +184,24 @@ export default function AdminRetailers() {
     }
   };
 
+  const convertToDistributor = async (id: string) => {
+    setActionLoadingId(id);
+    try {
+      await convertRetailerToDistributor(id);
+      setItems((prevItems) =>
+        prevItems.map((item) =>
+          item.id === id ? ({ ...item, role: "distributor" } as AdminRetailer) : item
+        )
+      );
+      showToast("success", "Retailer converted to distributor successfully");
+    } catch (err) {
+      console.error("Failed to convert retailer to distributor:", err);
+      showToast("error", "Failed to convert retailer to distributor");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleSearch = () => {
     if (debouncedSearch !== search) {
       setDebouncedSearch(search);
@@ -332,7 +351,7 @@ export default function AdminRetailers() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="hp-table min-w-[850px]">
+            <table className="hp-table min-w-[1100px]">
               <thead>
                 <tr>
                   <th>Name</th>
@@ -340,7 +359,9 @@ export default function AdminRetailers() {
                   <th>Email</th>
                   <th>Mobile</th>
                   <th>PAN Card</th>
-                  <th>Status</th>
+                  <th>Wallet Balance</th>
+                  <th>Account Status</th>
+                  <th>KYC Status</th>
                   <th className="text-right">Action</th>
                 </tr>
               </thead>
@@ -387,7 +408,38 @@ export default function AdminRetailers() {
                         {item.mobile || "-"}
                       </td>
                       <td className="px-5 py-4 font-medium">
-                        {(item as unknown as { panCard?: string; panNumber?: string }).panCard || (item as unknown as { panNumber?: string }).panNumber || "-"}
+                        {item.panNumber || "-"}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="font-bold text-slate-900">
+                          ₹{(item.walletBalance || item.balance || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border ${
+                            item.status === "active" || item.status === "approved"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : item.status === "blocked"
+                              ? "bg-rose-50 text-rose-700 border-rose-200"
+                              : item.status === "pending"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          }`}
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              item.status === "active" || item.status === "approved"
+                                ? "bg-emerald-500"
+                                : item.status === "blocked"
+                                ? "bg-rose-500"
+                                : item.status === "pending"
+                                ? "bg-amber-500"
+                                : "bg-slate-400"
+                            }`}
+                          />
+                          {item.status || "Unknown"}
+                        </span>
                       </td>
                       <td className="px-5 py-4">
                         <span
@@ -409,6 +461,20 @@ export default function AdminRetailers() {
                             <Eye className="h-3.5 w-3.5" />
                             <span>View</span>
                           </button>
+
+                          {/* Convert to Distributor Button - Only show for retailers */}
+                          {!isDistributor && (
+                            <button
+                              type="button"
+                              disabled={isUpdating}
+                              onClick={() => convertToDistributor(item.id)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-600 hover:text-white transition-all shadow-sm border border-indigo-200/60 disabled:opacity-50"
+                              title="Convert Retailer to Distributor"
+                            >
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                              <span>{isUpdating ? "Converting..." : "Convert to Distributor"}</span>
+                            </button>
+                          )}
 
                           {/* Block / Unblock Toggle Button */}
                           {isBlocked ? (

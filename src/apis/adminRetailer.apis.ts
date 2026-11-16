@@ -32,6 +32,10 @@ export function getAdminRetailers(filters: RetailerListFilters = {}) {
   return api.get<Envelope<RetailerList>>(`/api/admin/retailers?${params.toString()}`).then(unwrap);
 }
 
+export function getAdminDistributors(filters: Omit<RetailerListFilters, "role"> = {}) {
+  return getAdminRetailers({ ...filters, role: "distributor" });
+}
+
 export function getAdminRetailer(id: string) {
   return api.get<Envelope<AdminRetailer>>(`/api/admin/retailers/${id}`).then(unwrap);
 }
@@ -176,4 +180,14 @@ export function getAllAdminTransactions(
     queryString ? `?${queryString}` : ""
   }`;
   return api.get<Envelope<AdminTransactionListResponse>>(endpoint).then(unwrap);
+}
+
+/**
+ * PATCH /api/v1/auth/admin/retailers/:retailerId/convert-distributor
+ * Converts a retailer to a distributor by adding the distributor role.
+ */
+export function convertRetailerToDistributor(retailerId: string) {
+  return api.patch<Envelope<{ id: string; roles: string[] }>>(
+    `/api/v1/auth/admin/retailers/${retailerId}/convert-distributor`
+  ).then(unwrap);
 }

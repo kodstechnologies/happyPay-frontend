@@ -511,13 +511,7 @@ export default function SettlementToBank() {
                       <label className="block text-xs font-bold uppercase tracking-wider text-slate-600">
                         1. Select Destination Bank Account
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => navigate("/retailer/profile/bank-details")}
-                        className="text-xs font-semibold text-[#7c3aed] hover:underline inline-flex items-center gap-1"
-                      >
-                        <PlusCircle className="h-3.5 w-3.5" /> Add / Manage
-                      </button>
+                    
                     </div>
 
                     {banks.length === 0 ? (

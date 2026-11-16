@@ -1,12 +1,14 @@
-import { Activity, Building2, FileClock, Headphones, LayoutDashboard, LogOut, Settings, Store, Users, X, Bell, FileText, Image } from "lucide-react";
+import { Activity, Building2, FileClock, Headphones, LayoutDashboard, LogOut, Store, X, Bell, FileText, Image } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
 interface Props { collapsed: boolean; mobileOpen: boolean; onToggle: () => void; onCloseMobile: () => void; onLogout: () => void; }
 const groups = [
   { label: "Overview", items: [{ label: "Dashboard", icon: LayoutDashboard, to: "/admin/dashboard" }] },
-  { label: "Management", items: [{ label: "Retailers", icon: Store, to: "/admin/retailers" }, { label: "Transactions", icon: Activity, to: "/admin/transactions" }, { label: "Customers", icon: Users, to: "/admin/customers" }, { label: "Bank Approvals", icon: Building2, to: "/admin/bank-approvals" }, { label: "Send Notification", icon: Bell, to: "/admin/send-notification" }] },
-  { label: "Configuration", items: [{ label: "CMS Configuration", icon: Settings, to: "/admin/cms" },
+  { label: "Management", items: [{ label: "Retailers", icon: Store, to: "/admin/retailers" }, { label: "Transactions", icon: Activity, to: "/admin/transactions" },
+    
+     { label: "Bank Approvals", icon: Building2, to: "/admin/bank-approvals" }, { label: "Send Notification", icon: Bell, to: "/admin/send-notification" }] },
+  { label: "Configuration", items: [
     // { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" },
      { label: "Banners", icon: Image, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }] },
   { label: "System", items: [{ label: "Audit Logs", icon: FileClock, to: "/admin/audit-logs" }, { label: "Support", icon: Headphones, to: "/admin/support" }] },

@@ -414,12 +414,10 @@ const AboutRetailerStep = forwardRef<
           <input
             id="retailer-dob"
             name="dateOfBirth"
-            type="text"
+            type="date"
             value={dateOfBirth}
             onChange={handleDobChange}
-            placeholder="DD/MM/YYYY"
-            inputMode="numeric"
-            maxLength={10}
+            max={new Date().toISOString().split('T')[0]}
             className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${dateOfBirth ? "border-[#7c3aed]" : "border-[#dfe3e9]"
               }`}
           />

@@ -2,38 +2,77 @@ import { useState, useEffect, useRef } from "react";
 import { Bell, Send, Loader2, Upload, X, ChevronDown } from "lucide-react";
 import { showToast } from "../../../utils/toast";
 import { sendCustomNotification } from "../../../apis/adminNotifications.apis";
-import { getAdminRetailers } from "../../../apis/adminRetailer.apis";
+import { getAdminRetailers, getAdminDistributors } from "../../../apis/adminRetailer.apis";
 import type { AdminRetailer } from "../../../types/admin/retailer";
 
 export default function SendNotification() {
   const [retailers, setRetailers] = useState<AdminRetailer[]>([]);
-  const [selectedRetailer, setSelectedRetailer] = useState<AdminRetailer | "ALL" | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [distributors, setDistributors] = useState<AdminRetailer[]>([]);
+  const [selectedRetailer, setSelectedRetailer] = useState<AdminRetailer | null>(null);
+  const [selectedDistributor, setSelectedDistributor] = useState<AdminRetailer | null>(null);
+  const [selectAllRetailers, setSelectAllRetailers] = useState(false);
+  const [selectAllDistributors, setSelectAllDistributors] = useState(false);
+  const [retailerDropdownOpen, setRetailerDropdownOpen] = useState(false);
+  const [distributorDropdownOpen, setDistributorDropdownOpen] = useState(false);
+  const [loadingRetailers, setLoadingRetailers] = useState(false);
+  const [loadingDistributors, setLoadingDistributors] = useState(false);
+  const [retailerSearch, setRetailerSearch] = useState("");
+  const [distributorSearch, setDistributorSearch] = useState("");
   const [sending, setSending] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const retailerDropdownRef = useRef<HTMLDivElement>(null);
+  const distributorDropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch retailers on mount
   useEffect(() => {
     const fetchRetailers = async () => {
       try {
-        setLoading(true);
-        const response = await getAdminRetailers({ page: 1, limit: 100 });
+        setLoadingRetailers(true);
+        const response = await getAdminRetailers({ page: 1, limit: 100, role: "retailer" });
         const retailersData = response.items || [];
         setRetailers(retailersData);
       } catch (error) {
         console.error("Failed to fetch retailers:", error);
         showToast("error", "Failed to load retailers list");
       } finally {
-        setLoading(false);
+        setLoadingRetailers(false);
+      }
+    };
+
+    const fetchDistributors = async () => {
+      try {
+        setLoadingDistributors(true);
+        const response = await getAdminDistributors({ page: 1, limit: 100 });
+        const distributorsData = response.items || [];
+        setDistributors(distributorsData);
+      } catch (error) {
+        console.error("Failed to fetch distributors:", error);
+        showToast("error", "Failed to load distributors list");
+      } finally {
+        setLoadingDistributors(false);
       }
     };
 
     fetchRetailers();
+    fetchDistributors();
+  }, []);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (retailerDropdownRef.current && !retailerDropdownRef.current.contains(e.target as Node)) {
+        setRetailerDropdownOpen(false);
+      }
+      if (distributorDropdownRef.current && !distributorDropdownRef.current.contains(e.target as Node)) {
+        setDistributorDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,8 +107,9 @@ export default function SendNotification() {
   };
 
   const handleSendNotification = async () => {
-    if (!selectedRetailer) {
-      showToast("error", "Please select a retailer");
+    // Validate selection
+    if (!selectAllRetailers && !selectAllDistributors && !selectedRetailer && !selectedDistributor) {
+      showToast("error", "Please select at least one recipient (All Retailers, All Distributors, or specific retailer/distributor)");
       return;
     }
 
@@ -87,9 +127,21 @@ export default function SendNotification() {
     try {
       // Create FormData to send image along with other data
       const formData = new FormData();
-      formData.append("retailerId", selectedRetailer === "ALL" ? "ALL" : selectedRetailer.id);
       formData.append("title", title.trim());
       formData.append("body", body.trim());
+
+      // Determine recipient type
+      if (selectAllRetailers) {
+        formData.append("targetType", "ALL_RETAILERS");
+      } else if (selectAllDistributors) {
+        formData.append("targetType", "ALL_DISTRIBUTORS");
+      } else if (selectedRetailer) {
+        formData.append("targetType", "SPECIFIC_RETAILER");
+        formData.append("retailerId", selectedRetailer.id);
+      } else if (selectedDistributor) {
+        formData.append("targetType", "SPECIFIC_DISTRIBUTOR");
+        formData.append("distributorId", selectedDistributor.id);
+      }
 
       if (imageFile) {
         formData.append("image", imageFile);
@@ -106,6 +158,11 @@ export default function SendNotification() {
       setImageFile(null);
       setImagePreview("");
       setSelectedRetailer(null);
+      setSelectedDistributor(null);
+      setSelectAllRetailers(false);
+      setSelectAllDistributors(false);
+      setRetailerSearch("");
+      setDistributorSearch("");
     } catch (error) {
       console.error("Failed to send notification:", error);
       showToast("error", error instanceof Error ? error.message : "Failed to send notification");
@@ -132,78 +189,213 @@ export default function SendNotification() {
 
       {/* Form */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 space-y-6">
-        {/* Retailer Selection - Dropdown */}
-        <div>
-          <label className="mb-2.5 block text-sm font-semibold text-[#172033]">
-            Select Retailer <span className="text-red-500">*</span>
+        {/* Recipient Selection */}
+        <div className="space-y-4">
+          <label className="block text-sm font-semibold text-[#172033]">
+            Select Recipients <span className="text-red-500">*</span>
           </label>
-          <div className="relative">
+
+          {/* Checkboxes for All */}
+          <div className="flex flex-wrap gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectAllRetailers}
+                onChange={(e) => {
+                  setSelectAllRetailers(e.target.checked);
+                  if (e.target.checked) {
+                    setSelectedRetailer(null);
+                    setSelectAllDistributors(false);
+                    setSelectedDistributor(null);
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-[#315bd1] focus:ring-[#315bd1]"
+              />
+              <span className="text-sm font-medium text-slate-700">All Retailers</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selectAllDistributors}
+                onChange={(e) => {
+                  setSelectAllDistributors(e.target.checked);
+                  if (e.target.checked) {
+                    setSelectedDistributor(null);
+                    setSelectAllRetailers(false);
+                    setSelectedRetailer(null);
+                  }
+                }}
+                className="h-4 w-4 rounded border-slate-300 text-[#315bd1] focus:ring-[#315bd1]"
+              />
+              <span className="text-sm font-medium text-slate-700">All Distributors</span>
+            </label>
+          </div>
+
+          {/* Retailer Dropdown */}
+          <div className="relative" ref={retailerDropdownRef}>
+            <label className="mb-2.5 block text-xs font-semibold text-slate-600">
+              Specific Retailer
+            </label>
             <button
               type="button"
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="h-[54px] w-full rounded-xl border border-slate-200 bg-[#fafbfd] px-5 text-left text-sm font-medium outline-none focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/20 transition-all flex items-center justify-between"
+              onClick={() => !selectAllRetailers && !selectAllDistributors && setRetailerDropdownOpen(!retailerDropdownOpen)}
+              disabled={selectAllRetailers || selectAllDistributors}
+              className={`h-[54px] w-full rounded-xl border px-5 text-left text-sm font-medium outline-none transition-all flex items-center justify-between ${
+                selectAllRetailers || selectAllDistributors
+                  ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                  : "border-slate-200 bg-[#fafbfd] focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/20"
+              }`}
             >
               <span className={selectedRetailer ? "text-slate-900" : "text-slate-400"}>
-                {selectedRetailer === "ALL"
-                  ? "All Retailers"
-                  : selectedRetailer
+                {selectedRetailer
                   ? `${selectedRetailer.fullName} - ${selectedRetailer.mobile}`
                   : "Select a retailer"}
               </span>
-              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${retailerDropdownOpen ? "rotate-180" : ""}`} />
             </button>
 
-            {/* Dropdown */}
-            {dropdownOpen && (
+            {/* Retailer Dropdown */}
+            {retailerDropdownOpen && (
               <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-                {loading ? (
+                {/* Search Box */}
+                <div className="border-b border-slate-100 p-2">
+                  <input
+                    type="text"
+                    placeholder="Search retailers..."
+                    value={retailerSearch}
+                    onChange={(e) => setRetailerSearch(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20"
+                    autoFocus
+                  />
+                </div>
+
+                {loadingRetailers ? (
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                   </div>
                 ) : (
                   <>
-                    {/* All Retailers Option */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedRetailer("ALL");
-                        setDropdownOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 bg-[#eef2ff]"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-[#315bd1]">All Retailers</p>
-                        <p className="text-xs text-slate-500">Send to all registered retailers</p>
-                      </div>
-                    </button>
-
                     {retailers.length > 0 ? (
-                      retailers.map((retailer) => {
-                        const name = retailer.fullName || "Unknown";
-                        const shopName = retailer.shop?.name || "";
-                        return (
-                          <button
-                            key={retailer.id}
-                            type="button"
-                            onClick={() => {
-                              setSelectedRetailer(retailer);
-                              setDropdownOpen(false);
-                            }}
-                            className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
-                          >
-                            <div>
-                              <p className="text-sm font-semibold text-slate-900">{name}</p>
-                              <p className="text-xs text-slate-500">{retailer.mobile}</p>
-                              {shopName && (
-                                <p className="text-xs text-slate-400">{shopName}</p>
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })
+                      retailers
+                        .filter((retailer) =>
+                          retailer.fullName?.toLowerCase().includes(retailerSearch.toLowerCase()) ||
+                          retailer.mobile?.includes(retailerSearch)
+                        )
+                        .map((retailer) => {
+                          const name = retailer.fullName || "Unknown";
+                          const shopName = retailer.shop?.name || "";
+                          return (
+                            <button
+                              key={retailer.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedRetailer(retailer);
+                                setRetailerDropdownOpen(false);
+                                setRetailerSearch("");
+                                setSelectedDistributor(null);
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                            >
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{name}</p>
+                                <p className="text-xs text-slate-500">{retailer.mobile}</p>
+                                {shopName && (
+                                  <p className="text-xs text-slate-400">{shopName}</p>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
                     ) : (
                       <div className="px-4 py-8 text-center text-sm text-slate-500">
                         No retailers found
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Distributor Dropdown */}
+          <div className="relative" ref={distributorDropdownRef}>
+            <label className="mb-2.5 block text-xs font-semibold text-slate-600">
+              Specific Distributor
+            </label>
+            <button
+              type="button"
+              onClick={() => !selectAllRetailers && !selectAllDistributors && setDistributorDropdownOpen(!distributorDropdownOpen)}
+              disabled={selectAllRetailers || selectAllDistributors}
+              className={`h-[54px] w-full rounded-xl border px-5 text-left text-sm font-medium outline-none transition-all flex items-center justify-between ${
+                selectAllRetailers || selectAllDistributors
+                  ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
+                  : "border-slate-200 bg-[#fafbfd] focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/20"
+              }`}
+            >
+              <span className={selectedDistributor ? "text-slate-900" : "text-slate-400"}>
+                {selectedDistributor
+                  ? `${selectedDistributor.fullName} - ${selectedDistributor.mobile}`
+                  : "Select a distributor"}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${distributorDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Distributor Dropdown */}
+            {distributorDropdownOpen && (
+              <div className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                {/* Search Box */}
+                <div className="border-b border-slate-100 p-2">
+                  <input
+                    type="text"
+                    placeholder="Search distributors..."
+                    value={distributorSearch}
+                    onChange={(e) => setDistributorSearch(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20"
+                    autoFocus
+                  />
+                </div>
+
+                {loadingDistributors ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                  </div>
+                ) : (
+                  <>
+                    {distributors.length > 0 ? (
+                      distributors
+                        .filter((distributor) =>
+                          distributor.fullName?.toLowerCase().includes(distributorSearch.toLowerCase()) ||
+                          distributor.mobile?.includes(distributorSearch)
+                        )
+                        .map((distributor) => {
+                          const name = distributor.fullName || "Unknown";
+                          const shopName = distributor.shop?.name || "";
+                          return (
+                            <button
+                              key={distributor.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDistributor(distributor);
+                                setDistributorDropdownOpen(false);
+                                setDistributorSearch("");
+                                setSelectedRetailer(null);
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-b-0"
+                            >
+                              <div>
+                                <p className="text-sm font-semibold text-slate-900">{name}</p>
+                                <p className="text-xs text-slate-500">{distributor.mobile}</p>
+                                {shopName && (
+                                  <p className="text-xs text-slate-400">{shopName}</p>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                    ) : (
+                      <div className="px-4 py-8 text-center text-sm text-slate-500">
+                        No distributors found
                       </div>
                     )}
                   </>
@@ -292,7 +484,7 @@ export default function SendNotification() {
         <button
           type="button"
           onClick={handleSendNotification}
-          disabled={sending || !selectedRetailer || !title.trim() || !body.trim()}
+          disabled={sending || (!selectAllRetailers && !selectAllDistributors && !selectedRetailer && !selectedDistributor) || !title.trim() || !body.trim()}
           className="flex h-[54px] w-full items-center justify-center gap-2 rounded-xl bg-[#315bd1] text-sm font-bold text-white transition hover:bg-[#284aa0] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {sending ? (

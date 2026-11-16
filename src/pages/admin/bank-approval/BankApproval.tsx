@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback, useRef } from "react";
 import { showToast } from "../../../utils/toast";
 import {
@@ -59,7 +58,6 @@ export default function BankApproval() {
       hasFetched.current = true;
       fetchPendingBanks(1);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [fetchPendingBanks]);
 
   const handleApprove = async (bank: PendingBankItem) => {

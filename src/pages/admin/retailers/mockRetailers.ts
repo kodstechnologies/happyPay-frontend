@@ -5,27 +5,31 @@ const dummyNames = [
   "Anjali Desai", "Suresh Kumar", "Pooja Verma", "Ravi Raj", "Sneha Joshi"
 ];
 
-export let DUMMY_RETAILERS: AdminRetailer[] = dummyNames.map((name, i) => ({
-  id: `RET${String(i + 1).padStart(4, '0')}`,
-  fullName: name,
-  email: `${name.split(' ')[0].toLowerCase()}${i + 1}@example.com`,
-  mobile: `987654321${i}`,
-  panCard: `ABCDE1234${String.fromCharCode(65 + i)}`,
-  kycStatus: i < 2 ? "approved" : (i % 2 === 0 ? "approved" : "pending"),
-  status: i < 2 ? "approved" : (i % 3 === 0 ? "pending" : "approved"),
-  role: i < 2 ? "distributor" : "retailer",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString(),
-  aadhaarVerified: true,
-  shop: {
-    name: `${name.split(' ')[0]}'s Shop`,
-    address: {
-      addressLine: "123 Main St",
-      city: "Mumbai",
-      state: "Maharashtra"
+export let DUMMY_RETAILERS: AdminRetailer[] = dummyNames.map((name, i) => {
+  const statusValues: AdminRetailer['status'][] = ["active", "active", "blocked", "pending", "approved", "approved", "approved", "approved", "approved", "approved"];
+  return {
+    id: `RET${String(i + 1).padStart(4, '0')}`,
+    fullName: name,
+    email: `${name.split(' ')[0].toLowerCase()}${i + 1}@example.com`,
+    mobile: `987654321${i}`,
+    panNumber: `ABCDE1234${String.fromCharCode(65 + i)}`,
+    kycStatus: i < 2 ? "approved" : (i % 2 === 0 ? "approved" : "pending"),
+    status: statusValues[i],
+    role: i < 2 ? "distributor" : "retailer",
+    walletBalance: Math.floor(Math.random() * 50000) + 1000,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    aadhaarVerified: true,
+    shop: {
+      name: `${name.split(' ')[0]}'s Shop`,
+      address: {
+        addressLine: "123 Main St",
+        city: "Mumbai",
+        state: "Maharashtra"
+      }
     }
-  }
-})) as AdminRetailer[];
+  };
+}) as AdminRetailer[];
 
 export const updateDummyRetailerStatus = (id: string, newStatus: AdminRetailer['status']) => {
   DUMMY_RETAILERS = DUMMY_RETAILERS.map((item) => 

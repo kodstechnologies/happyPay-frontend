@@ -45,6 +45,7 @@ import DocumentUploadModal from "./components/DocumentUploadModal";
 import EditProfileModal from "./components/EditProfileModal";
 import BankModal from "./components/BankModal";
 import ConfirmDeleteModal from "../../../components/common/ConfirmDeleteModal";
+import ContactUpdateModal from "./components/ContactUpdateModal";
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -57,6 +58,10 @@ export default function Profile() {
 
   // Modals state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [contactUpdateModal, setContactUpdateModal] = useState<{
+    open: boolean;
+    type: "mobile" | "email";
+  }>({ open: false, type: "mobile" });
   const [viewingDoc, setViewingDoc] = useState<{
     open: boolean;
     title: string;
@@ -254,7 +259,6 @@ export default function Profile() {
     try {
       setResubmittingBank(pendingBank);
       const res = await resubmitBank(
-        profile?.id || profile?._id || "",
         pendingBank._id,
         {
           bankName: pendingBank.name,
@@ -753,25 +757,45 @@ export default function Profile() {
 
                       <div>
                         <span className="text-slate-400 block text-[11px]">Mobile Number</span>
-                        <div className="flex items-center gap-1 font-semibold text-slate-800">
-                          <span>{profile.mobile}</span>
-                          {profile.isMobileVerified && (
-                            <span title="Verified">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 font-semibold text-slate-800">
+                            <span>{profile.mobile}</span>
+                            {profile.isMobileVerified && (
+                              <span title="Verified">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setContactUpdateModal({ open: true, type: "mobile" })}
+                            className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-[#7c3aed] hover:bg-purple-100 transition"
+                          >
+                            <Edit3 className="h-2.5 w-2.5" />
+                            <span>Change</span>
+                          </button>
                         </div>
                       </div>
 
                       <div>
                         <span className="text-slate-400 block text-[11px]">Email Address</span>
-                        <div className="flex items-center gap-1 font-semibold text-slate-800 truncate">
-                          <span className="truncate">{profile.email || "—"}</span>
-                          {profile.isEmailVerified && (
-                            <span title="Verified">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                            </span>
-                          )}
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 font-semibold text-slate-800 truncate">
+                            <span className="truncate">{profile.email || "—"}</span>
+                            {profile.isEmailVerified && (
+                              <span title="Verified">
+                                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setContactUpdateModal({ open: true, type: "email" })}
+                            className="inline-flex items-center gap-1 rounded-lg border border-purple-200 bg-purple-50 px-2 py-0.5 text-[10px] font-semibold text-[#7c3aed] hover:bg-purple-100 transition shrink-0"
+                          >
+                            <Edit3 className="h-2.5 w-2.5" />
+                            <span>Change</span>
+                          </button>
                         </div>
                       </div>
 
@@ -1512,6 +1536,18 @@ export default function Profile() {
                 </span>
               ) : null
             }
+          />
+        )}
+
+        {/* Contact Update Modal (Mobile/Email OTP) */}
+        {contactUpdateModal.open && (
+          <ContactUpdateModal
+            open={contactUpdateModal.open}
+            onClose={() => setContactUpdateModal({ open: false, type: "mobile" })}
+            type={contactUpdateModal.type}
+            currentValue={contactUpdateModal.type === "mobile" ? profile?.mobile || "" : profile?.email || ""}
+            currentMobile={profile?.mobile || ""}
+            onSuccess={refreshProfile}
           />
         )}
       </div>
