@@ -22,6 +22,8 @@ import {
   IndianRupee,
   TrendingUp,
   Loader2,
+  Lock,
+  Unlock,
 } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -35,6 +37,8 @@ import {
   updateAdminRetailerKyc,
   updateAdminRetailerAccountStatus,
   reviewAdminRetailerDocument,
+  lockRetailerWallet,
+  unlockRetailerWallet,
 } from "../../../apis/adminRetailer.apis";
 import type {
   AdminRetailer,
@@ -119,6 +123,15 @@ export default function AdminRetailerDetails() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionReasonError, setRejectionReasonError] = useState("");
   const rejectionTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Wallet lock/unlock modal state
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const [lockReason, setLockReason] = useState("");
+  const [lockReasonError, setLockReasonError] = useState("");
+  const [lockAdminNotes, setLockAdminNotes] = useState("");
+  const [unlockAdminNotes, setUnlockAdminNotes] = useState("");
+  const [isProcessingLock, setIsProcessingLock] = useState(false);
 
   // Transactions Tab state (real data only)
   const [liveTransactions, setLiveTransactions] = useState<AdminTransaction[]>([]);
@@ -702,6 +715,65 @@ export default function AdminRetailerDetails() {
     document.body.removeChild(link);
   };
 
+  // Lock wallet handler
+  const handleLockWallet = async () => {
+    if (!id || isProcessingLock) return;
+
+    if (lockReason.trim().length < 5) {
+      setLockReasonError("Reason must be at least 5 characters");
+      return;
+    }
+
+    setIsProcessingLock(true);
+    try {
+      await lockRetailerWallet(id, lockReason.trim(), lockAdminNotes.trim() || undefined);
+      setLiveRetailer((prev) =>
+        prev
+          ? {
+              ...prev,
+              isWalletLocked: true,
+            }
+          : prev
+      );
+      setLockModalOpen(false);
+      setLockReason("");
+      setLockReasonError("");
+      setLockAdminNotes("");
+      showToast("success", "Wallet locked successfully. Notification sent to retailer.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to lock wallet.";
+      showToast("error", err, msg);
+    } finally {
+      setIsProcessingLock(false);
+    }
+  };
+
+  // Unlock wallet handler
+  const handleUnlockWallet = async () => {
+    if (!id || isProcessingLock) return;
+
+    setIsProcessingLock(true);
+    try {
+      await unlockRetailerWallet(id, unlockAdminNotes.trim() || undefined);
+      setLiveRetailer((prev) =>
+        prev
+          ? {
+              ...prev,
+              isWalletLocked: false,
+            }
+          : prev
+      );
+      setUnlockModalOpen(false);
+      setUnlockAdminNotes("");
+      showToast("success", "Wallet unlocked successfully. Notification sent to retailer.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to unlock wallet.";
+      showToast("error", err, msg);
+    } finally {
+      setIsProcessingLock(false);
+    }
+  };
+
   const getStatusConfig = (status: DocStatus) => {
     switch (status) {
       case "approved":
@@ -961,6 +1033,35 @@ export default function AdminRetailerDetails() {
             >
               <CheckCircle className="h-3.5 w-3.5" />
               Re-Approve Retailer
+            </button>
+          )}
+
+          {/* Wallet Lock/Unlock Buttons */}
+          {selected.isWalletLocked ? (
+            <button
+              onClick={() => {
+                setUnlockModalOpen(true);
+                setUnlockAdminNotes("");
+              }}
+              disabled={isProcessingLock}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Unlock className="h-4 w-4" />
+              Unlock Wallet
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                setLockModalOpen(true);
+                setLockReason("");
+                setLockReasonError("");
+                setLockAdminNotes("");
+              }}
+              disabled={isProcessingLock}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Lock className="h-4 w-4" />
+              Lock Wallet
             </button>
           )}
 
@@ -2135,6 +2236,218 @@ export default function AdminRetailerDetails() {
                 {actionLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 <XCircle className="h-3.5 w-3.5" />
                 Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Lock Wallet Modal ── */}
+      {lockModalOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ animation: "fadeIn 200ms ease-out" }}
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              setLockModalOpen(false);
+              setLockReason("");
+              setLockReasonError("");
+              setLockAdminNotes("");
+            }}
+          />
+          <div
+            className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            style={{ animation: "scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+          >
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-10 w-10 rounded-xl bg-rose-100 flex items-center justify-center">
+                  <Lock className="h-5 w-5 text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Lock Retailer Wallet</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selected.fullName || "Retailer"} ({selected.id})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 pb-4">
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Reason for Locking <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  ref={rejectionTextareaRef}
+                  value={lockReason}
+                  onChange={(e) => {
+                    setLockReason(e.target.value);
+                    setLockReasonError("");
+                  }}
+                  placeholder="Provide a detailed reason for locking this wallet..."
+                  rows={3}
+                  className={`w-full rounded-xl border ${
+                    lockReasonError ? "border-rose-300 ring-1 ring-rose-300" : "border-slate-200"
+                  } bg-slate-50/80 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:bg-white focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20 transition-all resize-none`}
+                />
+                {lockReasonError && (
+                  <p className="mt-1.5 text-xs text-rose-500 font-medium">{lockReasonError}</p>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Admin Notes (Optional)
+                </label>
+                <textarea
+                  value={lockAdminNotes}
+                  onChange={(e) => setLockAdminNotes(e.target.value)}
+                  placeholder="Add any internal notes for reference..."
+                  rows={2}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:bg-white focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20 transition-all resize-none"
+                />
+              </div>
+
+              {/* Quick lock reasons */}
+              <div className="mt-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  Quick Select Reason
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    "Suspicious activity detected",
+                    "Non-compliance with terms",
+                    "Payment dispute pending",
+                    "Security investigation",
+                  ].map((reason) => (
+                    <button
+                      key={reason}
+                      onClick={() => {
+                        setLockReason(reason);
+                        setLockReasonError("");
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                        lockReason === reason
+                          ? "bg-rose-100 text-rose-700 ring-1 ring-rose-300"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 mt-2 flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  setLockModalOpen(false);
+                  setLockReason("");
+                  setLockReasonError("");
+                  setLockAdminNotes("");
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLockWallet}
+                disabled={isProcessingLock}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isProcessingLock && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <Lock className="h-3.5 w-3.5" />
+                Lock Wallet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unlock Wallet Modal ── */}
+      {unlockModalOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ animation: "fadeIn 200ms ease-out" }}
+        >
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => {
+              setUnlockModalOpen(false);
+              setUnlockAdminNotes("");
+            }}
+          />
+          <div
+            className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+            style={{ animation: "scaleIn 250ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+          >
+            {/* Header */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="h-10 w-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <Unlock className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Unlock Retailer Wallet</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selected.fullName || "Retailer"} ({selected.id})
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 pb-4">
+              <div className="mb-4 p-4 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-xs text-amber-800">
+                  <strong>Warning:</strong> Unlocking this wallet will allow the retailer to perform transactions again. This action will be logged.
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-700 mb-2">
+                  Admin Notes (Optional)
+                </label>
+                <textarea
+                  value={unlockAdminNotes}
+                  onChange={(e) => setUnlockAdminNotes(e.target.value)}
+                  placeholder="Add any internal notes for reference..."
+                  rows={2}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm text-slate-800 placeholder:text-slate-400 outline-none focus:bg-white focus:border-[#315bd1] focus:ring-2 focus:ring-[#315bd1]/20 transition-all resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 mt-2 flex items-center justify-end gap-2 border-t border-slate-100 bg-slate-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  setUnlockModalOpen(false);
+                  setUnlockAdminNotes("");
+                }}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleUnlockWallet}
+                disabled={isProcessingLock}
+                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-all shadow-sm hover:shadow-md flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isProcessingLock && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <Unlock className="h-3.5 w-3.5" />
+                Unlock Wallet
               </button>
             </div>
           </div>

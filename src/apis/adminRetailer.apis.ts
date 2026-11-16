@@ -8,6 +8,7 @@ import type {
   SubRetailerListResponse,
 } from "../types/admin/retailer";
 import type { AxiosResponse } from "axios";
+import { lockUserWalletApi, unlockUserWalletApi } from "./walletLock.apis";
 
 interface Envelope<T> {
   data: T;
@@ -190,4 +191,18 @@ export function convertRetailerToDistributor(retailerId: string) {
   return api.patch<Envelope<{ id: string; roles: string[] }>>(
     `/api/v1/auth/admin/retailers/${retailerId}/convert-distributor`
   ).then(unwrap);
+}
+
+/**
+ * Lock retailer wallet (admin action)
+ */
+export function lockRetailerWallet(userId: string, reason: string, adminNotes?: string) {
+  return lockUserWalletApi({ userId, reason, adminNotes });
+}
+
+/**
+ * Unlock retailer wallet (admin action)
+ */
+export function unlockRetailerWallet(userId: string, adminNotes?: string) {
+  return unlockUserWalletApi({ userId, adminNotes });
 }

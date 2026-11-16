@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "../../../utils/toast";
-import { Plus, WalletCards, ArrowRightLeft, RefreshCw, ShieldCheck, Lock as LockIcon } from "lucide-react";
+import { Plus, WalletCards, ArrowRightLeft, RefreshCw, ShieldCheck, Lock as LockIcon, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
+import { getWalletLockStatusApi } from "../../../apis/walletLock.apis";
 import { useAuth } from "../../../context/AuthContext";
 import WalletCashWithdrawalModal, { type WithdrawalSuccessData } from "./WalletCashWithdrawalModal";
 
@@ -21,10 +22,11 @@ export default function Wallet() {
   const [holdBalance, setHoldBalance] = useState<number>(0);
   const [walletStatus, setWalletStatus] = useState<string>("active");
   const [isFetchingBalance, setIsFetchingBalance] = useState<boolean>(true);
-  
+  const [isWalletLocked, setIsWalletLocked] = useState<boolean>(false);
+  const [walletLockReason, setWalletLockReason] = useState<string | null>(null);
+  const [walletLockedAt, setWalletLockedAt] = useState<string | null>(null);
 
   const [open, setOpen] = useState<boolean>(false);
-  
 
   // Load retailer details from in-memory session
   const { user: retailerUser } = useAuth();
@@ -33,7 +35,7 @@ export default function Wallet() {
     if (showLoader) {
       setIsFetchingBalance(true);
     }
-    
+
     try {
       const response = await getWalletBalanceApi();
       if (response && response.success && response.data) {
@@ -57,27 +59,46 @@ export default function Wallet() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadInitialBalance = async () => {
+    const loadInitialData = async () => {
       setIsFetchingBalance(true);
-      
+
       try {
-        const response = await getWalletBalanceApi();
+        // Fetch balance and lock status in parallel
+        const [balanceResponse, lockStatusResponse] = await Promise.allSettled([
+          getWalletBalanceApi(),
+          getWalletLockStatusApi(),
+        ]);
+
         if (isMounted) {
-          if (response && response.success && response.data) {
-            const liveBal = Number(response.data.balance || 0);
-            const liveHold = Number(response.data.holdBalance || 0);
-            const status = response.data.status || "active";
+          // Handle balance response
+          if (balanceResponse.status === "fulfilled" && balanceResponse.value?.success && balanceResponse.value?.data) {
+            const liveBal = Number(balanceResponse.value.data.balance || 0);
+            const liveHold = Number(balanceResponse.value.data.holdBalance || 0);
+            const status = balanceResponse.value.data.status || "active";
 
             setBalance(liveBal);
             setHoldBalance(liveHold);
             setWalletStatus(status);
             setWalletBalance(liveBal);
+          } else if (balanceResponse.status === "rejected") {
+            console.error("Error fetching live wallet balance:", balanceResponse.reason);
+            showToast("error", balanceResponse.reason, "Unable to fetch latest balance. Showing cached balance.");
+          }
+
+          // Handle lock status response
+          if (lockStatusResponse.status === "fulfilled" && lockStatusResponse.value?.success && lockStatusResponse.value?.data) {
+            setIsWalletLocked(lockStatusResponse.value.data.isLocked);
+            setWalletLockReason(lockStatusResponse.value.data.reason);
+            setWalletLockedAt(lockStatusResponse.value.data.lockedAt);
+          } else if (lockStatusResponse.status === "rejected") {
+            console.error("Error fetching wallet lock status:", lockStatusResponse.reason);
+            // Don't show toast for lock status error, just log it
           }
         }
       } catch (error: unknown) {
         if (isMounted) {
-          console.error("Error fetching live wallet balance:", error);
-          showToast("error", error, "Unable to fetch latest balance. Showing cached balance.");
+          console.error("Error fetching initial data:", error);
+          showToast("error", error, "Unable to fetch latest data. Showing cached values.");
         }
       } finally {
         if (isMounted) {
@@ -86,7 +107,7 @@ export default function Wallet() {
       }
     };
 
-    loadInitialBalance();
+    loadInitialData();
 
     return () => {
       isMounted = false;
@@ -131,6 +152,33 @@ export default function Wallet() {
         </button>
       </section>
 
+      {/* Wallet Locked Warning Banner */}
+      {isWalletLocked && (
+        <section className="rounded-xl border-2 border-red-200 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-bold text-red-900">Wallet Locked by Admin</h3>
+              <p className="mt-1 text-sm text-red-800">
+                Your wallet has been locked by the administrator. All transactions are disabled. Please contact support for assistance.
+              </p>
+              {walletLockReason && (
+                <p className="mt-2 text-xs text-red-700">
+                  <span className="font-semibold">Reason:</span> {walletLockReason}
+                </p>
+              )}
+              {walletLockedAt && (
+                <p className="mt-1 text-xs text-red-600">
+                  Locked on: {new Date(walletLockedAt).toLocaleString()}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Main Balance & Snapshot Grid */}
       <section className="grid gap-4 sm:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-md">
@@ -173,7 +221,12 @@ export default function Wallet() {
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#7c3aed] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#6d28d9] active:scale-[0.98]"
+              disabled={isWalletLocked}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition active:scale-[0.98] ${
+                isWalletLocked
+                  ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                  : "bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
+              }`}
             >
               <Plus className="h-4 w-4" />
               Add Money
@@ -181,7 +234,12 @@ export default function Wallet() {
             <button
               type="button"
               onClick={() => navigate("/retailer/settlement/bank")}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 active:scale-[0.98]"
+              disabled={isWalletLocked}
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold shadow-sm transition active:scale-[0.98] ${
+                isWalletLocked
+                  ? "border-slate-300 bg-slate-100 text-slate-500 cursor-not-allowed"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
             >
               <ArrowRightLeft className="h-4 w-4" />
               Settlement
