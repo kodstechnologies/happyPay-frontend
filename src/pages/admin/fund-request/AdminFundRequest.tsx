@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { showToast } from "../../../utils/toast";
 import {
   Building2,
@@ -27,7 +27,6 @@ import {
 
 export default function AdminFundRequest() {
   const [fundRequests, setFundRequests] = useState<FundRequest[]>([]);
-  const [filteredRequests, setFilteredRequests] = useState<FundRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
@@ -52,9 +51,7 @@ export default function AdminFundRequest() {
       setLoading(true);
       const status = filterStatus === "ALL" ? undefined : filterStatus;
       const res = await getAllFundRequests({ status });
-      if (res?.message) {
-        setFundRequests(Array.isArray(res.message) ? res.message : []);
-      } else if (res?.data) {
+      if (res?.data) {
         setFundRequests(Array.isArray(res.data) ? res.data : []);
       }
     } catch (err: unknown) {
@@ -66,8 +63,7 @@ export default function AdminFundRequest() {
   }, [filterStatus]);
 
   // Filter and sort requests
-  /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
-  useEffect(() => {
+  const filteredRequests = useMemo(() => {
     let filtered = [...fundRequests];
 
     // Apply search filter
@@ -102,9 +98,8 @@ export default function AdminFundRequest() {
       }
     });
 
-    setFilteredRequests(filtered);
+    return filtered;
   }, [fundRequests, searchTerm, sortField, sortOrder]);
-  /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 
   const handleSort = (field: "createdAt" | "amount" | "status") => {
     if (sortField === field) {
