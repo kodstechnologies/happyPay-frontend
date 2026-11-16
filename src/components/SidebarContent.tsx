@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Bell,
   Crown,
+  IndianRupee,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -88,6 +89,13 @@ const SidebarContent = ({
             icon={<Wallet />}
             active={isActive("/retailer/wallet")}
             onClick={() => goTo("/retailer/wallet")}
+          />
+
+          <SidebarItem
+            label="Fund Request"
+            icon={<IndianRupee />}
+            active={isActive("/retailer/fund-request")}
+            onClick={() => goTo("/retailer/fund-request")}
           />
 
           {userRole !== "retailer" && (

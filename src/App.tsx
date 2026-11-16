@@ -39,6 +39,14 @@ function App() {
           const screen = data.screen;
           if (notificationType === "NEW_RETAILER_REGISTRATION" && screen === "ADMIN_RETAILERS") {
             navigate("/admin/retailers");
+          } else if (notificationType === "NEW_FUND_REQUEST" && screen === "ADMIN_FUND_REQUESTS") {
+            navigate("/admin/fund-requests");
+          } else if (notificationType === "FUND_REQUEST_RESUBMITTED" && screen === "ADMIN_FUND_REQUESTS") {
+            navigate("/admin/fund-requests");
+          } else if (notificationType === "FUND_REQUEST_APPROVED" && screen === "FUND_REQUEST") {
+            navigate("/retailer/fund-request");
+          } else if (notificationType === "FUND_REQUEST_REJECTED" && screen === "FUND_REQUEST") {
+            navigate("/retailer/fund-request");
           } else if (notificationType === "KYC_APPROVED" && screen === "KYC") {
             navigate("/retailer/profile");
           } else if (notificationType === "KYC_REJECTED" && screen === "KYC") {

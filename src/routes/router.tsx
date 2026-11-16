@@ -32,6 +32,7 @@ import Settlements from "../pages/retailer/profile/Settlements";
 import SecuritySettings from "../pages/retailer/profile/SecuritySettings";
 import HelpSupport from "../pages/retailer/profile/HelpSupport";
 import Wallet from "../pages/retailer/wallet/Wallet";
+import FundRequest from "../pages/retailer/fund-request/FundRequest";
 import RetailerNotifications from "../pages/retailer/notifications/RetailerNotifications";
 import RetailerPlans from "../pages/retailer/plans/RetailerPlans";
 import AdminLogin from "../pages/admin/auth/AdminLogin";
@@ -53,6 +54,7 @@ import AdminNotifications from "../pages/admin/notifications/AdminNotifications"
 import AdminBanners from "../pages/admin/banners/AdminBanners";
 import AdminPlanManagement from "../pages/admin/plan-management/AdminPlanManagement";
 import BankApproval from "../pages/admin/bank-approval/BankApproval";
+import AdminFundRequest from "../pages/admin/fund-request/AdminFundRequest";
 import CreatePlan from "../pages/admin/plan-management/CreatePlan";
 import EditPlan from "../pages/admin/plan-management/EditPlan";
 import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
@@ -113,6 +115,7 @@ const Router: RouteObject[] = [
           { path: "send-notification", element: <SendNotification /> },
           { path: "plan-management", element: <AdminPlanManagement /> },
           { path: "bank-approvals", element: <BankApproval /> },
+          { path: "fund-requests", element: <AdminFundRequest /> },
           { path: "plan-management/create", element: <CreatePlan /> },
           { path: "plan-management/view/:id", element: <ViewPlanDetails /> },
           { path: "plan-management/edit/:id", element: <EditPlan /> },
@@ -192,6 +195,11 @@ const Router: RouteObject[] = [
           {
             path: "wallet",
             element: <Wallet />,
+          },
+
+          {
+            path: "fund-request",
+            element: <FundRequest />,
           },
 
           {

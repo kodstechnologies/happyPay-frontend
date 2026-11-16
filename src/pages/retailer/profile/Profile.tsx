@@ -1326,7 +1326,7 @@ export default function Profile() {
                         <span>Link Your First Bank Account</span>
                       </button>
                     </div>
-                  )
+                  
                 </div>
               </div>
             )}
