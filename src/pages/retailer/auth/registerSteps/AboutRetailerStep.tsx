@@ -95,7 +95,7 @@ const AboutRetailerStep = forwardRef<
         const d = (initialData.dateOfBirth || initialData.dob) as string;
         if (d.includes("-")) {
           const [yyyy, mm, dd] = d.split("T")[0].split("-");
-          if (yyyy && mm && dd) setDateOfBirth(`${dd}/${mm}/${yyyy}`);
+          if (yyyy && mm && dd) setDateOfBirth(`${yyyy}-${mm}-${dd}`);
         } else {
           setDateOfBirth(d);
         }
@@ -145,19 +145,10 @@ const AboutRetailerStep = forwardRef<
   };
 
   // ==========================================================
-  // DOB input → auto-insert slashes
+  // DOB input
   // ==========================================================
   const handleDobChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let v = e.target.value.replace(/\D/g, "").slice(0, 8);
-    if (v.length >= 5) v = `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`;
-    else if (v.length >= 3) v = `${v.slice(0, 2)}/${v.slice(2)}`;
-    setDateOfBirth(v);
-  };
-
-  const toIsoDob = (dob: string): string => {
-    const [dd, mm, yyyy] = dob.split("/");
-    if (!dd || !mm || !yyyy || yyyy.length !== 4) return "";
-    return `${yyyy}-${mm}-${dd}`;
+    setDateOfBirth(e.target.value);
   };
 
   // ==========================================================
@@ -178,11 +169,6 @@ const AboutRetailerStep = forwardRef<
     }
     if (!dateOfBirth) {
       showToast("error", "Date of birth is required.");
-      return false;
-    }
-    const isoDob = toIsoDob(dateOfBirth);
-    if (!isoDob) {
-      showToast("error", "Please enter a valid date of birth (DD/MM/YYYY).");
       return false;
     }
     if (!gender) {
@@ -210,7 +196,7 @@ const AboutRetailerStep = forwardRef<
         userId,
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        dateOfBirth: isoDob,
+        dateOfBirth: dateOfBirth,
         gender: genderCode,
         maritalStatus,
         educationalQualification: education.trim(),
