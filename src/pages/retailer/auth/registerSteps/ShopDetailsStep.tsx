@@ -290,7 +290,7 @@ const ShopDetailsStep = forwardRef<ShopDetailsStepHandle, ShopDetailsStepProps>(
       }
       if (fd.shopLocationPhoto) {
          
-        setExistingShopLocation(fd.shop.locationPhoto);
+        setExistingShopLocation(fd.shopLocationPhoto);
       }
 
       const proofVal = fd.businessProofType;
