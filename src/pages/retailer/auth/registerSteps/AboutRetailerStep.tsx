@@ -171,6 +171,17 @@ const AboutRetailerStep = forwardRef<
       showToast("error", "Date of birth is required.");
       return false;
     }
+    // Validate date format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateOfBirth)) {
+      showToast("error", "Please enter a valid date of birth.");
+      return false;
+    }
+    const dateObj = new Date(dateOfBirth);
+    if (isNaN(dateObj.getTime())) {
+      showToast("error", "Please enter a valid date of birth.");
+      return false;
+    }
     if (!gender) {
       showToast("error", "Gender is required.");
       return false;
@@ -190,6 +201,7 @@ const AboutRetailerStep = forwardRef<
 
     const genderCode = GENDER_TO_CODE[gender] ?? "M";
 
+    console.log("Submitting dateOfBirth:", dateOfBirth);
     setSubmitting(true);
     try {
       await updateRetailerAboutDetails({
