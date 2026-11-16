@@ -183,7 +183,7 @@ export function getMyFundRequestStats() {
  * Get bank list
  */
 export function getBankList() {
-  return api.get<ApiEnvelope<Bank[]>>("/api/v1/wallet/banklist").then(unwrap);
+  return api.get<ApiEnvelope<{ name: string; code: string; bank_id: string }[]>>("/api/v1/wallet/banklist").then(unwrap);
 }
 
 /**

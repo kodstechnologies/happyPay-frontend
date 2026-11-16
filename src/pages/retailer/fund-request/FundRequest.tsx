@@ -121,7 +121,13 @@ export default function FundRequest() {
     try {
       const res = await getBankList();
       if (res?.data && Array.isArray(res.data)) {
-        setBankList(res.data);
+        // Map backend response to frontend Bank interface
+        const mappedBanks = res.data.map((bank) => ({
+          _id: bank.bank_id || bank.code,
+          bankName: bank.name,
+          bankCode: bank.code,
+        }));
+        setBankList(mappedBanks);
       }
     } catch (err: unknown) {
       console.error("Failed to fetch bank list:", err);
