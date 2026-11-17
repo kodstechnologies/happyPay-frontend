@@ -357,7 +357,7 @@ export default function AdminMasterData() {
 
       {/* Add/Edit Modal */}
       <ModalWrapper
-        isOpen={isModalOpen}
+        open={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingId ? `Edit ${DATA_CONFIG[selectedType].singular}` : `Add ${DATA_CONFIG[selectedType].singular}`}
       >
@@ -417,12 +417,12 @@ export default function AdminMasterData() {
 
       {/* Delete Confirmation Modal */}
       <ConfirmDeleteModal
-        isOpen={!!deleteTarget}
+        open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        isDeleting={isDeleting}
+        isLoading={isDeleting}
         title="Delete Item"
-        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        description={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
       />
     </div>
   );
