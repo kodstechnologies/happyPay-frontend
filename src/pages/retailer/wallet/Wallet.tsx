@@ -4,7 +4,6 @@ import { WalletCards, ArrowRightLeft, RefreshCw, ShieldCheck, Lock as LockIcon, 
 import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
-import { getWalletLockStatusApi } from "../../../apis/walletLock.apis";
 import { useAuth } from "../../../context/AuthContext";
 
 const formatAmount = (amount: number) =>
@@ -44,6 +43,11 @@ export default function Wallet() {
         setHoldBalance(liveHold);
         setWalletStatus(status);
         setWalletBalance(liveBal);
+
+        // Derive wallet lock state from the balance response (no separate lock-status API)
+        setIsWalletLocked(Boolean(response.data.isWalletLocked));
+        setWalletLockReason(response.data.reason ?? null);
+        setWalletLockedAt(response.data.lockedAt ?? null);
       }
     } catch (error: unknown) {
       console.error("Error fetching live wallet balance:", error);
@@ -60,37 +64,23 @@ export default function Wallet() {
       setIsFetchingBalance(true);
 
       try {
-        // Fetch balance and lock status in parallel
-        const [balanceResponse, lockStatusResponse] = await Promise.allSettled([
-          getWalletBalanceApi(),
-          getWalletLockStatusApi(),
-        ]);
+        // Fetch balance (response now includes wallet lock state — no separate lock-status API)
+        const response = await getWalletBalanceApi();
 
-        if (isMounted) {
-          // Handle balance response
-          if (balanceResponse.status === "fulfilled" && balanceResponse.value?.success && balanceResponse.value?.data) {
-            const liveBal = Number(balanceResponse.value.data.balance || 0);
-            const liveHold = Number(balanceResponse.value.data.holdBalance || 0);
-            const status = balanceResponse.value.data.status || "active";
+        if (isMounted && response?.success && response?.data) {
+          const liveBal = Number(response.data.balance || 0);
+          const liveHold = Number(response.data.holdBalance || 0);
+          const status = response.data.status || "active";
 
-            setBalance(liveBal);
-            setHoldBalance(liveHold);
-            setWalletStatus(status);
-            setWalletBalance(liveBal);
-          } else if (balanceResponse.status === "rejected") {
-            console.error("Error fetching live wallet balance:", balanceResponse.reason);
-            showToast("error", balanceResponse.reason, "Unable to fetch latest balance. Showing cached balance.");
-          }
+          setBalance(liveBal);
+          setHoldBalance(liveHold);
+          setWalletStatus(status);
+          setWalletBalance(liveBal);
 
-          // Handle lock status response
-          if (lockStatusResponse.status === "fulfilled" && lockStatusResponse.value?.success && lockStatusResponse.value?.data) {
-            setIsWalletLocked(lockStatusResponse.value.data.isLocked);
-            setWalletLockReason(lockStatusResponse.value.data.reason);
-            setWalletLockedAt(lockStatusResponse.value.data.lockedAt);
-          } else if (lockStatusResponse.status === "rejected") {
-            console.error("Error fetching wallet lock status:", lockStatusResponse.reason);
-            // Don't show toast for lock status error, just log it
-          }
+          // Derive wallet lock state from the balance response
+          setIsWalletLocked(Boolean(response.data.isWalletLocked));
+          setWalletLockReason(response.data.reason ?? null);
+          setWalletLockedAt(response.data.lockedAt ?? null);
         }
       } catch (error: unknown) {
         if (isMounted) {

@@ -8,6 +8,10 @@ export interface WalletBalanceData {
   availableBalance: number;
   currency: string;
   status: string;
+  isWalletLocked: boolean;
+  lockedAt: string | null;
+  lockedBy: string | null;
+  reason: string | null;
 }
 
 export interface WalletBalanceResponse {
@@ -143,6 +147,7 @@ export interface InitiateSettlementResponse {
   data: {
     txnid: string;
     utr: string;
+    providerTxnId?: string;
     amount: number;
     balanceBefore: number;
     balanceAfter: number;
@@ -150,6 +155,7 @@ export interface InitiateSettlementResponse {
     accountNumber: string;
     mode: string;
     status: string;
+    message?: string;
     providerResponse?: unknown;
   };
 }

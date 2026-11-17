@@ -14,6 +14,7 @@ import {
   PlusCircle,
   RefreshCw,
   Loader2,
+  Hourglass,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { showToast } from "../../../utils/toast";
@@ -56,6 +57,8 @@ export default function SettlementToBank() {
   const [showMpin, setShowMpin] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isPending, setIsPending] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string>("");
   const [txnDetails, setTxnDetails] = useState<{
     id: string;
     date: Date;
@@ -64,6 +67,8 @@ export default function SettlementToBank() {
     accountNumber: string;
     mode: string;
     utr: string;
+    status: "success" | "pending";
+    providerTxnId?: string;
   } | null>(null);
 
   // Fetch live settlement bank & retailer info
@@ -221,7 +226,12 @@ export default function SettlementToBank() {
 
       if (res && res.data) {
         const payoutData = res.data;
+        const isPendingTxn = payoutData.status === "pending";
+
+        // For pending: balance is immediately deducted server-side (same as success)
+        // For success: balance is immediately deducted server-side
         const newBalance = payoutData.balanceAfter ?? balance - numAmount;
+
         setBalance(newBalance);
         setWalletBalance(newBalance);
 
@@ -233,10 +243,21 @@ export default function SettlementToBank() {
           accountNumber: payoutData.accountNumber || selectedBank.accountNumber,
           mode: payoutData.mode || settlementMode,
           utr: payoutData.utr || payoutData.txnid,
+          status: isPendingTxn ? "pending" : "success",
+          providerTxnId: payoutData.providerTxnId,
         });
 
-        setIsSuccess(true);
-        showToast("success", `₹${formatAmount(payoutData.amount || numAmount)} settlement initiated successfully!`);
+        if (isPendingTxn) {
+          setIsPending(true);
+          setPendingMessage(
+            payoutData.message ||
+            "Your settlement is queued for processing. The amount has been placed on hold and will be credited to your bank once confirmed."
+          );
+          showToast("info", `₹${formatAmount(payoutData.amount || numAmount)} settlement queued — processing in progress.`);
+        } else {
+          setIsSuccess(true);
+          showToast("success", `₹${formatAmount(payoutData.amount || numAmount)} settlement initiated successfully!`);
+        }
       } else {
         throw new Error(res?.message || "Settlement payout failed");
       }
@@ -255,6 +276,8 @@ export default function SettlementToBank() {
     setAmount("");
     setMpin("");
     setIsSuccess(false);
+    setIsPending(false);
+    setPendingMessage("");
     setTxnDetails(null);
   };
 
@@ -290,7 +313,7 @@ export default function SettlementToBank() {
               Settle your retailer earnings instantly to your registered bank account.
             </p>
           </div>
-        </div>
+        </div>  
 
         {/* Status Badge */}
         <div className="flex items-center gap-2">
@@ -430,7 +453,7 @@ export default function SettlementToBank() {
 
           {/* Main Content Area */}
           {isSuccess && txnDetails ? (
-            /* Success Receipt View */
+            /* ── SUCCESS Receipt View ──────────────────────────────────────── */
             <div className="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
               <div className="mx-auto max-w-lg text-center">
                 <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4">
@@ -478,6 +501,104 @@ export default function SettlementToBank() {
                     </span>
                   </div>
                 </div>
+
+                <div className="mt-6 flex flex-col sm:flex-row gap-3">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Print Receipt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7c3aed] px-5 py-3 text-sm font-bold text-white hover:bg-[#6d28d9] transition shadow-sm"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    New Settlement
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isPending && txnDetails ? (
+            /* ── PENDING / QUEUED Receipt View ─────────────────────────────── */
+            <div className="rounded-2xl border border-amber-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="mx-auto max-w-lg text-center">
+                <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 text-amber-600 mb-4">
+                  <Hourglass className="h-9 w-9" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900">
+                  Settlement Queued
+                </h2>
+                <p className="text-sm text-slate-500 mt-1 leading-relaxed">
+                  {pendingMessage}
+                </p>
+
+                {/* Deducted balance notice */}
+                <div className="mt-4 flex items-start gap-2.5 rounded-xl bg-amber-50 border border-amber-200 p-3.5 text-left">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                  <p className="text-xs text-amber-800 leading-relaxed">
+                    <span className="font-bold">₹{formatAmount(txnDetails.amount)} has been deducted</span> from your wallet and the transfer is being processed. If the settlement fails, the amount will be automatically refunded and you will be notified.
+                  </p>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-5 text-left space-y-3">
+                  <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500">Transaction ID</span>
+                    <span className="font-bold text-slate-900">{txnDetails.id}</span>
+                  </div>
+                  {txnDetails.providerTxnId && (
+                    <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                      <span className="text-slate-500">Provider Reference</span>
+                      <span className="font-bold text-slate-900">{txnDetails.providerTxnId}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500">Date & Time</span>
+                    <span className="font-semibold text-slate-700">
+                      {txnDetails.date.toLocaleString("en-IN", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500">Settlement Account</span>
+                    <span className="font-semibold text-slate-900">
+                      {txnDetails.bankName} (•••• {txnDetails.accountNumber.slice(-4)})
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500">Settlement Mode</span>
+                    <span className="font-bold text-purple-700">{txnDetails.mode}</span>
+                  </div>
+                  <div className="flex justify-between text-xs py-1 border-b border-slate-200/60">
+                    <span className="text-slate-500">Status</span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+                      <Clock className="h-3 w-3" /> Processing
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-1">
+                    <span className="font-bold text-slate-700">Amount Deducted</span>
+                    <span className="font-bold text-amber-600 text-base">
+                      ₹{formatAmount(txnDetails.amount)}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-xs text-slate-400">
+                  You can track this transaction in your{" "}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/retailer/transactions")}
+                    className="font-bold text-[#7c3aed] hover:underline"
+                  >
+                    Transaction History
+                  </button>
+                  .
+                </p>
 
                 <div className="mt-6 flex flex-col sm:flex-row gap-3">
                   <button

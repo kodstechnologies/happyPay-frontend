@@ -1047,7 +1047,7 @@ export default function AdminRetailerDetails() {
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Unlock className="h-4 w-4" />
-              Unlock Wallet
+              Unlock Wallet 
             </button>
           ) : (
             <button
