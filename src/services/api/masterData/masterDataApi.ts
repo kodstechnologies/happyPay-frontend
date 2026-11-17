@@ -21,7 +21,6 @@ export interface MasterDataItem {
 
 export type MasterDataListResult = MasterDataItem[];
 
-
 // ============================================================
 // CATEGORIES
 // ============================================================
@@ -29,6 +28,26 @@ export type MasterDataListResult = MasterDataItem[];
 export function getCategories() {
   return api.get<ApiEnvelope<MasterDataListResult>>(
     "/api/v1/master-data/categories"
+  ).then(unwrap);
+}
+
+export function createCategory(name: string) {
+  return api.post<ApiEnvelope<MasterDataItem>>(
+    "/api/v1/master-data/categories",
+    { name }
+  ).then(unwrap);
+}
+
+export function updateCategory(id: string, name: string, isActive: boolean) {
+  return api.patch<ApiEnvelope<MasterDataItem>>(
+    `/api/v1/master-data/categories/${id}`,
+    { name, isActive }
+  ).then(unwrap);
+}
+
+export function deleteCategory(id: string) {
+  return api.delete<ApiEnvelope<{ message: string }>>(
+    `/api/v1/master-data/categories/${id}`
   ).then(unwrap);
 }
 
@@ -42,6 +61,26 @@ export function getPropertyTypes() {
   ).then(unwrap);
 }
 
+export function createPropertyType(name: string) {
+  return api.post<ApiEnvelope<MasterDataItem>>(
+    "/api/v1/master-data/property-types",
+    { name }
+  ).then(unwrap);
+}
+
+export function updatePropertyType(id: string, name: string, isActive: boolean) {
+  return api.patch<ApiEnvelope<MasterDataItem>>(
+    `/api/v1/master-data/property-types/${id}`,
+    { name, isActive }
+  ).then(unwrap);
+}
+
+export function deletePropertyType(id: string) {
+  return api.delete<ApiEnvelope<{ message: string }>>(
+    `/api/v1/master-data/property-types/${id}`
+  ).then(unwrap);
+}
+
 // ============================================================
 // PROOF TYPES (Business Proof)
 // ============================================================
@@ -52,12 +91,22 @@ export function getProofTypes() {
   ).then(unwrap);
 }
 
-// ============================================================
-// EDUCATIONAL QUALIFICATIONS
-// ============================================================
+export function createProofType(name: string) {
+  return api.post<ApiEnvelope<MasterDataItem>>(
+    "/api/v1/master-data/proof-types",
+    { name }
+  ).then(unwrap);
+}
 
-export function getEducationalQualifications() {
-  return api.get<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/educational-qualifications"
+export function updateProofType(id: string, name: string, isActive: boolean) {
+  return api.patch<ApiEnvelope<MasterDataItem>>(
+    `/api/v1/master-data/proof-types/${id}`,
+    { name, isActive }
+  ).then(unwrap);
+}
+
+export function deleteProofType(id: string) {
+  return api.delete<ApiEnvelope<{ message: string }>>(
+    `/api/v1/master-data/proof-types/${id}`
   ).then(unwrap);
 }

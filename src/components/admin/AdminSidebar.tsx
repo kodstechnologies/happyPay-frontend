@@ -1,4 +1,4 @@
-import { Activity, Building2, FileClock, Headphones, LayoutDashboard, LogOut, Store, X, Bell, FileText, Image, IndianRupee } from "lucide-react";
+import { Activity, Building2, Headphones, LayoutDashboard, LogOut, Store, X, Bell, FileText, Image, IndianRupee, Database } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
@@ -10,8 +10,8 @@ const groups = [
      { label: "Bank Approvals", icon: Building2, to: "/admin/bank-approvals" }, { label: "Fund Requests", icon: IndianRupee, to: "/admin/fund-requests" }, { label: "Send Notification", icon: Bell, to: "/admin/send-notification" }] },
   { label: "Configuration", items: [
     // { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" },
-     { label: "Banners", icon: Image, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }] },
-  { label: "System", items: [{ label: "Audit Logs", icon: FileClock, to: "/admin/audit-logs" }, { label: "Support", icon: Headphones, to: "/admin/support" }] },
+     { label: "Banners", icon: Image, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }, { label: "Master Data", icon: Database, to: "/admin/master-data" }] },
+  { label: "System", items: [ { label: "Support", icon: Headphones, to: "/admin/support" }] },
 ];
 
 export default function AdminSidebar({ collapsed, mobileOpen, onToggle, onCloseMobile, onLogout }: Props) {

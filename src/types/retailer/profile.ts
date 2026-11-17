@@ -15,6 +15,7 @@ export interface DocumentReviews {
   shopOutsidePhoto?: DocumentReviewItem;
   shopLocationPhoto?: DocumentReviewItem;
   businessProofDocument?: DocumentReviewItem;
+  gstDocument?: DocumentReviewItem;
 }
 
 export interface MasterDataRef {
@@ -92,6 +93,8 @@ export interface RetailerFullProfile {
   shopLocationPhoto?: string;
   businessProofType?: MasterDataRef | string | null;
   businessProofDocument?: string;
+  gstNumber?: string;
+  gstDocument?: string;
   banks?: RetailerBank[];
   pendingBanks?: PendingRetailerBank[];
   primaryBank?: RetailerBank | null;
@@ -141,4 +144,5 @@ export interface UpdateProfilePayload {
   accountNumber?: string;
   ifscCode?: string;
   branchName?: string;
+  gstNumber?: string;
 }

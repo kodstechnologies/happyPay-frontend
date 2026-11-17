@@ -70,9 +70,9 @@ export default function AdminNavbar({ onOpenMobile }: { onOpenMobile: () => void
           className="relative flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100"
           aria-label="Notifications"
         >
-          <Bell className="h-[18px] w-[18px]" />
+          <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
+            <span className="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
               {unreadCount > 9 ? "9+" : unreadCount}
             </span>
           )}

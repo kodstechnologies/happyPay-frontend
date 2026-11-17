@@ -391,6 +391,12 @@ export default function Profile() {
       category: "Premises Photo",
       ...getDocReview("shopLocationPhoto"),
     },
+    {
+      key: "gstDocument",
+      title: "GST Certificate",
+      category: "Tax / Business",
+      ...getDocReview("gstDocument"),
+    },
   ];
 
   // Badge component for doc status
@@ -844,6 +850,13 @@ export default function Profile() {
                             : "—"}
                         </span>
                       </div>
+
+                      <div>
+                        <span className="text-slate-400 block text-[11px]">GST Number</span>
+                        <span className="font-mono font-semibold text-slate-800">
+                          {profile.gstNumber || "—"}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -944,16 +957,16 @@ export default function Profile() {
                         <Building2 className="h-5 w-5" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-sm font-bold text-slate-900 tracking-tight">
                             Settlement Bank Accounts
                           </h3>
-                          <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-[#7c3aed] border border-purple-200/60">
-                            {profile.banks?.length || 0} Active
+                          <span className="inline-flex items-center rounded-full bg-purple-50 px-2 py-0.5 text-[10px] font-bold text-[#7c3aed] border border-purple-200/60 whitespace-nowrap">
+                            {profile.banks?.length || 0} <span className="hidden sm:inline">Active</span>
                           </span>
                           {profile.pendingBanks && profile.pendingBanks.filter(b => b.approvalStatus === 'pending').length > 0 && (
-                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
-                              {profile.pendingBanks.filter(b => b.approvalStatus === 'pending').length} Pending
+                            <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200 whitespace-nowrap">
+                              {profile.pendingBanks.filter(b => b.approvalStatus === 'pending').length} <span className="hidden sm:inline">Pending</span>
                             </span>
                           )}
                         </div>
@@ -963,14 +976,15 @@ export default function Profile() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         onClick={handleOpenAddBank}
                         className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] px-3.5 py-2 text-xs font-semibold text-white shadow-sm shadow-[#7c3aed]/25 hover:from-[#6d28d9] hover:to-[#5b21b6] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/40 transition hover:-translate-y-0.5"
                       >
                         <Plus className="h-4 w-4" />
-                        <span>Add Another Account</span>
+                        <span className="hidden sm:inline">Add Another Account</span>
+                        <span className="sm:hidden">Add</span>
                       </button>
 
                       <button
@@ -989,7 +1003,7 @@ export default function Profile() {
                     {/* Active Banks (Approved) */}
                     {profile.banks && profile.banks.length > 0 && (
                       <div>
-                        <div className="mb-3 flex items-center gap-2">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
                           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Active Bank Accounts</h4>
                           <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
                             {profile.banks.length}
@@ -1044,13 +1058,15 @@ export default function Profile() {
                                     </div>
 
                                     {isPrimary ? (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200 shadow-xs">
-                                        <ShieldCheck className="h-3 w-3 text-emerald-600" />
-                                        <span>Primary</span>
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] sm:text-[10px] font-bold text-emerald-700 border border-emerald-200 shadow-xs whitespace-nowrap">
+                                        <ShieldCheck className="h-3 w-3 text-emerald-600 shrink-0" />
+                                        <span className="hidden sm:inline">Primary</span>
+                                        <span className="sm:hidden">Pri</span>
                                       </span>
                                     ) : (
-                                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500 border border-slate-200/80">
-                                        Secondary
+                                      <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-[10px] font-medium text-slate-500 border border-slate-200/80 whitespace-nowrap">
+                                        <span className="hidden sm:inline">Secondary</span>
+                                        <span className="sm:hidden">Sec</span>
                                       </span>
                                     )}
                                   </div>
@@ -1135,7 +1151,7 @@ export default function Profile() {
                     {/* Pending Banks */}
                     {profile.pendingBanks && profile.pendingBanks.length > 0 && (
                       <div>
-                        <div className="mb-3 flex items-center gap-2">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
                           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Pending Approval</h4>
                           <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 border border-amber-200">
                             {profile.pendingBanks.filter(b => b.approvalStatus === 'pending').length}
@@ -1202,7 +1218,7 @@ export default function Profile() {
                     {/* Rejected Banks */}
                     {profile.pendingBanks && profile.pendingBanks.some(b => b.approvalStatus === 'rejected') && (
                       <div>
-                        <div className="mb-3 flex items-center gap-2">
+                        <div className="mb-3 flex flex-wrap items-center gap-2">
                           <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">Rejected</h4>
                           <span className="inline-flex items-center rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-700 border border-rose-200">
                             {profile.pendingBanks.filter(b => b.approvalStatus === 'rejected').length}

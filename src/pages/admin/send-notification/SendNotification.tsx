@@ -205,8 +205,6 @@ export default function SendNotification() {
                   setSelectAllRetailers(e.target.checked);
                   if (e.target.checked) {
                     setSelectedRetailer(null);
-                    setSelectAllDistributors(false);
-                    setSelectedDistributor(null);
                   }
                 }}
                 className="h-4 w-4 rounded border-slate-300 text-[#315bd1] focus:ring-[#315bd1]"
@@ -222,8 +220,6 @@ export default function SendNotification() {
                   setSelectAllDistributors(e.target.checked);
                   if (e.target.checked) {
                     setSelectedDistributor(null);
-                    setSelectAllRetailers(false);
-                    setSelectedRetailer(null);
                   }
                 }}
                 className="h-4 w-4 rounded border-slate-300 text-[#315bd1] focus:ring-[#315bd1]"
@@ -239,10 +235,10 @@ export default function SendNotification() {
             </label>
             <button
               type="button"
-              onClick={() => !selectAllRetailers && !selectAllDistributors && setRetailerDropdownOpen(!retailerDropdownOpen)}
-              disabled={selectAllRetailers || selectAllDistributors}
+              onClick={() => !selectAllRetailers && setRetailerDropdownOpen(!retailerDropdownOpen)}
+              disabled={selectAllRetailers}
               className={`h-[54px] w-full rounded-xl border px-5 text-left text-sm font-medium outline-none transition-all flex items-center justify-between ${
-                selectAllRetailers || selectAllDistributors
+                selectAllRetailers
                   ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "border-slate-200 bg-[#fafbfd] focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/20"
               }`}
@@ -325,10 +321,10 @@ export default function SendNotification() {
             </label>
             <button
               type="button"
-              onClick={() => !selectAllRetailers && !selectAllDistributors && setDistributorDropdownOpen(!distributorDropdownOpen)}
-              disabled={selectAllRetailers || selectAllDistributors}
+              onClick={() => !selectAllDistributors && setDistributorDropdownOpen(!distributorDropdownOpen)}
+              disabled={selectAllDistributors}
               className={`h-[54px] w-full rounded-xl border px-5 text-left text-sm font-medium outline-none transition-all flex items-center justify-between ${
-                selectAllRetailers || selectAllDistributors
+                selectAllDistributors
                   ? "border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed"
                   : "border-slate-200 bg-[#fafbfd] focus:border-[#315bd1] focus:bg-white focus:ring-4 focus:ring-[#315bd1]/20"
               }`}

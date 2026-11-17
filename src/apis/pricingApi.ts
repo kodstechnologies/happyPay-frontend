@@ -199,9 +199,10 @@ export interface UserSubscription {
 }
 
 // PATCH /api/v1/pricing/:id/subscribe - Subscribe to a plan
-export function subscribeToPlan(planId: string) {
+export function subscribeToPlan(planId: string, mpin: string) {
   return api.patch<Envelope<UserSubscription>>(
-    `/api/v1/pricing/${planId}/subscribe`
+    `/api/v1/pricing/${planId}/subscribe`,
+    { mpin }
   ).then(unwrap);
 }
 

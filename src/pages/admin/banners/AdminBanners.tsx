@@ -1,21 +1,14 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  X, 
-  Image as ImageIcon, 
-  Layers, 
-  CheckCircle2, 
-  XCircle, 
-  RefreshCw, 
-  Search, 
-  ExternalLink, 
-  UploadCloud, 
-  SlidersHorizontal,
-  Sparkles,
-  Link2,
-  ArrowUpDown,
+import {
+  Plus,
+  Trash2,
+  Edit3,
+  X,
+  Image as ImageIcon,
+  Layers,
+  RefreshCw,
+  Search,
+  UploadCloud,
   Check
 } from "lucide-react";
 import { showToast } from "../../../utils/toast";
@@ -29,12 +22,6 @@ import {
   type Banner,
   type BannerFormData
 } from "../../../apis/adminBanner.apis";
-
-const POSITION_LABELS: Record<Banner["position"], { label: string; badge: string }> = {
-  top: { label: "Top Hero", badge: "bg-blue-50 text-blue-700 border-blue-200" },
-  middle: { label: "Middle Promo", badge: "bg-purple-50 text-purple-700 border-purple-200" },
-  bottom: { label: "Bottom Showcase", badge: "bg-amber-50 text-amber-700 border-amber-200" },
-};
 
 const extractBannerList = (data: unknown): Banner[] => {
   if (Array.isArray(data)) return data as Banner[];
@@ -63,10 +50,6 @@ export default function AdminBanners() {
   const [formData, setFormData] = useState<BannerFormData>({
     title: "",
     imageUrl: "",
-    targetUrl: "",
-    position: "top",
-    order: 0,
-    isActive: true,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -76,9 +59,6 @@ export default function AdminBanners() {
   // Delete Confirmation State
   const [deleteTarget, setDeleteTarget] = useState<Banner | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Status Toggling State tracker
-  const [togglingId, setTogglingId] = useState<string | null>(null);
 
   const loadBanners = async (isManualRefresh = false) => {
     try {
@@ -128,39 +108,6 @@ export default function AdminBanners() {
     };
   }, []);
 
-  // Quick inline status toggle directly on card
-  const handleToggleStatus = async (banner: Banner) => {
-    const newStatus = !banner.isActive;
-    try {
-      setTogglingId(banner._id);
-      // Optimistic update
-      setBanners((prev) =>
-        prev.map((b) => (b._id === banner._id ? { ...b, isActive: newStatus } : b))
-      );
-
-      await updateAdminBanner(banner._id, {
-        title: banner.title || "",
-        targetUrl: banner.targetUrl || "",
-        position: banner.position,
-        order: banner.order,
-        isActive: newStatus,
-        imageUrl: banner.imageUrl,
-      });
-
-      showToast(
-        "success",
-        `Banner "${banner.title || "Untitled"}" is now ${newStatus ? "Active" : "Inactive"}`
-      );
-    } catch (err: unknown) {
-      // Revert optimistic update
-      loadBanners();
-      const msg = err instanceof Error ? err.message : "Failed to update banner status";
-      showToast("error", err, msg);
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
   // Delete Action via ConfirmDeleteModal
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
@@ -184,10 +131,6 @@ export default function AdminBanners() {
       setFormData({
         title: banner.title || "",
         imageUrl: banner.imageUrl || "",
-        targetUrl: banner.targetUrl || "",
-        position: banner.position || "top",
-        order: banner.order ?? 0,
-        isActive: banner.isActive !== undefined ? banner.isActive : true,
       });
       setImageFile(null);
       setImagePreview(banner.imageUrl || "");
@@ -196,10 +139,6 @@ export default function AdminBanners() {
       setFormData({
         title: "",
         imageUrl: "",
-        targetUrl: "",
-        position: "top",
-        order: 0,
-        isActive: true,
       });
       setImageFile(null);
       setImagePreview("");
@@ -280,41 +219,42 @@ export default function AdminBanners() {
     handleFileChange(file);
   };
 
-  // Filtered & Sorted Banners
+  // Filtered Banners
   const filteredBanners = useMemo(() => {
-    return banners
-      .filter((banner) => {
-        // Search query
-        if (searchQuery.trim()) {
-          const q = searchQuery.toLowerCase();
-          const matchTitle = banner.title?.toLowerCase().includes(q);
-          const matchUrl = banner.targetUrl?.toLowerCase().includes(q);
-          if (!matchTitle && !matchUrl) return false;
-        }
+    return banners.filter((banner) => {
+      // Search query
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchTitle = banner.title?.toLowerCase().includes(q);
+        if (!matchTitle) return false;
+      }
 
-        // Position filter
-        if (positionFilter !== "ALL" && banner.position !== positionFilter) {
-          return false;
-        }
+      // Position filter
+      if (positionFilter !== "ALL" && banner.position !== positionFilter) {
+        return false;
+      }
 
-        // Status filter
-        if (statusFilter === "active" && !banner.isActive) return false;
-        if (statusFilter === "inactive" && banner.isActive) return false;
+      // Status filter
+      if (statusFilter === "active" && !banner.isActive) {
+        return false;
+      }
+      if (statusFilter === "inactive" && banner.isActive) {
+        return false;
+      }
 
-        return true;
-      })
-      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      return true;
+    });
   }, [banners, searchQuery, positionFilter, statusFilter]);
 
   // KPI Calculations
   const stats = useMemo(() => {
     const total = banners.length;
-    const active = banners.filter((b) => b.isActive).length;
-    const inactive = total - active;
-    const topCount = banners.filter((b) => b.position === "top").length;
-    const middleCount = banners.filter((b) => b.position === "middle").length;
-    const bottomCount = banners.filter((b) => b.position === "bottom").length;
-    return { total, active, inactive, topCount, middleCount, bottomCount };
+    const topCount = banners.filter(b => b.position === "top").length;
+    const middleCount = banners.filter(b => b.position === "middle").length;
+    const bottomCount = banners.filter(b => b.position === "bottom").length;
+    const active = banners.filter(b => b.isActive).length;
+    const inactive = banners.filter(b => !b.isActive).length;
+    return { total, topCount, middleCount, bottomCount, active, inactive };
   }, [banners]);
 
   const hasActiveFilters = searchQuery !== "" || positionFilter !== "ALL" || statusFilter !== "ALL";
@@ -361,69 +301,17 @@ export default function AdminBanners() {
         </div>
       </div>
 
-      {/* KPI Stats Overview Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {/* Total Banners */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Total Banners</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-              <Layers className="h-4 w-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-slate-900">{stats.total}</span>
-            <span className="text-xs text-slate-400">items</span>
-          </div>
+      {/* KPI Stats Overview Card */}
+      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-500">Total Banners</span>
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <Layers className="h-4 w-4" />
+          </span>
         </div>
-
-        {/* Active Banners */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Active Banners</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-              <CheckCircle2 className="h-4 w-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-emerald-600">{stats.active}</span>
-            <span className="text-xs text-slate-400">visible live</span>
-          </div>
-        </div>
-
-        {/* Inactive / Draft Banners */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Inactive / Drafts</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-              <XCircle className="h-4 w-4" />
-            </span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight text-slate-700">{stats.inactive}</span>
-            <span className="text-xs text-slate-400">hidden</span>
-          </div>
-        </div>
-
-        {/* Position Breakdown */}
-        <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Positions</span>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-50 text-purple-600">
-              <Sparkles className="h-4 w-4" />
-            </span>
-          </div>
-          <div className="mt-2.5 flex items-center gap-1.5 text-xs font-medium">
-            <span className="rounded-lg bg-blue-50 px-2 py-0.5 text-blue-700 border border-blue-100">
-              Top: {stats.topCount}
-            </span>
-            <span className="rounded-lg bg-purple-50 px-2 py-0.5 text-purple-700 border border-purple-100">
-              Mid: {stats.middleCount}
-            </span>
-            <span className="rounded-lg bg-amber-50 px-2 py-0.5 text-amber-700 border border-amber-100">
-              Bot: {stats.bottomCount}
-            </span>
-          </div>
+        <div className="mt-2 flex items-baseline gap-2">
+          <span className="text-2xl font-bold tracking-tight text-slate-900">{stats.total}</span>
+          <span className="text-xs text-slate-400">items</span>
         </div>
       </div>
 
@@ -435,7 +323,7 @@ export default function AdminBanners() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search banners by title or link..."
+            placeholder="Search banners by title..."
             className="w-full rounded-xl border border-slate-200 bg-slate-50/50 py-2 pl-10 pr-4 text-xs font-medium text-slate-800 placeholder-slate-400 transition focus:border-[#315bd1] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
           />
           {searchQuery && (
@@ -451,21 +339,7 @@ export default function AdminBanners() {
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Position Selector */}
-          <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs">
-            <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400" />
-            <span className="text-slate-500 font-medium">Position:</span>
-            <select
-              value={positionFilter}
-              onChange={(e) => setPositionFilter(e.target.value as "ALL" | "top" | "middle" | "bottom")}
-              aria-label="Filter by position"
-              className="bg-transparent font-semibold text-slate-700 focus:outline-none cursor-pointer"
-            >
-              <option value="ALL">All ({stats.total})</option>
-              <option value="top">Top ({stats.topCount})</option>
-              <option value="middle">Middle ({stats.middleCount})</option>
-              <option value="bottom">Bottom ({stats.bottomCount})</option>
-            </select>
-          </div>
+      
 
           {/* Status Selector */}
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs">
@@ -525,9 +399,7 @@ export default function AdminBanners() {
               <div className="aspect-[21/9] w-full bg-slate-200/70" />
               <div className="space-y-3 p-4">
                 <div className="h-4 w-3/4 rounded bg-slate-200" />
-                <div className="h-3 w-1/2 rounded bg-slate-100" />
-                <div className="flex justify-between pt-3 border-t border-slate-100">
-                  <div className="h-5 w-16 rounded-full bg-slate-200" />
+                <div className="flex justify-end pt-3 border-t border-slate-100">
                   <div className="flex gap-2">
                     <div className="h-6 w-6 rounded bg-slate-100" />
                     <div className="h-6 w-6 rounded bg-slate-100" />
@@ -541,15 +413,12 @@ export default function AdminBanners() {
         /* Banners Cards Grid */
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {filteredBanners.map((banner) => {
-            const positionInfo = POSITION_LABELS[banner.position] || POSITION_LABELS.top;
-            const isToggling = togglingId === banner._id;
-
             return (
               <div
                 key={banner._id}
                 className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-xs transition-all duration-200 hover:border-slate-300 hover:shadow-md"
               >
-                {/* Image Container with Badges */}
+                {/* Image Container */}
                 <div className="relative aspect-[21/9] w-full overflow-hidden bg-slate-100">
                   <img
                     src={banner.imageUrl}
@@ -560,22 +429,6 @@ export default function AdminBanners() {
                         "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80";
                     }}
                   />
-
-                  {/* Gradient Overlay for Top Badges */}
-                  <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3 bg-gradient-to-b from-slate-950/60 via-slate-950/20 to-transparent">
-                    {/* Position Badge */}
-                    <span
-                      className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-bold shadow-xs backdrop-blur-md ${positionInfo.badge}`}
-                    >
-                      {positionInfo.label}
-                    </span>
-
-                    {/* Order Badge */}
-                    <span className="inline-flex items-center gap-1 rounded-lg border border-white/20 bg-slate-900/60 px-2 py-0.5 text-[11px] font-semibold text-white backdrop-blur-md shadow-xs">
-                      <ArrowUpDown className="h-3 w-3 opacity-70" />
-                      <span>#{banner.order ?? 0}</span>
-                    </span>
-                  </div>
                 </div>
 
                 {/* Card Content */}
@@ -587,49 +440,10 @@ export default function AdminBanners() {
                     >
                       {banner.title || "Untitled Banner"}
                     </h3>
-
-                    {/* Target URL */}
-                    <div className="mt-1.5 flex items-center gap-1 text-xs">
-                      <Link2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      {banner.targetUrl ? (
-                        <a
-                          href={banner.targetUrl}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                          title={banner.targetUrl}
-                          className="inline-flex items-center gap-1 truncate text-xs font-medium text-[#315bd1] hover:underline"
-                        >
-                          <span className="truncate">{banner.targetUrl}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="text-slate-400 italic text-[11px]">No target link attached</span>
-                      )}
-                    </div>
                   </div>
 
                   {/* Card Bottom Bar */}
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-                    {/* Interactive Active / Inactive Toggle Switch */}
-                    <button
-                      type="button"
-                      disabled={isToggling}
-                      onClick={() => handleToggleStatus(banner)}
-                      title={`Click to ${banner.isActive ? "deactivate" : "activate"} banner`}
-                      className={`inline-flex items-center gap-2 rounded-xl px-2.5 py-1 text-xs font-semibold transition border ${
-                        banner.isActive
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
-                          : "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200"
-                      } disabled:opacity-50 cursor-pointer`}
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          banner.isActive ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                        }`}
-                      />
-                      <span>{isToggling ? "Updating..." : banner.isActive ? "Active" : "Inactive"}</span>
-                    </button>
-
+                  <div className="mt-4 flex items-center justify-end border-t border-slate-100 pt-3">
                     {/* Action Buttons */}
                     <div className="flex items-center gap-1">
                       <button
@@ -667,7 +481,7 @@ export default function AdminBanners() {
           </h3>
           <p className="mt-1 max-w-sm text-xs text-slate-500">
             {hasActiveFilters
-              ? "Try adjusting your search keywords, position filter, or status filter to see other banners."
+              ? "Try adjusting your search keywords to see other banners."
               : "Upload promotional banners to showcase services, offers, and announcements on retailer dashboards."}
           </p>
 
@@ -677,8 +491,6 @@ export default function AdminBanners() {
                 type="button"
                 onClick={() => {
                   setSearchQuery("");
-                  setPositionFilter("ALL");
-                  setStatusFilter("ALL");
                 }}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition"
               >
@@ -704,7 +516,7 @@ export default function AdminBanners() {
         title={editingId ? "Edit Banner" : "Add New Banner"}
         description={
           editingId
-            ? "Update banner details, positioning, target link, and visual artwork."
+            ? "Update banner title and visual artwork."
             : "Upload and publish a new banner to be featured on dashboard carousels."
         }
         icon={editingId ? Edit3 : Plus}
@@ -812,81 +624,6 @@ export default function AdminBanners() {
                 </p>
               </div>
             )}
-          </div>
-
-          {/* Target URL */}
-          <div>
-            <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-              Target Link / Redirection URL <span className="text-slate-400 font-normal lowercase">(optional)</span>
-            </label>
-            <div className="relative">
-              <Link2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                type="url"
-                value={formData.targetUrl}
-                onChange={(e) => setFormData({ ...formData, targetUrl: e.target.value })}
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-xs font-medium text-slate-800 placeholder-slate-400 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-                placeholder="https://example.com/promo or /retailer/services"
-              />
-            </div>
-          </div>
-
-          {/* Position & Order Grid */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Display Position
-              </label>
-              <select
-                value={formData.position}
-                onChange={(e) =>
-                  setFormData({ ...formData, position: e.target.value as Banner["position"] })
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1] cursor-pointer"
-              >
-                <option value="top">Top (Hero Slider / Carousel)</option>
-                <option value="middle">Middle (Services / Promos)</option>
-                <option value="bottom">Bottom (Footer Banner)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Display Order
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={formData.order}
-                onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-                placeholder="0"
-              />
-              <p className="mt-1 text-[10px] text-slate-400">
-                Banners with lower order numbers appear first.
-              </p>
-            </div>
-          </div>
-
-          {/* Active Status Checkbox / Switch */}
-          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5">
-            <label className="flex items-center justify-between cursor-pointer">
-              <div className="pr-4">
-                <span className="text-xs font-bold text-slate-800 block">
-                  Active Status
-                </span>
-                <span className="text-[11px] text-slate-500 block mt-0.5">
-                  When enabled, this banner will be visible to retailers and users immediately.
-                </span>
-              </div>
-              <input
-                type="checkbox"
-                id="isActive"
-                checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                className="h-4.5 w-4.5 rounded border-slate-300 text-[#315bd1] focus:ring-[#315bd1] cursor-pointer"
-              />
-            </label>
           </div>
         </form>
       </ModalWrapper>

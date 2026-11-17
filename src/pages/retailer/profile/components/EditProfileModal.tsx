@@ -52,6 +52,7 @@ export default function EditProfileModal({
   const [dateOfBirth, setDateOfBirth] = useState(
     profile.dateOfBirth ? profile.dateOfBirth.slice(0, 10) : ""
   );
+  const [gstNumber, setGstNumber] = useState(profile.gstNumber || "");
 
   // Shop states
   const [shopName, setShopName] = useState(profile.shop?.name || "");
@@ -271,6 +272,7 @@ export default function EditProfileModal({
         maritalStatus,
         educationalQualification: educationalQualification.trim(),
         dateOfBirth: dateOfBirth || undefined,
+        gstNumber: gstNumber.trim() || undefined,
         shopName: shopName.trim(),
         shopCategory: shopCategory || undefined,
         propertyType: propertyType || undefined,
@@ -497,6 +499,20 @@ export default function EditProfileModal({
               />
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                GST Number
+              </label>
+              <input
+                type="text"
+                value={gstNumber}
+                onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                maxLength={15}
+                className="w-full rounded-xl border border-slate-200 px-3.5 py-2 font-mono text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                placeholder="22AAAAA0000A1Z5"
+              />
+            </div>
+
             <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
               <span className="font-semibold text-slate-700">Note: </span>
               PAN number, Aadhaar number, Mobile number, and Email address are verified identifiers and cannot be altered directly. Use the "Change" button on the profile overview page to update Mobile/Email via OTP verification.
@@ -676,7 +692,7 @@ export default function EditProfileModal({
                 value={addressLine}
                 onChange={(e) => setAddressLine(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
-                placeholder="Shop number, street, building, floor, etc."
+                placeholder="Enter street address"
               />
             </div>
 

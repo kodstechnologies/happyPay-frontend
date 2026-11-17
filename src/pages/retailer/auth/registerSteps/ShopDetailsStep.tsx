@@ -380,6 +380,73 @@ const ShopDetailsStep = forwardRef<ShopDetailsStepHandle, ShopDetailsStepProps>(
     loadStatesOnMount();
   }, []);
 
+  // Load districts when state and stateCode are populated from initial data
+  useEffect(() => {
+    if (state && stateCode && districtList.length === 0) {
+      const loadDistrictsForInitialData = async () => {
+        setDistrictsLoading(true);
+        try {
+          const res = await fetchUpiDistrictApi(stateCode);
+          console.log("District API response for initial data:", res);
+
+          let raw: unknown = res.data;
+          let pagination = null;
+
+          if (raw && typeof raw === "object" && "data" in raw) {
+            const dataObj = (raw as Record<string, unknown>).data;
+            if (dataObj && typeof dataObj === "object" && "data" in dataObj) {
+              raw = (dataObj as Record<string, unknown>).data;
+              if (dataObj && typeof dataObj === "object" && "pagination" in dataObj) {
+                pagination = (dataObj as Record<string, unknown>).pagination;
+              }
+            } else {
+              raw = dataObj;
+            }
+          }
+
+          if (Array.isArray(raw)) {
+            const mappedDistricts = (raw as Array<{ description: string; code: string }>).map((item) => ({
+              districtCode: item.code,
+              districtName: item.description,
+            }));
+            console.log("Setting district list with mapped array:", mappedDistricts);
+            setDistrictList(mappedDistricts);
+
+            if (pagination && typeof pagination === "object") {
+              const pag = pagination as Record<string, unknown>;
+              setDistrictTotalPages(Number(pag.totalPages) || 1);
+              setDistrictHasMore(Boolean(pag.hasNextPage));
+            }
+          } else if (raw && typeof raw === "object") {
+            const nested = (raw as Record<string, unknown>).districts ||
+              (raw as Record<string, unknown>).data ||
+              (raw as Record<string, unknown>).districtList;
+            if (Array.isArray(nested)) {
+              const mappedDistricts = (nested as Array<{ description: string; code: string }>).map((item) => ({
+                districtCode: item.code,
+                districtName: item.description,
+              }));
+              console.log("Setting district list with mapped nested array:", mappedDistricts);
+              setDistrictList(mappedDistricts);
+
+              if (pagination && typeof pagination === "object") {
+                const pag = pagination as Record<string, unknown>;
+                setDistrictTotalPages(Number(pag.totalPages) || 1);
+                setDistrictHasMore(Boolean(pag.hasNextPage));
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching district list for initial data:", err);
+        } finally {
+          setDistrictsLoading(false);
+        }
+      };
+
+      loadDistrictsForInitialData();
+    }
+  }, [state, stateCode]);
+
   // Load state list function for pagination
   const loadStates = useCallback((page: number = 1, append: boolean = false) => {
     setStatesLoading(true);

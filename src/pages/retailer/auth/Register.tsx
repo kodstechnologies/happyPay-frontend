@@ -568,8 +568,8 @@ const RetailerRegister = ({
                       </span>
                     </button>
 
-                    {/* NEXT — hidden on step 0 & 1 during fresh registration, shown when resuming or on steps 2, 3, 4 */}
-                    {(retailerUserId || (currentStep !== 0 && currentStep !== 1)) && (
+                    {/* NEXT — hidden on step 0 & 1 during fresh registration, and on last step (4) */}
+                    {(retailerUserId || (currentStep !== 0 && currentStep !== 1)) && currentStep !== 4 && (
                       <button
                         type="button"
                         onClick={nextStep}

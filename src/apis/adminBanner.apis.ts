@@ -5,10 +5,8 @@ export interface Banner {
   _id: string;
   title: string;
   imageUrl: string;
-  targetUrl?: string;
-  position: "top" | "middle" | "bottom";
-  order: number;
-  isActive: boolean;
+  position?: "top" | "middle" | "bottom";
+  isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -29,10 +27,6 @@ export function getAdminBanners() {
 function bannerFormData(data: BannerFormData, image?: File | null) {
   const body = new FormData();
   body.append("title", data.title);
-  body.append("targetUrl", data.targetUrl || "");
-  body.append("position", data.position);
-  body.append("order", String(data.order));
-  body.append("isActive", String(data.isActive));
   if (image) {
     body.append("image", image);
   }

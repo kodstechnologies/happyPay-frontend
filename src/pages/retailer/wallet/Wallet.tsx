@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { showToast } from "../../../utils/toast";
-import { Plus, WalletCards, ArrowRightLeft, RefreshCw, ShieldCheck, Lock as LockIcon, AlertCircle } from "lucide-react";
+import { WalletCards, ArrowRightLeft, RefreshCw, ShieldCheck, Lock as LockIcon, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { getWalletBalance, setWalletBalance } from "../../../utils/wallet";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import { getWalletLockStatusApi } from "../../../apis/walletLock.apis";
 import { useAuth } from "../../../context/AuthContext";
-import WalletCashWithdrawalModal, { type WithdrawalSuccessData } from "./WalletCashWithdrawalModal";
 
 const formatAmount = (amount: number) =>
   amount.toLocaleString("en-IN", {
@@ -25,8 +24,6 @@ export default function Wallet() {
   const [isWalletLocked, setIsWalletLocked] = useState<boolean>(false);
   const [walletLockReason, setWalletLockReason] = useState<string | null>(null);
   const [walletLockedAt, setWalletLockedAt] = useState<string | null>(null);
-
-  const [open, setOpen] = useState<boolean>(false);
 
   // Load retailer details from in-memory session
   const { user: retailerUser } = useAuth();
@@ -113,12 +110,6 @@ export default function Wallet() {
       isMounted = false;
     };
   }, []);
-
-  const handleWithdrawalSuccess = async (data: WithdrawalSuccessData) => {
-    showToast("success", "Wallet recharged successfully: " + formatAmount(data.amount) + " via AEPS (" + data.bankName + ")");
-    // Immediately refresh live wallet balance from backend ledger
-    await fetchBalance(false);
-  };
 
   const retailerId =
     retailerUser?.outletId ||
@@ -220,19 +211,6 @@ export default function Wallet() {
           <div className="mt-5 flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setOpen(true)}
-              disabled={isWalletLocked}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition active:scale-[0.98] ${
-                isWalletLocked
-                  ? "bg-slate-300 text-slate-500 cursor-not-allowed"
-                  : "bg-[#7c3aed] text-white hover:bg-[#6d28d9]"
-              }`}
-            >
-              <Plus className="h-4 w-4" />
-              Add Money
-            </button>
-            <button
-              type="button"
               onClick={() => navigate("/retailer/settlement/bank")}
               disabled={isWalletLocked}
               className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold shadow-sm transition active:scale-[0.98] ${
@@ -268,14 +246,6 @@ export default function Wallet() {
           </div>
         </div>
       </section>
-
-
-      {/* AEPS Cash Withdrawal Wallet Recharge Modal */}
-      <WalletCashWithdrawalModal
-        open={open}
-        onClose={() => setOpen(false)}
-        onSuccess={handleWithdrawalSuccess}
-      />
     </div>
   );
 }

@@ -59,6 +59,7 @@ import CreatePlan from "../pages/admin/plan-management/CreatePlan";
 import EditPlan from "../pages/admin/plan-management/EditPlan";
 import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
 import SendNotification from "../pages/admin/send-notification/SendNotification";
+import AdminMasterData from "../pages/admin/master-data/AdminMasterData";
 
 import Fingerprint from "../pages/dev/fingerPrint";
 
@@ -108,6 +109,7 @@ const Router: RouteObject[] = [
           { path: "commissions", element: <AdminCommissions /> },
           { path: "banners", element: <AdminBanners /> },
           { path: "cms", element: <AdminCmsConfig /> },
+          { path: "master-data", element: <AdminMasterData /> },
           { path: "profile", element: <AdminProfile /> },
           { path: "support", element: <AdminSupport /> },
           { path: "audit-logs", element: <AdminAuditLogs /> },

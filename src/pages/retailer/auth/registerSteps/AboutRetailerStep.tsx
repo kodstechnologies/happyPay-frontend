@@ -163,10 +163,7 @@ const AboutRetailerStep = forwardRef<
       showToast("error", "First name is required.");
       return false;
     }
-    if (!lastName.trim()) {
-      showToast("error", "Last name is required.");
-      return false;
-    }
+    // Last name is optional - auto-set to "NA" if empty
     if (!dateOfBirth) {
       showToast("error", "Date of birth is required.");
       return false;
@@ -207,7 +204,7 @@ const AboutRetailerStep = forwardRef<
       await updateRetailerAboutDetails({
         userId,
         firstName: firstName.trim(),
-        lastName: lastName.trim(),
+        lastName: lastName.trim() || "NA",
         dateOfBirth: dateOfBirth,
         gender: genderCode,
         maritalStatus,
@@ -267,7 +264,7 @@ const AboutRetailerStep = forwardRef<
           htmlFor="retailer-last-name"
           className="mb-2.5 block text-[14px] font-semibold text-[#172033]"
         >
-          Last Name <span className="text-red-500">*</span>
+          Last Name <span className="text-[12px] text-[#8992a3] font-normal">(Optional)</span>
         </label>
         <div className="relative">
           <UserRound
@@ -280,7 +277,7 @@ const AboutRetailerStep = forwardRef<
             type="text"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            placeholder="Enter your last name"
+            placeholder="Enter your last name (leave blank for NA)"
             className={`h-[54px] w-full rounded-xl border bg-[#fafbfd] pl-12 pr-5 text-[14px] font-medium text-[#172033] outline-none transition-all placeholder:text-[#a1a8b5] focus:border-[#7c3aed] focus:bg-white focus:ring-4 focus:ring-[#7c3aed]/10 ${lastName ? "border-[#7c3aed]" : "border-[#dfe3e9]"
               }`}
           />

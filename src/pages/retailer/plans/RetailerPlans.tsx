@@ -47,6 +47,8 @@ export default function RetailerPlans() {
   // Subscribe Confirmation Modal
   const [planToSubscribe, setPlanToSubscribe] = useState<Plan | null>(null);
   const [subscribing, setSubscribing] = useState(false);
+  const [mpin, setMpin] = useState("");
+  const [mpinError, setMpinError] = useState("");
 
   // Fetch wallet balance
   const fetchWalletBalance = useCallback(async () => {
@@ -147,6 +149,12 @@ export default function RetailerPlans() {
   const handleConfirmSubscribe = async () => {
     if (!planToSubscribe) return;
 
+    // Validate MPIN
+    if (!mpin || mpin.length !== 4) {
+      setMpinError("Please enter your 4-digit MPIN");
+      return;
+    }
+
     // Check wallet balance before subscribing
     const availableBalance = walletBalance?.availableBalance || 0;
     const subscriptionAmount = planToSubscribe.subscriptionAmount || 0;
@@ -160,16 +168,24 @@ export default function RetailerPlans() {
     }
 
     setSubscribing(true);
+    setMpinError("");
     try {
-      await subscribeToPlan(planToSubscribe._id);
+      await subscribeToPlan(planToSubscribe._id, mpin);
       showToast("success", `Successfully subscribed to ${planToSubscribe.name}! ₹${subscriptionAmount.toFixed(2)} deducted from your wallet.`);
       setPlanToSubscribe(null);
+      setMpin("");
+      setMpinError("");
       // Re-fetch to update state
       await fetchData(true);
       setActiveTab("subscribed");
     } catch (error: unknown) {
       console.error("Failed to subscribe:", error);
-      showToast("error", error, "Subscription failed. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Subscription failed. Please try again.";
+      if (errorMessage.toLowerCase().includes("mpin")) {
+        setMpinError(errorMessage);
+      } else {
+        showToast("error", error, errorMessage);
+      }
     } finally {
       setSubscribing(false);
     }
@@ -730,11 +746,47 @@ export default function RetailerPlans() {
               </div>
             )}
 
+            {/* MPIN Input */}
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 space-y-2">
+              <label className="text-xs font-semibold text-slate-700 flex items-center gap-2">
+                <span>Enter MPIN</span>
+                <span className="text-[10px] text-slate-400 font-normal">(4-digit transaction PIN)</span>
+              </label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                value={mpin}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+                  setMpin(value);
+                  setMpinError("");
+                }}
+                placeholder="••••"
+                className={`w-full rounded-xl border py-2.5 px-3 text-center text-lg font-bold tracking-widest outline-none transition-colors ${
+                  mpinError
+                    ? "border-red-300 bg-red-50 text-red-900 focus:border-red-500 focus:ring-2 focus:ring-red-500/10"
+                    : "border-slate-200 bg-slate-50 text-slate-900 focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10"
+                }`}
+                disabled={subscribing}
+              />
+              {mpinError && (
+                <div className="flex items-center gap-1.5 text-xs text-red-600">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  <span>{mpinError}</span>
+                </div>
+              )}
+            </div>
+
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
                 type="button"
                 disabled={subscribing}
-                onClick={() => setPlanToSubscribe(null)}
+                onClick={() => {
+                  setPlanToSubscribe(null);
+                  setMpin("");
+                  setMpinError("");
+                }}
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
               >
                 Cancel
