@@ -913,7 +913,7 @@ export default function AdminRetailerDetails() {
     { label: "Educational Qualification", value: selected.educationalQualification || "-" },
     {
       label: "Verification Status",
-      value: `Aadhaar: ${selected.aadhaarVerified ? "Verified" : "Pending"} • Mobile: ${
+      value: `• Mobile: ${
         selected.isMobileVerified ? "Verified" : "Pending"
       } • Email: ${selected.isEmailVerified ? "Verified" : "Pending"}`,
     },

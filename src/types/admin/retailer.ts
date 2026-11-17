@@ -52,6 +52,7 @@ export interface AdminRetailer {
   reasonOfRejection?: string;
   walletBalance?: number;
   balance?: number;
+  isWalletLocked?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
