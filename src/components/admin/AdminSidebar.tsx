@@ -1,4 +1,4 @@
-import { Activity, Building2, Headphones, LayoutDashboard, LogOut, Store, X, Bell, FileText, Image, IndianRupee, Database } from "lucide-react";
+import { Activity, Building2, Headphones, LayoutDashboard, LogOut, Store, X, Bell, FileText, Image, IndianRupee, Database, Landmark } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useAdminAuth } from "../../context/AdminAuthContext";
 
@@ -10,7 +10,7 @@ const groups = [
      { label: "Bank Approvals", icon: Building2, to: "/admin/bank-approvals" }, { label: "Fund Requests", icon: IndianRupee, to: "/admin/fund-requests" }, { label: "Send Notification", icon: Bell, to: "/admin/send-notification" }] },
   { label: "Configuration", items: [
     // { label: "Commissions", icon: CircleDollarSign, to: "/admin/commissions" },
-     { label: "Banners", icon: Image, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }, { label: "Master Data", icon: Database, to: "/admin/master-data" }] },
+     { label: "Banners", icon: Image, to: "/admin/banners" }, { label: "Plan Management", icon: FileText, to: "/admin/plan-management" }, { label: "Master Data", icon: Database, to: "/admin/master-data" }, { label: "Bank Master", icon: Landmark, to: "/admin/bank-master" }] },
   { label: "System", items: [ { label: "Support", icon: Headphones, to: "/admin/support" }] },
 ];
 

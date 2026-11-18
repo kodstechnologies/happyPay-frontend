@@ -70,6 +70,7 @@ export interface SettlementBankItem {
   bank_id?: string;
   bank_code?: string;
   code?: string;
+  bankMasterId?: string | null;
   accountNumber: string;
   maskedAccountNumber: string;
   ifscCode: string;
@@ -138,6 +139,7 @@ export interface InitiateSettlementPayload {
   lat: string;
   long: string;
   mpin: string;
+  bankMasterId?: string;
 }
 
 export interface InitiateSettlementResponse {

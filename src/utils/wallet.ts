@@ -49,7 +49,6 @@ export function clearWalletLockState(): void {
 // In-memory mirror so non-React consumers can read synchronously
 let inMemoryWalletLockState: WalletLockState = getWalletLockState();
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const getInMemoryWalletLockState = (): WalletLockState => inMemoryWalletLockState;
 
 export function updateWalletLockState(state: WalletLockState): void {

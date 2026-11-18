@@ -217,6 +217,7 @@ export default function SettlementToBank() {
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
         bank_name: selectedBank.bank_code || "",
+        bankMasterId: selectedBank.bankMasterId || undefined,
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
         account_number: selectedBank.accountNumber,

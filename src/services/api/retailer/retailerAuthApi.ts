@@ -553,6 +553,7 @@ export interface UpdateBankDetailsPayload {
   platform?: string | null;
   deviceName?: string | null;
   distributorId?: string;
+  bankMasterId?: string;
 }
 
 export function updateRetailerBankDetails(payload: UpdateBankDetailsPayload) {
@@ -603,6 +604,15 @@ export function getSettlementBankList(page?: number, limit?: number, search?: st
   if (search) params.search = search;
 
   return api.get<ApiEnvelope<SettlementBank[]>>("/api/v1/wallet/banklist", { params }).then(unwrap);
+}
+
+export interface BankMasterItem {
+  _id: string;
+  bankName: string;
+}
+
+export function getBankMasterList() {
+  return api.get<ApiEnvelope<BankMasterItem[]>>("/api/v1/banks").then(unwrap);
 }
 
 export function getRetailerAadhaarAndMobile(userId: string) {

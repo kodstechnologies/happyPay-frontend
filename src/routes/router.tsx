@@ -60,6 +60,7 @@ import EditPlan from "../pages/admin/plan-management/EditPlan";
 import ViewPlanDetails from "../pages/admin/plan-management/ViewPlan Detailes";
 import SendNotification from "../pages/admin/send-notification/SendNotification";
 import AdminMasterData from "../pages/admin/master-data/AdminMasterData";
+import AdminBankMaster from "../pages/admin/bank-master/AdminBankMaster";
 
 import Fingerprint from "../pages/dev/fingerPrint";
 
@@ -117,6 +118,7 @@ const Router: RouteObject[] = [
           { path: "send-notification", element: <SendNotification /> },
           { path: "plan-management", element: <AdminPlanManagement /> },
           { path: "bank-approvals", element: <BankApproval /> },
+          { path: "bank-master", element: <AdminBankMaster /> },
           { path: "fund-requests", element: <AdminFundRequest /> },
           { path: "plan-management/create", element: <CreatePlan /> },
           { path: "plan-management/view/:id", element: <ViewPlanDetails /> },

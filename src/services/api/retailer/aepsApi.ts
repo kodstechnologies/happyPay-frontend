@@ -405,6 +405,8 @@ export interface AepsServicePayload extends Partial<Omit<BiometricPayload, "refe
   ts: string;
   mobile?: string;
   bankiin?: string;
+  /** Bank Master MongoDB _id — when present, server resolves bankiin & validates isActive/aeps.enabled */
+  bankMasterId?: string;
 }
 
 export interface CashWithdrawalPayload extends AepsServicePayload {
@@ -420,6 +422,7 @@ export interface SendAepsOtpPayload {
   MobileNumber: string;
   bankiin: string;
   amount: number;
+  bankMasterId?: string;
 }
 
 export function balanceEnquiry(payload: AepsServicePayload) {

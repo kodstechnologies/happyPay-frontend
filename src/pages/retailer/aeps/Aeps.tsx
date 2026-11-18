@@ -55,9 +55,8 @@ import {
   type VerifyTfaResult,
   type MiniStatementResult,
   type Envelope,
-  getBankList,
 } from "../../../services/api/retailer/aepsApi";
-import { getRetailerAadhaarAndMobile } from "../../../services/api/retailer/retailerAuthApi";
+import { getRetailerAadhaarAndMobile, getBankMasterList, type BankMasterItem } from "../../../services/api/retailer/retailerAuthApi";
 import { getWalletBalanceApi } from "../../../apis/wallet.apis";
 import {
   ensureConfirmedLocation,
@@ -91,13 +90,12 @@ type ReceiptType =
   | "balance-withdrawal"
   | "cash-deposit";
 
-interface Bank {
-  id: number;
-  bank_id: number;
-  name: string;
-  iin: string;
-  aeps_enabled: number;
-  aadhaarpay_enabled: number;
+// Bank type uses BankMasterItem shape; legacy iin/bank_id preserved for display
+interface Bank extends BankMasterItem {
+  iin?: string;
+  bank_id?: number;
+  aeps_enabled?: number;
+  aadhaarpay_enabled?: number;
 }
 
 interface Transaction {
@@ -961,7 +959,6 @@ const Aeps = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
-  const BANKS_PER_PAGE = 50;
   const [bankSearchTerm, setBankSearchTerm] = useState("");
   const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
   const bankDropdownRef = useRef<HTMLDivElement>(null);
@@ -978,7 +975,7 @@ const Aeps = () => {
   }, []);
 
   // Fetch bank list when needed or on initial mount
-  const fetchBanks = async (page: number = 1, append: boolean = false) => {
+  const fetchBanks = async (append: boolean = false) => {
     if (append) {
       setLoadingMore(true);
     } else {
@@ -986,16 +983,16 @@ const Aeps = () => {
     }
 
     try {
-      const response = await getBankList(page, BANKS_PER_PAGE);
+      const response = await getBankMasterList();
       if (response.success && response.data) {
         if (append) {
           setAvailableBanks((prev) => {
-            const existing = new Set(prev.map((b) => b.iin || b.bank_id || b.name));
-            const newUnique = response.data.filter((b) => !existing.has(b.iin || b.bank_id || b.name));
-            return [...prev, ...newUnique];
+            const existing = new Set(prev.map((b) => b._id));
+            const newUnique = response.data.filter((b) => !existing.has(b._id));
+            return [...prev, ...newUnique] as Bank[];
           });
         } else {
-          setAvailableBanks([...response.data]);
+          setAvailableBanks([...response.data] as Bank[]);
         }
         setBanksFetched(true);
         // Update total pages from meta if available
@@ -1015,19 +1012,12 @@ const Aeps = () => {
   useEffect(() => {
     let ignore = false;
 
-    getBankList(1, BANKS_PER_PAGE)
+    getBankMasterList()
       .then((response) => {
         if (ignore) return;
         if (response.success && response.data) {
-          setAvailableBanks(response.data);
+          setAvailableBanks(response.data as Bank[]);
           setBanksFetched(true);
-          if (
-            response.meta &&
-            typeof response.meta === "object" &&
-            "totalPages" in response.meta
-          ) {
-            setTotalPages((response.meta as { totalPages: number }).totalPages);
-          }
         }
       })
       .catch((err) => {
@@ -1050,7 +1040,7 @@ const Aeps = () => {
     if (currentPage < totalPages && !loadingMore) {
       const nextPage = currentPage + 1;
       setCurrentPage(nextPage);
-      void fetchBanks(nextPage, true);
+      void fetchBanks(true);
     }
   };
 
@@ -1435,7 +1425,7 @@ const Aeps = () => {
    */
 
   const getSelectedBankName = () => {
-    return selectedBank?.name || "ICICI Bank";
+    return selectedBank?.bankName || "ICICI Bank";
   };
 
   const getCustomerAadhaarDisplay = () => {
@@ -1499,6 +1489,8 @@ const Aeps = () => {
       aadhaar: customerAadhaar,
       mobile: customerMobile,
       bankiin: selectedBank?.iin || "",
+      // Send bankMasterId so backend can resolve & validate from BankMaster
+      ...(selectedBank?._id ? { bankMasterId: selectedBank._id } : {}),
       ...pidData,
       ts: pidData.ts || new Date().toISOString(),
     };
@@ -1595,7 +1587,7 @@ const Aeps = () => {
 
       // 3. Initiate dedicated fetching state
       setIsFetchingService(true);
-      const bankName = selectedBank?.name || "Bank CBS";
+      const bankName = selectedBank?.bankName || "Bank CBS";
 
       /*
        * B. BALANCE CHECK
@@ -2849,10 +2841,10 @@ const Aeps = () => {
     let banks = availableBanks;
     if (!banksFetched || banks.length === 0) {
       try {
-        const response = await getBankList(1, BANKS_PER_PAGE);
+        const response = await getBankMasterList();
         if (response.success && response.data) {
-          banks = response.data;
-          setAvailableBanks(response.data);
+          banks = response.data as Bank[];
+          setAvailableBanks(response.data as Bank[]);
           setBanksFetched(true);
         }
       } catch (err) {
@@ -2860,7 +2852,7 @@ const Aeps = () => {
       }
     }
     const matched = banks.find((b) =>
-      b.name.toLowerCase().includes(popularName.toLowerCase())
+      (b.bankName || "").toLowerCase().includes(popularName.toLowerCase())
     );
     if (matched) {
       handleBankSelect(matched);
@@ -2870,8 +2862,7 @@ const Aeps = () => {
   const filteredBanks = bankSearchTerm
     ? availableBanks.filter(
       (b) =>
-        b.name.toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
-        (b.iin && b.iin.includes(bankSearchTerm.trim()))
+        (b.bankName || "").toLowerCase().includes(bankSearchTerm.toLowerCase())
     )
     : availableBanks;
 
@@ -3043,7 +3034,7 @@ const Aeps = () => {
             {selectedBank && (
               <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 border border-purple-200 self-start sm:self-auto">
                 <Check className="h-3 w-3" />
-                {selectedBank.name}
+                {selectedBank.bankName}
               </span>
             )}
           </div>
@@ -3057,8 +3048,8 @@ const Aeps = () => {
               {POPULAR_BANKS.map((pop) => {
                 const isSelected =
                   selectedBank &&
-                  (selectedBank.name.toLowerCase().includes(pop.fullName.toLowerCase()) ||
-                    selectedBank.name.toLowerCase().includes(pop.name.toLowerCase()));
+                  (selectedBank.bankName.toLowerCase().includes(pop.fullName.toLowerCase()) ||
+                    selectedBank.bankName.toLowerCase().includes(pop.name.toLowerCase()));
 
                 return (
                   <button
@@ -3083,7 +3074,7 @@ const Aeps = () => {
               id="bank-select-trigger"
               onClick={() => {
                 if (!banksFetched) {
-                  void fetchBanks(1, false);
+                  void fetchBanks(false);
                 }
                 setIsBankDropdownOpen(!isBankDropdownOpen);
               }}
@@ -3154,10 +3145,10 @@ const Aeps = () => {
                 {/* Bank Options List */}
                 <div className="max-h-56 overflow-y-auto divide-y divide-slate-50">
                   {filteredBanks.map((bank) => {
-                    const isCurrentSelected = selectedBank?.iin === bank.iin;
+                    const isCurrentSelected = selectedBank?._id === bank._id;
                     return (
                       <button
-                        key={bank.iin || bank.id || bank.bank_id || bank.name}
+                        key={bank._id || bank.bankName}
                         type="button"
                         onClick={() => handleBankSelect(bank)}
                         className={`flex w-full items-center justify-between px-3.5 py-2.5 text-left text-xs sm:text-sm transition ${isCurrentSelected
@@ -3170,7 +3161,7 @@ const Aeps = () => {
                             className={`h-4 w-4 shrink-0 ${isCurrentSelected ? "text-purple-600" : "text-slate-400"
                               }`}
                           />
-                          <span className="truncate">{bank.name}</span>
+                          <span className="truncate">{bank.bankName}</span>
                         </div>
                         {isCurrentSelected && (
                           <Check className="h-4 w-4 text-purple-600 shrink-0 stroke-[2.5]" />
