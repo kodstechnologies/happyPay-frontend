@@ -222,8 +222,8 @@ export default function SettlementToBank() {
         account_number: selectedBank.accountNumber,
         amount: numAmount,
         mode: settlementMode,
-        lat: coords.latitude,
-        long: coords.longitude,
+        lat: Number(coords.latitude).toFixed(4),
+        long: Number(coords.longitude).toFixed(4),
         mpin,
       };
 
