@@ -41,8 +41,8 @@ export interface MiniStatementProps {
   customerMobile: string;
   customerAadhaar: string;
   selectedBank: {
-    iin: string;
-    name: string;
+    iin?: string;
+    bankName: string;
   } | null;
   selectedDevicePort: number | null;
   initialData?: MiniStatementData | null;
@@ -291,7 +291,7 @@ const MiniStatement = ({
                   <span>Statement Fetched Successfully</span>
                 </div>
                 <h2 className="mt-3 text-2xl sm:text-3xl font-extrabold tracking-tight">
-                  {selectedBank?.name}
+                  {selectedBank?.bankName}
                 </h2>
                 <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs sm:text-sm text-purple-200">
                   <span>Aadhaar: <strong className="text-white">{maskedAadhaar}</strong></span>

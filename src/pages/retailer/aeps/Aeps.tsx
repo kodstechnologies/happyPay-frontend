@@ -1534,7 +1534,7 @@ const Aeps = () => {
 
     return {
       receiptType: type,
-      bankName: selectedBank?.name || getSelectedBankName(),
+      bankName: selectedBank?.bankName || getSelectedBankName(),
       amount,
       balance: isNaN(numericBalance) ? 0 : numericBalance,
       aadhaar: getCustomerAadhaarDisplay(),
@@ -3091,7 +3091,7 @@ const Aeps = () => {
               <span className="flex-1 truncate font-semibold">
                 {loadingBanks && availableBanks.length === 0
                   ? "Loading banks..."
-                  : selectedBank?.name || "Select customer bank from list..."}
+                  : selectedBank?.bankName || "Select customer bank from list..."}
               </span>
 
               {selectedBank && (
@@ -3328,7 +3328,7 @@ const Aeps = () => {
                 <Building2 className="h-3.5 w-3.5" />
               </div>
               <span className="text-slate-500 font-medium">Bank:</span>
-              <span className="font-bold text-slate-900">{selectedBank?.name}</span>
+              <span className="font-bold text-slate-900">{selectedBank?.bankName}</span>
             </div>
           </div>
 
@@ -4119,7 +4119,7 @@ const Aeps = () => {
           </div>
 
           <h3 className="mt-3 text-lg sm:text-xl font-bold text-slate-900">
-            {selectedBank?.name || "Bank CBS Gateway"}
+            {selectedBank?.bankName || "Bank CBS Gateway"}
           </h3>
 
           <p className="mt-1 text-xs sm:text-sm font-medium text-slate-500">
