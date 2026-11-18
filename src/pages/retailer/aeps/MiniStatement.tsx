@@ -485,7 +485,7 @@ const MiniStatement = ({
               <ShieldCheck className="h-4 w-4 text-purple-600 shrink-0 mt-0.5" />
               <p>
                 This mini statement was fetched live through the NPCI Aadhaar Enabled Payment System (AEPS).
-                All transaction details reflect the latest records provided by {selectedBank?.name}.
+                All transaction details reflect the latest records provided by {selectedBank?.bankName}.
               </p>
             </div>
 
@@ -572,7 +572,7 @@ const MiniStatement = ({
                   Fetching Mini Statement Details...
                 </h3>
                 <p className="mt-2 text-sm text-slate-500 text-center max-w-md">
-                  Biometric capture successful. Contacting {selectedBank?.name} CBS gateway. Please wait...
+                  Biometric capture successful. Contacting {selectedBank?.bankName} CBS gateway. Please wait...
                 </p>
                 <div className="mx-auto mt-6 h-9 w-9 animate-spin rounded-full border-4 border-slate-200 border-t-[#7c3aed]" />
               </div>
@@ -592,7 +592,7 @@ const MiniStatement = ({
                     Ready to fetch Mini Statement
                   </h3>
                   <p className="mt-2 text-sm text-slate-500 text-center max-w-md">
-                    Click below to capture customer fingerprint and fetch live statement from {selectedBank?.name}
+                    Click below to capture customer fingerprint and fetch live statement from {selectedBank?.bankName}
                   </p>
                   <button
                     type="button"
