@@ -69,6 +69,7 @@ export interface Plan {
   createdAt?: string;
   updatedAt?: string;
   isSubscribed?: boolean;
+  isDefault?: boolean;
 }
 
 // Form data types (without _id, createdAt, updatedAt)
