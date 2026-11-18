@@ -30,7 +30,7 @@ interface ServiceFormData {
 
 // Service configuration with predefined categories
 const SERVICE_CONFIG = {
-  "AEPS": ["cash withdrawal", "cash deposit", "mini statement"],
+  "AEPS": ["cash withdrawal", "cash deposit"],
   "BBPS": ["electricity bill", "gas bill", "water bill", "fast tag", "lpg gas", "insurance", "life insurance", "municipal tax", "credit card"],
   "DMT": [],
   "CMS": [],

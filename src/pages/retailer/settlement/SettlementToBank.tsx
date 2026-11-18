@@ -211,7 +211,7 @@ export default function SettlementToBank() {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
-        bank_name: selectedBank.bank_code || selectedBank.bank_name || selectedBank.name || "",
+        bank_name: selectedBank.bank_code || "",
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
         account_number: selectedBank.accountNumber,

@@ -1,8 +1,69 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, DollarSign, Percent, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Layers, ChevronDown, ChevronUp } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { getPlanById, type Plan, type PlanRange } from "../../../apis/pricingApi";
+import { getPlanById, type Plan, type Pricing, type PricingSlab } from "../../../apis/pricingApi";
 import { showToast } from "../../../utils/toast";
+
+const formatAmount = (value: number | null | undefined, unit: string) => {
+  if (value === null || value === undefined) return "—";
+  return `${unit}${value}`;
+};
+
+const PricingTable = ({ pricing }: { pricing: Pricing }) => {
+  const unit = pricing.calculationType === "PERCENTAGE" ? "%" : "₹";
+  const chargeLabel = pricing.type === "COMMISSION" ? "Commission" : "Charge";
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-xs">
+        <thead>
+          <tr className="border-b border-gray-200 text-gray-500">
+            <th className="pb-2 pr-3 font-medium">Min Amount (₹)</th>
+            <th className="pb-2 pr-3 font-medium">Max Amount (₹)</th>
+            <th className="pb-2 pr-3 font-medium">{chargeLabel} ({unit})</th>
+            <th className="pb-2 pr-3 font-medium">Retailer ({unit})</th>
+            <th className="pb-2 pr-3 font-medium">Distributor ({unit})</th>
+            <th className="pb-2 font-medium">Admin ({unit})</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {pricing.slabs.map((slab: PricingSlab, sIdx: number) => (
+            <tr key={sIdx} className="text-gray-700">
+              <td className="py-2 pr-3">₹{slab.minAmount}</td>
+              <td className="py-2 pr-3">{slab.maxAmount !== null && slab.maxAmount !== undefined ? `₹${slab.maxAmount}` : "∞"}</td>
+              <td className="py-2 pr-3 font-semibold">{formatAmount(slab.chargeAmount, unit)}</td>
+              <td className="py-2 pr-3 text-green-600 font-medium">{formatAmount(slab.retailerAmount, unit)}</td>
+              <td className="py-2 pr-3 text-blue-600 font-medium">{formatAmount(slab.distributorAmount, unit)}</td>
+              <td className="py-2 text-purple-600 font-medium">{formatAmount(slab.adminAmount, unit)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const PricingBlock = ({ pricing }: { pricing: Pricing }) => {
+  return (
+    <div className="bg-gray-50 rounded border border-gray-200 p-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span
+          className={`px-2 py-0.5 rounded text-xs font-medium ${
+            pricing.type === "COMMISSION"
+              ? "bg-purple-100 text-purple-700"
+              : "bg-blue-100 text-blue-700"
+          }`}
+        >
+          {pricing.type}
+        </span>
+        <span className="text-xs text-gray-500">
+          {pricing.calculationType === "PERCENTAGE" ? "Percentage based" : "Fixed amount"}
+        </span>
+      </div>
+      <PricingTable pricing={pricing} />
+    </div>
+  );
+};
 
 const ViewPlanDetails = () => {
   const navigate = useNavigate();
@@ -102,9 +163,9 @@ const ViewPlanDetails = () => {
         {/* Basic Information Card */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-start gap-6">
-            {plan.imageUrl ? (
+            {plan.image ? (
               <div className="h-24 w-24 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 flex-shrink-0">
-                <img src={plan.imageUrl} alt={plan.name} className="h-full w-full object-cover" />
+                <img src={plan.image} alt={plan.name} className="h-full w-full object-cover" />
               </div>
             ) : null}
             <div className="flex-1">
@@ -124,6 +185,11 @@ const ViewPlanDetails = () => {
                   )}
                   {plan.status}
                 </span>
+                {plan.isDefault ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                    Default Plan
+                  </span>
+                ) : null}
               </div>
               <p className="text-sm text-gray-600 mb-4">{plan.description}</p>
               <div className="flex items-center gap-6 text-sm text-gray-500">
@@ -167,18 +233,20 @@ const ViewPlanDetails = () => {
           {plan.services && plan.services.length > 0 ? (
             <div className="space-y-4">
               {plan.services.map((service) => {
-                const isExpanded = expandedServices.has(service.serviceId);
+                const serviceKey = service._id || service.serviceId;
+                const isExpanded = expandedServices.has(serviceKey);
                 const categories = service.categories || [];
-                const directRanges = service.ranges || [];
+                const servicePricing = service.pricing || [];
+                const servicePricingCount = servicePricing.reduce((acc, p) => acc + (p.slabs?.length || 0), 0);
 
                 return (
                   <div
-                    key={service.serviceId}
+                    key={serviceKey}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden"
                   >
                     {/* Service Header */}
                     <div
-                      onClick={() => toggleService(service.serviceId)}
+                      onClick={() => toggleService(serviceKey)}
                       className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100"
                     >
                       <div className="flex items-center gap-3">
@@ -187,23 +255,13 @@ const ViewPlanDetails = () => {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-gray-900">{service.serviceName}</h4>
-                            <span className="text-xs text-gray-500">({service.serviceCode})</span>
-                            <span
-                              className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                service.chargeType === "FLAT"
-                                  ? "bg-purple-100 text-purple-700"
-                                  : "bg-blue-100 text-blue-700"
-                              }`}
-                            >
-                              {service.chargeType}
+                            <h4 className="font-semibold text-gray-900">{service.serviceId}</h4>
+                            <span className="text-xs text-gray-500">
+                              ({categories.length > 0
+                                ? `${categories.length} Categories configured`
+                                : `${servicePricing.length} Pricing rules configured`})
                             </span>
                           </div>
-                          <p className="text-xs text-gray-500 mt-0.5">
-                            {categories.length > 0
-                              ? `${categories.length} Categories configured`
-                              : `${directRanges.length} Direct Ranges configured`}
-                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
@@ -228,8 +286,9 @@ const ViewPlanDetails = () => {
                               Categories & Slabs
                             </h5>
                             {categories.map((cat, idx) => {
-                              const catKey = `${service.serviceId}-${cat.categoryId || idx}`;
+                              const catKey = `${serviceKey}-${cat._id || cat.categoryId || idx}`;
                               const isCatExpanded = expandedCategories.has(catKey);
+                              const pricingEntries = cat.pricing || [];
 
                               return (
                                 <div
@@ -245,7 +304,7 @@ const ViewPlanDetails = () => {
                                         {cat.categoryName}
                                       </span>
                                       <span className="text-xs text-gray-400">
-                                        ({cat.ranges?.length || 0} ranges)
+                                        ({pricingEntries.length} pricing rules)
                                       </span>
                                     </div>
                                     {isCatExpanded ? (
@@ -256,58 +315,16 @@ const ViewPlanDetails = () => {
                                   </div>
 
                                   {isCatExpanded && (
-                                    <div className="p-3 overflow-x-auto">
-                                      <table className="w-full text-left text-xs">
-                                        <thead>
-                                          <tr className="border-b border-gray-200 text-gray-500 pb-2">
-                                            <th className="pb-2 font-medium">Min Amount</th>
-                                            <th className="pb-2 font-medium">Max Amount</th>
-                                            <th className="pb-2 font-medium">Charge Type</th>
-                                            <th className="pb-2 font-medium">Charge</th>
-                                            <th className="pb-2 font-medium">Retailer Comm.</th>
-                                            <th className="pb-2 font-medium">Distributor Comm.</th>
-                                            <th className="pb-2 font-medium">Admin Comm.</th>
-                                          </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                          {cat.ranges?.map((range: PlanRange, rIdx: number) => (
-                                            <tr key={rIdx} className="text-gray-700">
-                                              <td className="py-2">₹{range.minAmount}</td>
-                                              <td className="py-2">₹{range.maxAmount}</td>
-                                              <td className="py-2">
-                                                <span className="inline-flex items-center gap-1 font-medium">
-                                                  {range.chargeType === "PERCENTAGE" ? (
-                                                    <Percent className="h-3 w-3 text-blue-500" />
-                                                  ) : (
-                                                    <DollarSign className="h-3 w-3 text-purple-500" />
-                                                  )}
-                                                  {range.chargeType}
-                                                </span>
-                                              </td>
-                                              <td className="py-2 font-semibold">
-                                                {range.chargeType === "PERCENTAGE"
-                                                  ? `${range.charge}%`
-                                                  : `₹${range.charge}`}
-                                              </td>
-                                              <td className="py-2 text-green-600 font-medium">
-                                                {range.chargeType === "PERCENTAGE"
-                                                  ? `${range.retailerRate}%`
-                                                  : `₹${range.retailerRate}`}
-                                              </td>
-                                              <td className="py-2 text-blue-600 font-medium">
-                                                {range.chargeType === "PERCENTAGE"
-                                                  ? `${range.distributorRate}%`
-                                                  : `₹${range.distributorRate}`}
-                                              </td>
-                                              <td className="py-2 text-purple-600 font-medium">
-                                                {range.chargeType === "PERCENTAGE"
-                                                  ? `${range.adminRate}%`
-                                                  : `₹${range.adminRate}`}
-                                              </td>
-                                            </tr>
-                                          ))}
-                                        </tbody>
-                                      </table>
+                                    <div className="p-3 space-y-3">
+                                      {pricingEntries.length > 0 ? (
+                                        pricingEntries.map((pricing, pIdx) => (
+                                          <PricingBlock key={pricing._id || pIdx} pricing={pricing} />
+                                        ))
+                                      ) : (
+                                        <div className="text-center py-4 text-xs text-gray-500">
+                                          No pricing configured for this category.
+                                        </div>
+                                      )}
                                     </div>
                                   )}
                                 </div>
@@ -316,69 +333,19 @@ const ViewPlanDetails = () => {
                           </div>
                         ) : null}
 
-                        {/* Direct Ranges View */}
-                        {directRanges.length > 0 ? (
-                          <div className="bg-white rounded border border-gray-200 p-3">
-                            <h5 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">
-                              Configured Ranges
+                        {/* Service-level pricing (no categories) */}
+                        {servicePricing.length > 0 ? (
+                          <div className="bg-white rounded border border-gray-200 p-3 space-y-3">
+                            <h5 className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                              Configured Pricing ({servicePricingCount} slabs)
                             </h5>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs">
-                                <thead>
-                                  <tr className="border-b border-gray-200 text-gray-500 pb-2">
-                                    <th className="pb-2 font-medium">Min Amount</th>
-                                    <th className="pb-2 font-medium">Max Amount</th>
-                                    <th className="pb-2 font-medium">Charge Type</th>
-                                    <th className="pb-2 font-medium">Charge</th>
-                                    <th className="pb-2 font-medium">Retailer Comm.</th>
-                                    <th className="pb-2 font-medium">Distributor Comm.</th>
-                                    <th className="pb-2 font-medium">Admin Comm.</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100">
-                                  {directRanges.map((range: PlanRange, rIdx: number) => (
-                                    <tr key={rIdx} className="text-gray-700">
-                                      <td className="py-2">₹{range.minAmount}</td>
-                                      <td className="py-2">₹{range.maxAmount}</td>
-                                      <td className="py-2">
-                                        <span className="inline-flex items-center gap-1 font-medium">
-                                          {range.chargeType === "PERCENTAGE" ? (
-                                            <Percent className="h-3 w-3 text-blue-500" />
-                                          ) : (
-                                            <DollarSign className="h-3 w-3 text-purple-500" />
-                                          )}
-                                          {range.chargeType}
-                                        </span>
-                                      </td>
-                                      <td className="py-2 font-semibold">
-                                        {range.chargeType === "PERCENTAGE"
-                                          ? `${range.charge}%`
-                                          : `₹${range.charge}`}
-                                      </td>
-                                      <td className="py-2 text-green-600 font-medium">
-                                        {range.chargeType === "PERCENTAGE"
-                                          ? `${range.retailerRate}%`
-                                          : `₹${range.retailerRate}`}
-                                      </td>
-                                      <td className="py-2 text-blue-600 font-medium">
-                                        {range.chargeType === "PERCENTAGE"
-                                          ? `${range.distributorRate}%`
-                                          : `₹${range.distributorRate}`}
-                                      </td>
-                                      <td className="py-2 text-purple-600 font-medium">
-                                        {range.chargeType === "PERCENTAGE"
-                                          ? `${range.adminRate}%`
-                                          : `₹${range.adminRate}`}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
+                            {servicePricing.map((pricing, pIdx) => (
+                              <PricingBlock key={pricing._id || pIdx} pricing={pricing} />
+                            ))}
                           </div>
                         ) : null}
 
-                        {categories.length === 0 && directRanges.length === 0 ? (
+                        {categories.length === 0 && servicePricing.length === 0 ? (
                           <div className="text-center py-4 text-xs text-gray-500">
                             No pricing slabs or categories configured for this service.
                           </div>

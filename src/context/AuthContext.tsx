@@ -1,6 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { getAuthenticatedRetailer, type RetailerUser } from "../services/api/retailer/retailerAuthApi";
 import { logout as authLogout, getToken } from "../utils/auth";
+import {
+  getWalletLockState,
+  updateWalletLockState,
+  resetWalletLockState,
+  type WalletLockState,
+} from "../utils/wallet";
+
+const EMPTY_WALLET_LOCK: WalletLockState = {
+  isWalletLocked: false,
+  reason: null,
+  lockedAt: null,
+};
 
 export interface AuthContextType {
   user: RetailerUser | null;
@@ -10,6 +22,10 @@ export interface AuthContextType {
   refreshUser: () => Promise<RetailerUser | null>;
   logout: () => void;
   setUser: React.Dispatch<React.SetStateAction<RetailerUser | null>>;
+  isWalletLocked: boolean;
+  walletLockReason: string | null;
+  walletLockedAt: string | null;
+  refreshWalletLock: () => Promise<void>;
 }
 
 // In-memory module-level accessor for utility functions and non-React consumers
@@ -31,6 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return !!getToken();
   });
 
+  const [walletLock, setWalletLock] = useState<WalletLockState>(() => getWalletLockState());
+
   const setUser: React.Dispatch<React.SetStateAction<RetailerUser | null>> = useCallback(
     (action) => {
       setUserState((prev) => {
@@ -44,14 +62,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     []
   );
 
+  const applyWalletLock = useCallback((userData: RetailerUser | null) => {
+    const lock = userData?.walletLock;
+    const next: WalletLockState = lock
+      ? {
+          isWalletLocked: Boolean(lock.isWalletLocked),
+          reason: lock.reason ?? null,
+          lockedAt: lock.lockedAt ?? null,
+        }
+      : { ...EMPTY_WALLET_LOCK };
+    updateWalletLockState(next);
+    setWalletLock(next);
+  }, []);
+
+  const refreshWalletLock = useCallback(async () => {
+    try {
+      const res = await getAuthenticatedRetailer();
+      if (res?.data) {
+        applyWalletLock(res.data);
+      }
+    } catch {
+      // Non-fatal: keep the last known lock state
+    }
+  }, [applyWalletLock]);
+
   const login = useCallback(
     (userData: RetailerUser) => {
       inMemoryAuthUser = userData;
       setUserState(userData);
       setIsAuthenticated(true);
       setIsLoading(false);
+      applyWalletLock(userData);
     },
-    []
+    [applyWalletLock]
   );
 
   const refreshUser = useCallback(async (): Promise<RetailerUser | null> => {
@@ -72,6 +115,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem("userRole", res.data.role.name);
         }
         setIsAuthenticated(true);
+        applyWalletLock(res.data);
         return res.data;
       } else {
         throw new Error("Invalid response from auth verification endpoint");
@@ -85,7 +129,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setIsLoading(false);
     }
-  }, [setUser]);
+  }, [setUser, applyWalletLock]);
+
+  const clearWalletLock = useCallback(() => {
+    resetWalletLockState();
+    setWalletLock({ ...EMPTY_WALLET_LOCK });
+  }, []);
 
   const handleLogout = useCallback(() => {
     authLogout();
@@ -94,7 +143,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(false);
     setIsLoading(false);
     localStorage.removeItem("userRole");
-  }, []);
+    clearWalletLock();
+  }, [clearWalletLock]);
 
   useEffect(() => {
     const handleLogoutEvent = () => {
@@ -103,6 +153,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAuthenticated(false);
       setIsLoading(false);
       localStorage.removeItem("userRole");
+      resetWalletLockState();
+      setWalletLock({ ...EMPTY_WALLET_LOCK });
     };
 
     window.addEventListener("hp:auth:logout", handleLogoutEvent);
@@ -128,6 +180,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.setItem("userRole", res.data.role.name);
           }
           setIsAuthenticated(true);
+          applyWalletLock(res.data);
         } else {
           throw new Error("Invalid response from auth verification endpoint");
         }
@@ -149,7 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [applyWalletLock]);
 
   return (
     <AuthContext.Provider
@@ -161,6 +214,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshUser,
         logout: handleLogout,
         setUser,
+        isWalletLocked: walletLock.isWalletLocked,
+        walletLockReason: walletLock.reason,
+        walletLockedAt: walletLock.lockedAt,
+        refreshWalletLock,
       }}
     >
       {children}

@@ -32,6 +32,11 @@ interface ServiceFormData {
   pricing: Pricing[];
 }
 
+// Services/categories excluded from the plan edit form.
+// "payout" (lowercase) is a duplicate of "PAYOUT" and is dropped.
+const EXCLUDED_SERVICES = new Set(["recharge", "payout"]);
+const EXCLUDED_CATEGORIES = new Set(["balance enquiry", "mini statement"]);
+
 const EditPlan = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -69,12 +74,18 @@ const EditPlan = () => {
         if (plan.image) {
           setImagePreview(plan.image);
         }
-        // Convert services to form data format
-        setServices(plan.services.map((s: PlanService) => ({
-          serviceName: s.serviceId,
-          categories: s.categories || [],
-          pricing: s.pricing || [],
-        })));
+        // Convert services to form data format, excluding unwanted services/categories
+        setServices(
+          plan.services
+            .filter((s: PlanService) => !EXCLUDED_SERVICES.has(s.serviceId))
+            .map((s: PlanService) => ({
+              serviceName: s.serviceId,
+              categories: (s.categories || []).filter(
+                (c) => !EXCLUDED_CATEGORIES.has(c.categoryName.trim().toLowerCase())
+              ),
+              pricing: s.pricing || [],
+            }))
+        );
       } catch (error) {
         console.error("Failed to fetch plan:", error);
         showToast("error", error, "Failed to load plan details");

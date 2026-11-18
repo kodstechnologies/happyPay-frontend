@@ -11,6 +11,12 @@ interface ApiEnvelope<T, M = unknown> {
 
 const unwrap = <T, M = unknown>(response: AxiosResponse<ApiEnvelope<T, M>>) => response.data;
 
+export interface WalletLockInfo {
+  isWalletLocked: boolean;
+  reason: string | null;
+  lockedAt: string | null;
+}
+
 export interface RetailerLoginResult {
   user: {
     id: string;
@@ -27,6 +33,7 @@ export interface RetailerLoginResult {
     roles: string[];
     permissions: string[];
     AepsEkyc?: AepsEkycData | null;
+    walletLock?: WalletLockInfo | null;
   };
   accessToken: string;
   refreshToken: string;
@@ -656,6 +663,7 @@ export interface RetailerUser {
   status: string;
   isActive: boolean;
   isMpinSet?: boolean;
+  walletLock?: WalletLockInfo | null;
   role?: {
     name: string;
   };
