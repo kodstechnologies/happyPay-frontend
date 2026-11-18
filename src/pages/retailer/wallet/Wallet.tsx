@@ -35,7 +35,7 @@ export default function Wallet() {
     try {
       const response = await getWalletBalanceApi();
       if (response && response.success && response.data) {
-        const liveBal = Number(response.data.balance || 0);
+        const liveBal = Number(response.data.availableBalance || 0);
         const liveHold = Number(response.data.holdBalance || 0);
         const status = response.data.status || "active";
 
@@ -68,7 +68,7 @@ export default function Wallet() {
         const response = await getWalletBalanceApi();
 
         if (isMounted && response?.success && response?.data) {
-          const liveBal = Number(response.data.balance || 0);
+          const liveBal = Number(response.data.availableBalance || 0);
           const liveHold = Number(response.data.holdBalance || 0);
           const status = response.data.status || "active";
 
