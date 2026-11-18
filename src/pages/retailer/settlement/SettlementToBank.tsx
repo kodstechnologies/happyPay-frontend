@@ -50,6 +50,7 @@ export default function SettlementToBank() {
     supportedModes: ["IMPS", "NEFT"],
   });
   const [balance, setBalance] = useState<number>(0);
+  const [holdBalance, setHoldBalance] = useState<number>(0);
   const [selectedBankId, setSelectedBankId] = useState<string>("");
   const [settlementMode] = useState<"IMPS" | "NEFT">("IMPS");
   const [amount, setAmount] = useState("");
@@ -86,7 +87,9 @@ export default function SettlementToBank() {
         if (limitData) setLimits(limitData);
 
         const available = wallData?.availableBalance ?? 0;
+        const holdBal = wallData?.holdBalance ?? 0;
         setBalance(available);
+        setHoldBalance(holdBal);
         setWalletBalance(available);
 
         // Select primary bank or first available bank
@@ -124,7 +127,9 @@ export default function SettlementToBank() {
           if (limitData) setLimits(limitData);
 
           const available = wallData?.availableBalance ?? 0;
+          const holdBal = wallData?.holdBalance ?? 0;
           setBalance(available);
+          setHoldBalance(holdBal);
           setWalletBalance(available);
 
           // Select primary bank or first available bank
@@ -228,11 +233,12 @@ export default function SettlementToBank() {
         const payoutData = res.data;
         const isPendingTxn = payoutData.status === "pending";
 
-        // For pending: balance is immediately deducted server-side (same as success)
-        // For success: balance is immediately deducted server-side
-        const newBalance = payoutData.balanceAfter ?? balance - numAmount;
+        // Use the balanceAfter and holdBalance from API response (server-side calculated)
+        const newBalance = payoutData.balanceAfter ?? balance;
+        const newHoldBalance = payoutData.holdBalance ?? holdBalance;
 
         setBalance(newBalance);
+        setHoldBalance(newHoldBalance);
         setWalletBalance(newBalance);
 
         setTxnDetails({
@@ -279,6 +285,8 @@ export default function SettlementToBank() {
     setIsPending(false);
     setPendingMessage("");
     setTxnDetails(null);
+    // Refresh balance from server
+    fetchSettlementInfo();
   };
 
 
@@ -383,6 +391,12 @@ export default function SettlementToBank() {
               <p className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight">
                 ₹{formatAmount(balance)}
               </p>
+              {holdBalance > 0 && (
+                <div className="mt-2 flex items-center gap-2 text-[11px] text-purple-200">
+                  <Clock className="h-3 w-3" />
+                  <span>On Hold: ₹{formatAmount(holdBalance)}</span>
+                </div>
+              )}
               <div className="mt-3 flex items-center gap-2 text-[11px] text-purple-200">
                 <ShieldCheck className="h-3.5 w-3.5 text-purple-200" />
                 <span>100% Secure Gateway</span>

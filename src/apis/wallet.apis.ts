@@ -151,6 +151,7 @@ export interface InitiateSettlementResponse {
     amount: number;
     balanceBefore: number;
     balanceAfter: number;
+    holdBalance?: number;
     bankName: string;
     accountNumber: string;
     mode: string;
