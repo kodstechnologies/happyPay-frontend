@@ -90,9 +90,8 @@ type ReceiptType =
   | "balance-withdrawal"
   | "cash-deposit";
 
-// Bank type uses BankMasterItem shape; legacy iin/bank_id preserved for display
+// Bank type uses BankMasterItem shape; legacy bank_id preserved for display
 interface Bank extends BankMasterItem {
-  iin?: string;
   bank_id?: number;
   aeps_enabled?: number;
   aadhaarpay_enabled?: number;
@@ -4156,7 +4155,7 @@ const Aeps = () => {
       <MiniStatement
         customerMobile={customerMobile}
         customerAadhaar={customerAadhaar}
-        selectedBank={selectedBank}
+        selectedBank={selectedBank ? { ...selectedBank, iin: selectedBank.iin ?? undefined } : selectedBank}
         selectedDevicePort={selectedDevicePort}
         initialData={miniStatementResult}
         onBack={() => {
