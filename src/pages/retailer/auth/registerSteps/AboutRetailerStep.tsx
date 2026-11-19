@@ -191,7 +191,7 @@ const AboutRetailerStep = forwardRef<
       showToast("error", "Educational qualification is required.");
       return false;
     }
-    if (!selfie) {
+    if (!selfie && !existingSelfie) {
       showToast("error", "Selfie is required.");
       return false;
     }
@@ -211,7 +211,9 @@ const AboutRetailerStep = forwardRef<
         educationalQualification: education.trim(),
         fatherName: fatherName.trim(),
         motherName: motherName.trim(),
-        selfie: selfie || existingSelfie,
+        // Send the new File if chosen; fall back to the existing URL so the
+        // backend validateAboutFiles middleware sees req.body.selfie and passes.
+        selfie: selfie ?? existingSelfie,
       });
 
       return true;

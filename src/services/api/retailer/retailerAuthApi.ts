@@ -400,8 +400,8 @@ export function updateRetailerAboutDetails(payload: UpdateAboutPayload) {
   fd.append("gender", payload.gender);
   fd.append("maritalStatus", payload.maritalStatus);
   fd.append("educationalQualification", payload.educationalQualification);
-  if (payload.fatherName) fd.append("fatherName", payload.fatherName);
-  if (payload.motherName) fd.append("motherName", payload.motherName);
+  fd.append("fatherName", payload.fatherName ?? "");
+  fd.append("motherName", payload.motherName ?? "");
   if (payload.selfie) fd.append("selfie", payload.selfie);
 
   return api.patch<ApiEnvelope<UpdateAboutResult>>("/api/v1/auth/registration/about", fd).then(unwrap);
