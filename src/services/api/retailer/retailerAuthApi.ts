@@ -609,6 +609,8 @@ export function getSettlementBankList(page?: number, limit?: number, search?: st
 export interface BankMasterItem {
   _id: string;
   bankName: string;
+  iin: string | null;
+  bankId: string | null;
 }
 
 export function getBankMasterList() {
