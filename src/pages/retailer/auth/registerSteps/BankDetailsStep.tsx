@@ -301,6 +301,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
                   onClick={(e) => {
                     e.stopPropagation();
                     setBankName("");
+                    setBankMasterId(undefined);
                   }}
                   className="p-1 text-[#8992a3] hover:text-[#172033]"
                   title="Clear selection"

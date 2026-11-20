@@ -477,10 +477,15 @@ const RetailerRegister = ({
                         distributorId={distributorId}
                         initialData={registrationData}
                         onShopDetailsSaved={() => {
+                          // Only refresh registration data here.
+                          // Step advancement is handled by nextStep() after
+                          // submit() returns true — calling nextStep() here
+                          // causes a double-advance (stale closure skips the
+                          // submittingStep guard), which skips the About
+                          // Retailer step.
                           if (retailerUserId) {
                             loadRegistrationData(retailerUserId);
                           }
-                          nextStep();
                         }}
                       />
                     </div>

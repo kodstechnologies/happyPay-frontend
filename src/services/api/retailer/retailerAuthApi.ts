@@ -611,6 +611,7 @@ export interface BankMasterItem {
   bankName: string;
   iin: string | null;
   bankId: string | null;
+  payoutEnabled: boolean;
 }
 
 export function getBankMasterList() {
