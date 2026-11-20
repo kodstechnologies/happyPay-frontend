@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   ArrowLeft,
   Building2,
@@ -58,6 +58,12 @@ export default function SettlementToBank() {
   const [mpin, setMpin] = useState("");
   const [showMpin, setShowMpin] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  // Synchronous lock against duplicate payout requests. Each settlement request
+  // is given a fresh transaction id, so the backend's per-transaction idempotency
+  // guard cannot dedupe two clicks — a rapid double-click would debit twice.
+  // `isProcessing` only disables the button after a re-render, so this ref closes
+  // the gap between the first click and that re-render.
+  const submitLockRef = useRef(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string>("");
@@ -179,6 +185,8 @@ export default function SettlementToBank() {
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Block re-entry from a rapid double-click while a payout request is in flight.
+    if (submitLockRef.current) return;
     if (!retailer?.isKycApproved) {
       showToast("error", "Your KYC is not yet approved. Settlements are disabled until approval.");
       return;
@@ -209,6 +217,7 @@ export default function SettlementToBank() {
       return;
     }
 
+    submitLockRef.current = true;
     setIsProcessing(true);
     try {
       const coords = await getGeolocationCoordinates();
@@ -277,6 +286,7 @@ export default function SettlementToBank() {
 
     } finally {
       setIsProcessing(false);
+      submitLockRef.current = false;
     }
   };
 
