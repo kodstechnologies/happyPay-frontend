@@ -406,11 +406,17 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     }
     setIsLoading(true);
     try {
-      await confirmPaymentApi(transactionId);
+      const res = await confirmPaymentApi(transactionId);
+      // Use server-returned balance if available, otherwise add locally
+      const serverBalance = (res.data as Record<string, unknown>)?.balanceAfter;
+      if (typeof serverBalance === "number") {
+        setWalletBalance(serverBalance);
+      } else {
+        try {
+          setWalletBalance(getWalletBalance() + Number(amount));
+        } catch { /* ignore wallet sync failures */ }
+      }
       setTransactionDate(new Date());
-      try {
-        setWalletBalance(getWalletBalance() + Number(amount));
-      } catch { /* ignore wallet sync failures */ }
       showToast("success", "Payment confirmed! Disburse cash to the customer.");
       setScreen("RECEIPT");
     } catch (err) {
