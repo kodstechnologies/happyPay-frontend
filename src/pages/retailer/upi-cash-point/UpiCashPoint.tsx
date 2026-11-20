@@ -20,6 +20,7 @@ import {
   merchantRegisterApi,
   merchantEkycApi,
   sellerOnboardingApi,
+  confirmPaymentApi,
 } from "../../../apis/upiCashpoint.apis";
 import { rdService } from "../../../utils/rdService";
 import { useAuth } from "../../../context/AuthContext";
@@ -371,13 +372,25 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
     }
   };
 
-  const handleConfirmReceived = () => {
-    setTransactionDate(new Date());
+  const handleConfirmReceived = async () => {
+    if (!transactionId) {
+      showToast("error", "Transaction ID missing. Please regenerate QR.");
+      return;
+    }
+    setIsLoading(true);
     try {
-      setWalletBalance(getWalletBalance() + Number(amount));
-    } catch { /* ignore wallet sync failures */ }
-    showToast("success", "Payment confirmed! Disburse cash to the customer.");
-    setScreen("RECEIPT");
+      await confirmPaymentApi(transactionId);
+      setTransactionDate(new Date());
+      try {
+        setWalletBalance(getWalletBalance() + Number(amount));
+      } catch { /* ignore wallet sync failures */ }
+      showToast("success", "Payment confirmed! Disburse cash to the customer.");
+      setScreen("RECEIPT");
+    } catch (err) {
+      showToast("error", err, "Failed to confirm payment. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // ── Step progress bar ─────────────────────────────────────────────────────
@@ -795,10 +808,14 @@ const UpiCashPoint: React.FC<UpiCashPointProps> = ({ onBack }) => {
                       <button
                         type="button"
                         onClick={handleConfirmReceived}
-                        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700"
+                        disabled={isLoading}
+                        className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-600 text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
                       >
-                        <Check className="h-4 w-4" />
-                        Payment Received
+                        {isLoading ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Confirming…</>
+                        ) : (
+                          <><Check className="h-4 w-4" /> Payment Received</>
+                        )}
                       </button>
                     )}
 

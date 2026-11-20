@@ -293,3 +293,50 @@ export default {
   merchantEkycApi,
   sellerOnboardingApi,
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIRM PAYMENT
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface ConfirmPaymentApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: { txnid: string; status: string; amount: number };
+}
+
+export const confirmPaymentApi = async (txnid: string): Promise<ConfirmPaymentApiResponse> => {
+  const response = await api.post<ConfirmPaymentApiResponse>(
+    "/api/v1/upi-cashpoint/confirm-payment",
+    { txnid }
+  );
+  return response.data;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MY TRANSACTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface UpiTransaction {
+  _id: string;
+  txnid: string;
+  amount: number;
+  qrString: string;
+  rrn: string;
+  status: "INITIATED" | "PAID" | "FAILED" | "EXPIRED";
+  createdAt: string;
+}
+
+export interface MyTransactionsApiResponse {
+  success: boolean;
+  statusCode?: number;
+  message?: string;
+  data?: UpiTransaction[];
+}
+
+export const getMyUpiTransactionsApi = async (): Promise<MyTransactionsApiResponse> => {
+  const response = await api.get<MyTransactionsApiResponse>(
+    "/api/v1/upi-cashpoint/my-transactions"
+  );
+  return response.data;
+};
