@@ -3,9 +3,6 @@ import {
   Landmark,
   Search,
   RefreshCw,
-  ToggleLeft,
-  ToggleRight,
-  Edit2,
   X,
   Building2,
 } from "lucide-react";
@@ -14,9 +11,6 @@ import ModalWrapper from "../../../components/common/ModalWrapper";
 import {
   getAdminBanks,
   updateAdminBank,
-  toggleBankStatus,
-  toggleBankAepsStatus,
-  toggleBankPayoutStatus,
   syncBankLists,
   type BankMaster,
   type BankListMeta,
@@ -88,9 +82,6 @@ export default function AdminBankMaster() {
 
   const [refreshKey, setRefreshKey] = useState(0);
 
-  // Toggling state
-  const [togglingId, setTogglingId] = useState<string | null>(null);
-
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => {
@@ -153,61 +144,6 @@ export default function AdminBankMaster() {
     } finally {
       setSyncing(false);
     }
-  };
-
-  const handleToggleStatus = async (bank: BankMaster) => {
-    setTogglingId(bank._id + "-status");
-    try {
-      const res = await toggleBankStatus(bank._id, !bank.isActive);
-      setBanks((prev) =>
-        prev.map((b) => (b._id === bank._id ? res.data.data : b))
-      );
-      showToast("success", `Bank ${!bank.isActive ? "activated" : "deactivated"}`);
-    } catch (err) {
-      showToast("error", err, "Failed to update status");
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const handleToggleAeps = async (bank: BankMaster) => {
-    setTogglingId(bank._id + "-aeps");
-    try {
-      const res = await toggleBankAepsStatus(bank._id, !bank.aeps.enabled);
-      setBanks((prev) =>
-        prev.map((b) => (b._id === bank._id ? res.data.data : b))
-      );
-      showToast("success", `AEPS ${!bank.aeps.enabled ? "enabled" : "disabled"}`);
-    } catch (err) {
-      showToast("error", err, "Failed to update AEPS status");
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const handleTogglePayout = async (bank: BankMaster) => {
-    setTogglingId(bank._id + "-payout");
-    try {
-      const res = await toggleBankPayoutStatus(bank._id, !bank.payout.enabled);
-      setBanks((prev) =>
-        prev.map((b) => (b._id === bank._id ? res.data.data : b))
-      );
-      showToast("success", `Payout ${!bank.payout.enabled ? "enabled" : "disabled"}`);
-    } catch (err) {
-      showToast("error", err, "Failed to update Payout status");
-    } finally {
-      setTogglingId(null);
-    }
-  };
-
-  const openEdit = (bank: BankMaster) => {
-    setEditingBank(bank);
-    setEditForm({
-      bankName: bank.bankName,
-      aepsBankId: bank.aeps.bankId ?? "",
-      aepsIin: bank.aeps.iin ?? "",
-      payoutBankCode: bank.payout.bankCode ?? "",
-    });
   };
 
   const handleSaveEdit = async () => {
@@ -379,7 +315,7 @@ export default function AdminBankMaster() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50">
-                  {["Bank Name", "AEPS", "AEPS ID", "IIN", "Payout", "Code", "Status", "Actions"].map((h) => (
+                  {["Bank Name", "AEPS", "AEPS ID", "IIN", "Payout", "Code", "Status",].map((h) => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                       {h}
                     </th>
@@ -417,65 +353,7 @@ export default function AdminBankMaster() {
                     <td className="px-4 py-3">
                       <StatusBadge active={bank.isActive} />
                     </td>
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {/* Global toggle */}
-                        <button
-                          type="button"
-                          title={bank.isActive ? "Deactivate" : "Activate"}
-                          disabled={togglingId === bank._id + "-status"}
-                          onClick={() => void handleToggleStatus(bank)}
-                          className="rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-50"
-                        >
-                          {bank.isActive ? (
-                            <ToggleRight className="h-5 w-5 text-emerald-500" />
-                          ) : (
-                            <ToggleLeft className="h-5 w-5 text-slate-400" />
-                          )}
-                        </button>
-
-                        {/* AEPS toggle */}
-                        <button
-                          type="button"
-                          title={bank.aeps.enabled ? "Disable AEPS" : "Enable AEPS"}
-                          disabled={togglingId === bank._id + "-aeps"}
-                          onClick={() => void handleToggleAeps(bank)}
-                          className="rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-50"
-                        >
-                          {bank.aeps.enabled ? (
-                            <ToggleRight className="h-5 w-5 text-[#315bd1]" />
-                          ) : (
-                            <ToggleLeft className="h-5 w-5 text-slate-300" />
-                          )}
-                        </button>
-
-                        {/* Payout toggle */}
-                        <button
-                          type="button"
-                          title={bank.payout.enabled ? "Disable Payout" : "Enable Payout"}
-                          disabled={togglingId === bank._id + "-payout"}
-                          onClick={() => void handleTogglePayout(bank)}
-                          className="rounded-lg p-1.5 transition hover:bg-slate-100 disabled:opacity-50"
-                        >
-                          {bank.payout.enabled ? (
-                            <ToggleRight className="h-5 w-5 text-violet-500" />
-                          ) : (
-                            <ToggleLeft className="h-5 w-5 text-slate-300" />
-                          )}
-                        </button>
-
-                        {/* Edit */}
-                        <button
-                          type="button"
-                          title="Edit bank"
-                          onClick={() => openEdit(bank)}
-                          className="rounded-lg p-1.5 transition hover:bg-slate-100"
-                        >
-                          <Edit2 className="h-4 w-4 text-slate-500" />
-                        </button>
-                      </div>
-                    </td>
+                
                   </tr>
                 ))}
               </tbody>

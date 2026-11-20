@@ -133,8 +133,14 @@ const EditPlan = () => {
 
     // Validate all services, categories, and slabs
     for (const service of services) {
+      // Determine whether this service uses category-based or service-level pricing.
+      // Matches the save logic: categories are only used if at least one has pricing.
+      const hasCategoryPricing =
+        service.categories && service.categories.length > 0 &&
+        service.categories.some((c) => c.pricing && c.pricing.length > 0);
+
       // Check category-based slabs
-      if (service.categories && service.categories.length > 0) {
+      if (hasCategoryPricing) {
         for (const cat of service.categories) {
           for (let pIdx = 0; pIdx < (cat.pricing || []).length; pIdx++) {
             const pricing = cat.pricing[pIdx];
@@ -186,7 +192,7 @@ const EditPlan = () => {
       }
 
       // Check service-level slabs
-      if (!service.categories || service.categories.length === 0) {
+      if (!hasCategoryPricing) {
         for (let pIdx = 0; pIdx < (service.pricing || []).length; pIdx++) {
           const pricing = service.pricing[pIdx];
           const unit = pricing.calculationType === "PERCENTAGE" ? "%" : "₹";
@@ -274,8 +280,16 @@ const EditPlan = () => {
           serviceId: s.serviceName,
         };
 
-        // Only include categories if they exist and have pricing
-        if (s.categories && s.categories.length > 0) {
+        // Only include categories if they exist AND have at least one pricing
+        // entry. This matches the UI: services like DMT have no predefined
+        // categories in SERVICE_CONFIG, so the UI renders service-level
+        // pricing. If the loaded data has stale categories with no pricing,
+        // fall through to service-level pricing instead of dropping it.
+        const hasCategoryPricing =
+          s.categories && s.categories.length > 0 &&
+          s.categories.some((c) => c.pricing && c.pricing.length > 0);
+
+        if (hasCategoryPricing) {
           serviceData.categories = s.categories.map((c) => ({
             categoryName: c.categoryName,
             pricing: c.pricing.map((p) => ({
@@ -293,8 +307,8 @@ const EditPlan = () => {
           }));
         }
 
-        // Only include service-level pricing if no categories
-        if (!s.categories || s.categories.length === 0) {
+        // Include service-level pricing only when no categories have pricing
+        if (!hasCategoryPricing) {
           if (s.pricing && s.pricing.length > 0) {
             serviceData.pricing = s.pricing.map((p) => ({
               type: p.type,
