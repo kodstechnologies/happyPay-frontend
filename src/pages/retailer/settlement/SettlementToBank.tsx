@@ -28,7 +28,7 @@ import {
   type SettlementLimits,
   type InitiateSettlementPayload,
 } from "../../../apis/wallet.apis";
-import { getAdminBank } from "../../../apis/adminBankMaster.apis";
+
 import { getGeolocationCoordinates } from "../../../utils/geolocation";
 const formatAmount = (val: number) =>
   val.toLocaleString("en-IN", {
@@ -53,8 +53,6 @@ export default function SettlementToBank() {
   const [balance, setBalance] = useState<number>(0);
   const [holdBalance, setHoldBalance] = useState<number>(0);
   const [selectedBankId, setSelectedBankId] = useState<string>("");
-  // Maps bankMasterId → payout.bankCode resolved from BankMaster API
-  const [masterBankCodes, setMasterBankCodes] = useState<Record<string, string>>({});
   const [settlementMode] = useState<"IMPS" | "NEFT">("IMPS");
   const [amount, setAmount] = useState("");
   const [mpin, setMpin] = useState("");
@@ -75,31 +73,6 @@ export default function SettlementToBank() {
     providerTxnId?: string;
   } | null>(null);
 
-  // Resolve payout.bankCode from BankMaster API for each bank that has a bankMasterId
-  const resolveMasterBankCodes = useCallback(async (bankList: SettlementBankItem[]) => {
-    const idsToFetch = bankList
-      .map((b) => b.bankMasterId)
-      .filter((id): id is string => !!id);
-
-    if (idsToFetch.length === 0) return;
-
-    const results = await Promise.allSettled(
-      idsToFetch.map((id) => getAdminBank(id))
-    );
-
-    const codeMap: Record<string, string> = {};
-    results.forEach((result, idx) => {
-      if (result.status === "fulfilled") {
-        const bankCode = result.value.data?.data?.payout?.bankCode;
-        if (bankCode) {
-          codeMap[idsToFetch[idx]] = bankCode;
-        }
-      }
-    });
-
-    setMasterBankCodes(codeMap);
-  }, []);
-
   // Fetch live settlement bank & retailer info
   const fetchSettlementInfo = useCallback(async () => {
     setLoading(true);
@@ -111,8 +84,7 @@ export default function SettlementToBank() {
           response.data;
 
         setRetailer(retData);
-        const resolvedBanks = bankData || [];
-        setBanks(resolvedBanks);
+        setBanks(bankData || []);
         if (limitData) setLimits(limitData);
 
         const available = wallData?.availableBalance ?? 0;
@@ -129,9 +101,6 @@ export default function SettlementToBank() {
           bankData?.[0]?._id ||
           "";
         setSelectedBankId(activeBankId);
-
-        // Resolve payout bank codes from BankMaster for the bank_name field
-        resolveMasterBankCodes(resolvedBanks);
       } else {
         setError(response?.message || "Failed to load settlement details");
       }
@@ -142,7 +111,7 @@ export default function SettlementToBank() {
     } finally {
       setLoading(false);
     }
-  }, [resolveMasterBankCodes]);
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -155,8 +124,7 @@ export default function SettlementToBank() {
             response.data;
 
           setRetailer(retData);
-          const resolvedBanks = bankData || [];
-          setBanks(resolvedBanks);
+          setBanks(bankData || []);
           if (limitData) setLimits(limitData);
 
           const available = wallData?.availableBalance ?? 0;
@@ -173,9 +141,6 @@ export default function SettlementToBank() {
             bankData?.[0]?._id ||
             "";
           setSelectedBankId(activeBankId);
-
-          // Resolve payout bank codes from BankMaster for the bank_name field
-          resolveMasterBankCodes(resolvedBanks);
         } else {
           setError(response?.message || "Failed to load settlement details");
         }
@@ -195,7 +160,7 @@ export default function SettlementToBank() {
     return () => {
       ignore = true;
     };
-  }, [resolveMasterBankCodes]);
+  }, []);
 
   const selectedBank =
     banks.find((b) => (b.id && b.id === selectedBankId) || (b._id && b._id === selectedBankId)) ||
@@ -252,10 +217,7 @@ export default function SettlementToBank() {
         accountType: selectedBank.accountType || "Savings Account",
         branchName: selectedBank.branchName || "",
         benMobile: retailer?.mobile || "",
-        bank_name:
-          (selectedBank.bankMasterId && masterBankCodes[selectedBank.bankMasterId]) ||
-          selectedBank.bank_code ||
-          "",
+        bank_name: selectedBank.bank_code || selectedBank.name || "",
         bankMasterId: selectedBank.bankMasterId || undefined,
         beneficiary_name: retailer?.fullName || "",
         ifsc: selectedBank.ifscCode,
