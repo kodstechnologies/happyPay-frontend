@@ -61,7 +61,7 @@ export default function AdminLayout() {
         onLogout={logout}
       />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="shrink-0 px-3 pb-0 pt-3 sm:px-4 lg:px-6 lg:pt-4">
+        <div className="shrink-0 px-3 pb-0 pt-3 sm:px-4 lg:px-6 lg:pt-4 print:hidden">
           <AdminNavbar onOpenMobile={() => setMobileOpen(true)} />
         </div>
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-4 sm:px-4 lg:px-6 lg:py-5">

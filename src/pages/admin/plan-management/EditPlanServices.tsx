@@ -425,9 +425,16 @@ const EditPlanServices = ({
 
   const addSlabForCategory = (si: number, ci: number, pi: number) => {
     const updated = [...services];
+    const slabs = updated[si].categories![ci].pricing![pi].slabs;
+    const last = slabs[slabs.length - 1];
+    if (last && (last.maxAmount === null || last.maxAmount === undefined)) {
+      showToast("error", "The last range is open-ended (∞). Set its Max Amount before adding another range.");
+      return;
+    }
+    const nextMin = last ? Number(last.maxAmount) || 0 : 0;
     updated[si].categories![ci].pricing![pi].slabs = [
-      ...updated[si].categories![ci].pricing![pi].slabs,
-      { minAmount: 0, maxAmount: null },
+      ...slabs,
+      { minAmount: nextMin, maxAmount: null },
     ];
     setServices(updated);
   };
@@ -474,7 +481,14 @@ const EditPlanServices = ({
 
   const addSlab = (si: number, pi: number) => {
     const updated = [...services];
-    updated[si].pricing![pi].slabs = [...updated[si].pricing![pi].slabs, { minAmount: 0, maxAmount: null }];
+    const slabs = updated[si].pricing![pi].slabs;
+    const last = slabs[slabs.length - 1];
+    if (last && (last.maxAmount === null || last.maxAmount === undefined)) {
+      showToast("error", "The last range is open-ended (∞). Set its Max Amount before adding another range.");
+      return;
+    }
+    const nextMin = last ? Number(last.maxAmount) || 0 : 0;
+    updated[si].pricing![pi].slabs = [...slabs, { minAmount: nextMin, maxAmount: null }];
     setServices(updated);
   };
 

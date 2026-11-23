@@ -2807,7 +2807,7 @@ const Dmt = () => {
     }
 
     return (
-      <div className="">
+      <div className="receipt-print-area">
         <main className="mx-auto mt-4 max-w-[760px]">
           {/* Success Icon */}
           <div className="flex flex-col items-center text-center">
@@ -2920,7 +2920,7 @@ const Dmt = () => {
           <button
             type="button"
             onClick={() => window.print()}
-            className="mt-5 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-xl border-2 border-[#cbd0d8] bg-transparent text-base font-bold text-[#172033] transition hover:bg-white"
+            className="receipt-no-print mt-5 flex min-h-[52px] w-full items-center justify-center gap-3 rounded-xl border-2 border-[#cbd0d8] bg-transparent text-base font-bold text-[#172033] transition hover:bg-white"
           >
             <Printer className="h-5 w-5" />
 
@@ -2931,7 +2931,7 @@ const Dmt = () => {
           <button
             type="button"
             onClick={handleAnotherTransaction}
-            className="mt-4 flex min-h-[50px] w-full items-center justify-center gap-3 rounded-xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#c90026]"
+            className="receipt-no-print mt-4 flex min-h-[50px] w-full items-center justify-center gap-3 rounded-xl bg-[#7c3aed] text-base font-bold text-white shadow-md transition hover:bg-[#c90026]"
           >
             <RefreshCw className="h-5 w-5" />
 

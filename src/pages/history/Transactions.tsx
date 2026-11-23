@@ -704,11 +704,11 @@ export default function Transactions() {
       {/* DETAILED RECEIPT MODAL */}
       {selectedTxn && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4 sm:p-6 overflow-y-auto backdrop-blur-sm">
-          <div className="relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150">
+          <div className="receipt-print-area relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl my-auto animate-in fade-in zoom-in-95 duration-150">
             <button
               type="button"
               onClick={() => setSelectedTxn(null)}
-              className="absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 transition"
+              className="receipt-no-print absolute right-4 top-4 rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 transition"
               aria-label="Close receipt modal"
             >
               <X className="h-4 w-4" />
@@ -941,7 +941,7 @@ export default function Transactions() {
             </div>
 
             {/* Print Action */}
-            <div className="mt-6 flex gap-3">
+            <div className="receipt-no-print mt-6 flex gap-3">
               <button
                 type="button"
                 onClick={() => window.print()}

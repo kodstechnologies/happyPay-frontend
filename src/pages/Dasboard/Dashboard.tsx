@@ -528,7 +528,7 @@ const Dashboard = () => {
                       <img
                         src={banner}
                         alt={`HappyPay banner ${index + 1}`}
-                        className="h-[128px] w-full object-cover sm:h-[148px] lg:h-[164px]"
+                        className="h-[240px] w-full object-cover sm:h-[290px] lg:h-[320px]"
                         onError={(e) => {
                           (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80";
                         }}

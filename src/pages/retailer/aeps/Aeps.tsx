@@ -3910,7 +3910,7 @@ const Aeps = () => {
     });
 
     return (
-      <div className="mx-auto w-full space-y-6">
+      <div className="receipt-print-area mx-auto w-full space-y-6">
         {/* Top Bar */}
         <div className="print:hidden flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">

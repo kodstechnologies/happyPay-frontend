@@ -244,3 +244,33 @@ th, .hp-table th {
 .animate-slide-in-left {
   animation: slideInLeft 350ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Print receipt: when a .receipt-print-area exists on the page, show only it */
+@media print {
+  body:has(.receipt-print-area) * {
+    visibility: hidden !important;
+  }
+
+  body:has(.receipt-print-area) .receipt-print-area,
+  body:has(.receipt-print-area) .receipt-print-area * {
+    visibility: visible !important;
+  }
+
+  body:has(.receipt-print-area) .receipt-print-area {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
+  }
+
+  .receipt-no-print {
+    display: none !important;
+  }
+}

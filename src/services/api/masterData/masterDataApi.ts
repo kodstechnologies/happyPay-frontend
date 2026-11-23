@@ -27,7 +27,8 @@ export type MasterDataListResult = MasterDataItem[];
 
 export function getCategories() {
   return api.get<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/categories"
+    "/api/v1/master-data/categories",
+    { params: { limit: 100 } }
   ).then(unwrap);
 }
 
@@ -57,7 +58,8 @@ export function deleteCategory(id: string) {
 
 export function getPropertyTypes() {
   return api.get<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/property-types"
+    "/api/v1/master-data/property-types",
+    { params: { limit: 100 } }
   ).then(unwrap);
 }
 
@@ -87,7 +89,8 @@ export function deletePropertyType(id: string) {
 
 export function getProofTypes() {
   return api.get<ApiEnvelope<MasterDataListResult>>(
-    "/api/v1/master-data/proof-types"
+    "/api/v1/master-data/proof-types",
+    { params: { limit: 100 } }
   ).then(unwrap);
 }
 

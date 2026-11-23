@@ -23,7 +23,7 @@ const AppLayout = () => {
   return (
     <div className="hp-retailer-canvas flex h-screen overflow-hidden text-[#0f172a]">
       {/* DESKTOP SIDEBAR */}
-      <div className="hidden h-full w-[276px] shrink-0 flex-col p-3 pr-0 lg:flex">
+      <div className="hidden h-full w-[276px] shrink-0 flex-col p-3 pr-0 lg:flex print:hidden">
         <SidebarDesktop onLogout={handleLogout} />
       </div>
 
@@ -36,7 +36,7 @@ const AppLayout = () => {
         />
 
         {/* NAVBAR */}
-        <div className="shrink-0 px-3 pt-3 pb-0 sm:px-4 lg:px-6 lg:pt-4">
+        <div className="shrink-0 px-3 pt-3 pb-0 sm:px-4 lg:px-6 lg:pt-4 print:hidden">
           <Navbar
           UserName={user}
             onOpenSidebar={() => setMobileSidebarOpen(true)}

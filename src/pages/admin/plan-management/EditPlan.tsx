@@ -37,6 +37,35 @@ interface ServiceFormData {
 const EXCLUDED_SERVICES = new Set(["recharge", "payout"]);
 const EXCLUDED_CATEGORIES = new Set(["balance enquiry", "mini statement"]);
 
+// Ensures slab ranges don't overlap or duplicate each other.
+// Boundary touch (next.min == prev.max) is allowed — the pricing engine
+// resolves boundary amounts to the first matching slab.
+const validateSlabRanges = (
+  slabs: PricingSlab[] | undefined,
+  label: string
+): boolean => {
+  if (!slabs || slabs.length < 2) return true;
+  const sorted = [...slabs].sort(
+    (a, b) => Number(a.minAmount ?? 0) - Number(b.minAmount ?? 0)
+  );
+  for (let i = 1; i < sorted.length; i++) {
+    const prevMax = sorted[i - 1].maxAmount;
+    const currMin = Number(sorted[i].minAmount ?? 0);
+    if (
+      prevMax !== null &&
+      prevMax !== undefined &&
+      currMin < Number(prevMax)
+    ) {
+      showToast(
+        "error",
+        `Overlapping/duplicate amount ranges in ${label}: a range starting at ${currMin} overlaps the previous range ending at ${prevMax}.`
+      );
+      return false;
+    }
+  }
+  return true;
+};
+
 const EditPlan = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -187,6 +216,9 @@ const EditPlan = () => {
                 }
               }
             }
+            if (!validateSlabRanges(pricing.slabs, `${service.serviceName} > ${cat.categoryName}`)) {
+              return;
+            }
           }
         }
       }
@@ -237,6 +269,9 @@ const EditPlan = () => {
                 return;
               }
             }
+          }
+          if (!validateSlabRanges(pricing.slabs, `${service.serviceName}`)) {
+            return;
           }
         }
       }

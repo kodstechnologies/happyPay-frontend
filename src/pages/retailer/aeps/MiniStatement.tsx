@@ -245,7 +245,7 @@ const MiniStatement = ({
 
   if (showReceipt) {
     return (
-      <div className="mx-auto w-full max-w-3xl space-y-6">
+      <div className="receipt-print-area mx-auto w-full max-w-3xl space-y-6">
         {/* Top Navigation */}
         <section className="print:hidden flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
