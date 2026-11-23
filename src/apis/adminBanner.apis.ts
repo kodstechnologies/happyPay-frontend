@@ -5,9 +5,7 @@ export interface Banner {
   _id: string;
   title: string;
   imageUrl: string;
-  position?: "top" | "middle" | "bottom";
   isActive?: boolean;
-  order?: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -32,12 +30,6 @@ function bannerFormData(data: BannerFormData, image?: File | null) {
   body.append("title", data.title || "");
   if (data.isActive !== undefined) {
     body.append("isActive", String(data.isActive));
-  }
-  if (data.position) {
-    body.append("position", data.position);
-  }
-  if (data.order !== undefined && data.order !== null) {
-    body.append("order", String(data.order));
   }
   if (image) {
     body.append("image", image);

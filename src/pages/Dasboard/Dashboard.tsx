@@ -182,14 +182,11 @@ const Dashboard = () => {
     const fetchBanners = async () => {
       try {
         interface BannerApiResponseItem {
-          order?: number;
           imageUrl?: string;
         }
         const response = await api.get<{ success?: boolean; data?: BannerApiResponseItem[] }>("/api/v1/banners");
         if (isMounted && response.data?.success && Array.isArray(response.data.data)) {
-          // Sort by order and map to imageUrl
-          const sorted = [...response.data.data]
-            .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+          const sorted = response.data.data
             .map((b) => b.imageUrl)
             .filter((url): url is string => Boolean(url));
           

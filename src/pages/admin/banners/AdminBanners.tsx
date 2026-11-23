@@ -41,7 +41,6 @@ export default function AdminBanners() {
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
-  const [positionFilter, setPositionFilter] = useState<"ALL" | "top" | "middle" | "bottom">("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "active" | "inactive">("ALL");
 
   // Add / Edit Modal State
@@ -52,8 +51,6 @@ export default function AdminBanners() {
     title: "",
     imageUrl: "",
     isActive: true,
-    position: "top",
-    order: 0,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -136,8 +133,6 @@ export default function AdminBanners() {
         title: banner.title || "",
         imageUrl: banner.imageUrl || "",
         isActive: nextActive,
-        position: banner.position || "top",
-        order: banner.order ?? 0,
       });
       showToast(
         "success",
@@ -159,8 +154,6 @@ export default function AdminBanners() {
         title: banner.title || "",
         imageUrl: banner.imageUrl || "",
         isActive: banner.isActive !== false,
-        position: banner.position || "top",
-        order: banner.order ?? 0,
       });
       setImageFile(null);
       setImagePreview(banner.imageUrl || "");
@@ -170,8 +163,6 @@ export default function AdminBanners() {
         title: "",
         imageUrl: "",
         isActive: true,
-        position: "top",
-        order: 0,
       });
       setImageFile(null);
       setImagePreview("");
@@ -262,11 +253,6 @@ export default function AdminBanners() {
         if (!matchTitle) return false;
       }
 
-      // Position filter
-      if (positionFilter !== "ALL" && banner.position !== positionFilter) {
-        return false;
-      }
-
       // Status filter
       if (statusFilter === "active" && !banner.isActive) {
         return false;
@@ -277,20 +263,17 @@ export default function AdminBanners() {
 
       return true;
     });
-  }, [banners, searchQuery, positionFilter, statusFilter]);
+  }, [banners, searchQuery, statusFilter]);
 
   // KPI Calculations
   const stats = useMemo(() => {
     const total = banners.length;
-    const topCount = banners.filter(b => b.position === "top").length;
-    const middleCount = banners.filter(b => b.position === "middle").length;
-    const bottomCount = banners.filter(b => b.position === "bottom").length;
     const active = banners.filter(b => b.isActive).length;
     const inactive = banners.filter(b => !b.isActive).length;
-    return { total, topCount, middleCount, bottomCount, active, inactive };
+    return { total, active, inactive };
   }, [banners]);
 
-  const hasActiveFilters = searchQuery !== "" || positionFilter !== "ALL" || statusFilter !== "ALL";
+  const hasActiveFilters = searchQuery !== "" || statusFilter !== "ALL";
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6 pb-12">
@@ -306,7 +289,7 @@ export default function AdminBanners() {
                 Manage Banners
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Configure promotional banners, ordering, and placement across user dashboards.
+                Configure promotional banners and announcements on user dashboards.
               </p>
             </div>
           </div>
@@ -371,9 +354,6 @@ export default function AdminBanners() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Position Selector */}
-      
-
           {/* Status Selector */}
           <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs">
             <span className="text-slate-500 font-medium">Status:</span>
@@ -395,7 +375,6 @@ export default function AdminBanners() {
               type="button"
               onClick={() => {
                 setSearchQuery("");
-                setPositionFilter("ALL");
                 setStatusFilter("ALL");
               }}
               className="rounded-xl border border-dashed border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 hover:bg-slate-50 transition"
@@ -598,7 +577,7 @@ export default function AdminBanners() {
             />
           </div>
 
-          {/* Status, Position & Order */}
+          {/* Status */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
@@ -619,42 +598,6 @@ export default function AdminBanners() {
               <p className="mt-1 text-[10px] text-slate-400">
                 Inactive banners are hidden from dashboards.
               </p>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Position
-              </label>
-              <select
-                value={formData.position || "top"}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    position: e.target.value as "top" | "middle" | "bottom",
-                  })
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-              >
-                <option value="top">Top</option>
-                <option value="middle">Middle</option>
-                <option value="bottom">Bottom</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
-                Display Order
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={formData.order ?? 0}
-                onChange={(e) =>
-                  setFormData({ ...formData, order: Number(e.target.value) || 0 })
-                }
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
-                placeholder="0"
-              />
             </div>
           </div>
 

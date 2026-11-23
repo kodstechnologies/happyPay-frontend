@@ -6,6 +6,7 @@ import {
   Upload,
   Plus,
   Building2,
+  Check,
   FileText,
   CheckCircle2,
   XCircle,
@@ -279,11 +280,15 @@ export default function FundRequest() {
       if (rrn.trim()) formData.append("rrn", rrn.trim());
       formData.append("amount", amount);
       formData.append("paymentDate", paymentDate);
-      formData.append("bank", bank.trim());
+      if (bankId) {
+        formData.append("bankId", bankId);
+      } else {
+        formData.append("bank", bank.trim());
+        formData.append("ifscCode", ifscCode.trim().toUpperCase());
+        formData.append("accountNumber", accountNumber.trim());
+        formData.append("branchName", branchName.trim());
+      }
       if (bankCode) formData.append("bankCode", bankCode);
-      formData.append("ifscCode", ifscCode.trim().toUpperCase());
-      formData.append("accountNumber", accountNumber.trim());
-      formData.append("branchName", branchName.trim());
       if (receiptFile) formData.append("receiptSlip", receiptFile);
       if (notes.trim()) formData.append("notes", notes.trim());
 
@@ -333,6 +338,14 @@ export default function FundRequest() {
     setReceiptFileName("");
     setReceiptFile(null);
     setNotes(request.notes || "");
+    // Make sure the request's existing bank is selectable in the dropdown,
+    // even if it was created after bankList was last fetched.
+    if (request.bankDetails && typeof request.bankDetails === "object") {
+      const existing = request.bankDetails as FundRequestBank;
+      setBankList((prev) =>
+        prev.some((b) => b._id === existing._id) ? prev : [existing, ...prev]
+      );
+    }
     setResubmitModalOpen(true);
   };
 
@@ -587,9 +600,12 @@ export default function FundRequest() {
                                       setBankDropdownOpen(false);
                                       setBankSearchTerm("");
                                     }}
-                                    className="w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff]"
+                                    className={`w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff] ${bankItem._id === bankId ? "bg-[#f8f5ff]" : ""}`}
                                   >
-                                    <p className="text-sm font-semibold text-[#1f2937]">{bankItem.bank}</p>
+                                    <p className="flex items-center gap-1.5 text-sm font-semibold text-[#1f2937]">
+                                      {bankItem.bank}
+                                      {bankItem._id === bankId && <Check className="h-3.5 w-3.5 text-[#7c3aed]" />}
+                                    </p>
                                     <p className="mt-0.5 text-xs text-[#6b7280]">
                                       {[
                                         bankItem.ifscCode,
@@ -864,10 +880,10 @@ export default function FundRequest() {
                         const searchLower = searchTerm.toLowerCase();
                         return (
                           request.rrn?.toLowerCase().includes(searchLower) ||
-                          request.bank?.toLowerCase().includes(searchLower) ||
+                          (request.bankDetails?.bank || request.bank || "").toLowerCase().includes(searchLower) ||
                           request.amount?.toString().includes(searchLower) ||
-                          request.ifscCode?.toLowerCase().includes(searchLower) ||
-                          request.accountNumber?.includes(searchLower)
+                          (request.bankDetails?.ifscCode || request.ifscCode || "").toLowerCase().includes(searchLower) ||
+                          (request.bankDetails?.accountNumber || request.accountNumber || "").includes(searchLower)
                         );
                       })
                       .map((request) => (
@@ -888,15 +904,15 @@ export default function FundRequest() {
                             {request.paymentMode}
                           </td>
                           <td className="px-4 py-4 text-sm font-semibold text-[#1f2937]">
-                            {request.bank}
+                            {request.bankDetails?.bank || request.bank || "—"}
                           </td>
                           <td className="px-4 py-4 font-mono text-sm font-semibold text-[#1f2937]">
-                            {request.accountNumber
-                              ? `•••• •••• ${request.accountNumber.slice(-4)}`
+                            {(request.bankDetails?.accountNumber || request.accountNumber)
+                              ? `•••• •••• ${String(request.bankDetails?.accountNumber || request.accountNumber).slice(-4)}`
                               : "—"}
                           </td>
                           <td className="px-4 py-4 font-mono text-sm font-semibold text-[#1f2937]">
-                            {request.ifscCode}
+                            {request.bankDetails?.ifscCode || request.ifscCode || "—"}
                           </td>
                           <td className="px-4 py-4 font-mono text-sm text-[#1f2937]">
                             {request.rrn || "—"}
@@ -1170,9 +1186,12 @@ export default function FundRequest() {
                                           setBankDropdownOpen(false);
                                           setBankSearchTerm("");
                                         }}
-                                        className="w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff]"
+                                        className={`w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff] ${bankItem._id === bankId ? "bg-[#f8f5ff]" : ""}`}
                                       >
-                                        <p className="text-sm font-semibold text-[#1f2937]">{bankItem.bank}</p>
+                                        <p className="flex items-center gap-1.5 text-sm font-semibold text-[#1f2937]">
+                                          {bankItem.bank}
+                                          {bankItem._id === bankId && <Check className="h-3.5 w-3.5 text-[#7c3aed]" />}
+                                        </p>
                                         <p className="mt-0.5 text-xs text-[#6b7280]">
                                           {[
                                             bankItem.ifscCode,
