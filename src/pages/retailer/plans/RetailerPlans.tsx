@@ -25,9 +25,88 @@ import {
   getSubscribedPlans,
   subscribeToPlan,
   type Plan,
+  type PlanService,
+  type Pricing,
   type UserSubscription,
 } from "../../../apis/pricingApi";
 import { getWalletBalanceApi, type WalletBalanceData } from "../../../apis/wallet.apis";
+
+const formatRateValue = (value: number | null | undefined, calculationType?: string) => {
+  if (value === null || value === undefined) return "—";
+  return calculationType === "PERCENTAGE" ? `${value}%` : `₹${Number(value).toFixed(2)}`;
+};
+
+const PricingSlabTable = ({ pricing }: { pricing: Pricing[] }) => {
+  if (!pricing || pricing.length === 0) {
+    return <p className="mt-1 text-[11px] italic text-slate-400">No pricing configured</p>;
+  }
+  return (
+    <div className="mt-2 space-y-2">
+      {pricing.map((pr, idx) => (
+        <div key={idx} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="flex items-center justify-between bg-slate-50 px-3 py-1.5 text-[11px] font-bold text-slate-600">
+            <span>
+              {pr.type} · {pr.calculationType}
+            </span>
+            <span>{pr.slabs?.length || 0} slab(s)</span>
+          </div>
+          <table className="w-full text-[11px]">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-slate-400">
+                <th className="px-3 py-1.5 font-semibold">Range</th>
+                <th className="px-3 py-1.5 font-semibold">Charge</th>
+                <th className="px-3 py-1.5 font-semibold">You Earn</th>
+                <th className="px-3 py-1.5 font-semibold">Distributor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(pr.slabs || []).map((slab, sIdx) => (
+                <tr key={sIdx} className="border-b border-slate-50 last:border-0">
+                  <td className="px-3 py-1.5 text-slate-600">
+                    ₹{slab.minAmount} – {slab.maxAmount === null || slab.maxAmount === undefined ? "∞" : `₹${slab.maxAmount}`}
+                  </td>
+                  <td className="px-3 py-1.5 font-medium text-slate-700">
+                    {formatRateValue(slab.chargeAmount, pr.calculationType)}
+                  </td>
+                  <td className="px-3 py-1.5 font-medium text-emerald-700">
+                    {formatRateValue(slab.retailerAmount, pr.calculationType)}
+                  </td>
+                  <td className="px-3 py-1.5 font-medium text-indigo-700">
+                    {formatRateValue(slab.distributorAmount, pr.calculationType)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const ServicePricingDetails = ({ service }: { service: PlanService }) => {
+  const hasServicePricing = Array.isArray(service.pricing) && service.pricing.length > 0;
+  const categories = service.categories || [];
+
+  return (
+    <div className="mt-3">
+      {hasServicePricing && (
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Service-level pricing
+          </div>
+          <PricingSlabTable pricing={service.pricing!} />
+        </div>
+      )}
+      {categories.map((cat, cIdx) => (
+        <div key={cIdx} className="mt-3 rounded-xl border border-slate-200/60 bg-white p-3">
+          <div className="text-xs font-semibold text-slate-800">{cat.categoryName}</div>
+          <PricingSlabTable pricing={cat.pricing || []} />
+        </div>
+      ))}
+    </div>
+  );
+};
 
 export default function RetailerPlans() {
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -621,6 +700,12 @@ export default function RetailerPlans() {
                               ({calculateDaysRemaining(sub.expiresAt)} days remaining)
                             </span>
                           )}
+                          {plan && (
+                            <span className="inline-flex items-center gap-1 font-semibold text-slate-700">
+                              <Wallet className="h-3.5 w-3.5 text-slate-400" />
+                              ₹{(plan.subscriptionAmount || 0).toFixed(2)} · {plan.validityPeriod} {(plan.validityUnit || "MONTHS").toLowerCase()}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -843,6 +928,17 @@ export default function RetailerPlans() {
               {selectedPlanDetails.description || "No description provided for this plan."}
             </p>
 
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-purple-50 border border-purple-100 px-2.5 py-1 font-semibold text-purple-800">
+                <Wallet className="h-3.5 w-3.5" />
+                ₹{(selectedPlanDetails.subscriptionAmount || 0).toFixed(2)}
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 border border-slate-200 px-2.5 py-1 font-semibold text-slate-700">
+                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                {selectedPlanDetails.validityPeriod} {(selectedPlanDetails.validityUnit || "MONTHS").toLowerCase()}
+              </span>
+            </div>
+
             <div className="mt-6 space-y-4">
               <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wider flex items-center gap-2">
                 <Layers className="h-4 w-4 text-purple-600" />
@@ -865,33 +961,7 @@ export default function RetailerPlans() {
                         </span>
                       </div>
 
-                      {/* Categories breakdown */}
-                      {service.categories && service.categories.length > 0 && (
-                        <div className="mt-3 space-y-2">
-                          {service.categories.map((cat, cIdx) => (
-                            <div
-                              key={cIdx}
-                              className="rounded-xl border border-slate-200/60 bg-white p-3 text-xs"
-                            >
-                              <div className="font-semibold text-slate-800">
-                                {cat.categoryName}
-                              </div>
-                              {cat.pricing && cat.pricing.length > 0 && (
-                                <div className="mt-1.5 flex flex-wrap gap-2 text-[11px] text-slate-600">
-                                  {cat.pricing.map((pr, pIdx) => (
-                                    <span
-                                      key={pIdx}
-                                      className="rounded bg-slate-100 px-2 py-0.5 text-slate-700"
-                                    >
-                                      {pr.type} ({pr.calculationType}) - {pr.slabs?.length || 0} slab(s)
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      <ServicePricingDetails service={service} />
                     </div>
                   ))}
                 </div>

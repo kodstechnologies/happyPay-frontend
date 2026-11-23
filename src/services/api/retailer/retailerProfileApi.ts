@@ -71,6 +71,51 @@ export function getPendingBanks(page?: number, limit?: number) {
   return api.get<ApiEnvelope<PendingBankItem[]>>("/api/v1/auth/admin/banks/pending", { params }).then(unwrap);
 }
 
+// ============================================================
+// ALL BANK APPROVAL REQUESTS (admin) — every status
+// ============================================================
+
+export type BankApprovalStatus = "pending" | "rejected" | "approved";
+
+export interface BankRequestItem {
+  bankId: string;
+  retailerId: string;
+  retailerMobile: string;
+  retailerEmail: string;
+  retailerName: string;
+  source: "pendingBanks" | "banks";
+  name: string;
+  bank_code?: string | null;
+  bankMasterId?: string | null;
+  ifscCode: string;
+  accountNumber: string;
+  branchName?: string;
+  isPrimary: boolean;
+  isActive?: boolean;
+  approvalStatus: BankApprovalStatus;
+  rejectionReason?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+}
+
+export function getAllBankRequests(params?: {
+  page?: number;
+  limit?: number;
+  status?: "all" | "pending" | "rejected" | "approved";
+  search?: string;
+}) {
+  const query: { page?: number; limit?: number; status?: string; search?: string } = {};
+  if (params?.page) query.page = params.page;
+  if (params?.limit) query.limit = params.limit;
+  if (params?.status) query.status = params.status;
+  if (params?.search) query.search = params.search;
+
+  return api
+    .get<ApiEnvelope<BankRequestItem[]>>("/api/v1/auth/admin/banks/requests", { params: query })
+    .then(unwrap);
+}
+
 export function approveBank(retailerId: string, pendingBankId: string) {
   return api.patch<ApiEnvelope<RetailerFullProfile>>(
     `/api/v1/auth/admin/retailers/${retailerId}/banks/${pendingBankId}/approve`

@@ -15,6 +15,17 @@ const unwrap = <T,>(response: AxiosResponse<ApiEnvelope<T>>) => response.data;
 // FUND REQUEST TYPES
 // ============================================================
 
+export interface FundRequestBank {
+  _id: string;
+  bank: string;
+  bankCode?: string | null;
+  ifscCode: string;
+  accountNumber: string;
+  branchName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FundRequest {
   _id: string;
   userId: {
@@ -31,7 +42,9 @@ export interface FundRequest {
   rrn?: string;
   amount: number;
   paymentDate: string;
+  bankDetails?: FundRequestBank | null;
   bank: string;
+  bankCode?: string | null;
   ifscCode: string;
   accountNumber: string;
   branchName: string;
@@ -107,4 +120,83 @@ export function approveFundRequest(id: string, payload?: ApproveFundRequestPaylo
  */
 export function rejectFundRequest(id: string, payload: RejectFundRequestPayload) {
   return api.patch<ApiEnvelope<FundRequest>>(`/api/v1/admin/fund-requests/${id}/reject`, payload).then(unwrap);
+}
+
+// ============================================================
+// ADMIN FUND REQUEST BANK CRUD APIS
+// ============================================================
+
+export interface FundRequestBankMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CreateFundRequestBankPayload {
+  bank: string;
+  bankCode?: string;
+  ifscCode: string;
+  accountNumber: string;
+  branchName: string;
+}
+
+export interface UpdateFundRequestBankPayload {
+  bank?: string;
+  bankCode?: string;
+  ifscCode?: string;
+  accountNumber?: string;
+  branchName?: string;
+}
+
+/**
+ * List all FundRequestBank records (admin).
+ * Optional: ?page, ?limit.
+ */
+export function listFundRequestBanks(params?: {
+  page?: number;
+  limit?: number;
+}) {
+  return api
+    .get<ApiEnvelope<FundRequestBank[]> & { meta?: FundRequestBankMeta | null }>(
+      "/api/v1/admin/fund-requests/banks",
+      { params }
+    )
+    .then((r) => r.data);
+}
+
+/**
+ * Get a single FundRequestBank record by its _id (admin).
+ */
+export function getFundRequestBankById(bankId: string) {
+  return api
+    .get<ApiEnvelope<FundRequestBank>>(`/api/v1/admin/fund-requests/banks/${bankId}`)
+    .then(unwrap);
+}
+
+/**
+ * Create a new FundRequestBank record and link it to a FundRequest (admin).
+ */
+export function createFundRequestBank(payload: CreateFundRequestBankPayload) {
+  return api
+    .post<ApiEnvelope<FundRequestBank>>("/api/v1/admin/fund-requests/banks", payload)
+    .then(unwrap);
+}
+
+/**
+ * Update an existing FundRequestBank record (admin).
+ */
+export function updateFundRequestBank(bankId: string, payload: UpdateFundRequestBankPayload) {
+  return api
+    .patch<ApiEnvelope<FundRequestBank>>(`/api/v1/admin/fund-requests/banks/${bankId}`, payload)
+    .then(unwrap);
+}
+
+/**
+ * Delete a FundRequestBank record and clear the reference on the parent FundRequest (admin).
+ */
+export function deleteFundRequestBank(bankId: string) {
+  return api
+    .delete<ApiEnvelope<null>>(`/api/v1/admin/fund-requests/banks/${bankId}`)
+    .then(unwrap);
 }

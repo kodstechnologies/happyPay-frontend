@@ -15,14 +15,43 @@ const unwrap = <T,>(response: AxiosResponse<ApiEnvelope<T>>) => response.data;
 // FUND REQUEST TYPES
 // ============================================================
 
+export interface FundRequestBank {
+  _id: string;
+  fundRequestId?: string | {
+    _id: string;
+    paymentMode: string;
+    amount: number;
+    status: string;
+    createdAt: string;
+  } | null;
+  bank: string;
+  bankCode?: string | null;
+  ifscCode: string;
+  accountNumber: string;
+  branchName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface FundRequest {
   _id: string;
-  userId: string;
+  userId: string | {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    mobile: string;
+    retailerId?: string;
+    selfie?: string;
+  };
   retailerId?: string;
   paymentMode: "UPI" | "NEFT" | "IMPS" | "RTGS" | "CASH" | "CHEQUE" | "OTHER";
   rrn?: string;
   amount: number;
   paymentDate: string;
+  /** Populated bank details (from FundRequestBank collection). */
+  bankDetails?: FundRequestBank | null;
+  /** Convenience flat fields kept for backwards-compat (populated from bankDetails). */
   bank: string;
   ifscCode: string;
   accountNumber: string;
@@ -49,6 +78,7 @@ export interface CreateFundRequestPayload {
   amount: number;
   paymentDate: string;
   bank: string;
+  bankCode?: string;
   ifscCode: string;
   accountNumber: string;
   branchName: string;
@@ -62,6 +92,7 @@ export interface ResubmitFundRequestPayload {
   amount?: number;
   paymentDate?: string;
   bank?: string;
+  bankCode?: string;
   ifscCode?: string;
   accountNumber?: string;
   branchName?: string;
@@ -180,6 +211,15 @@ export function getBankList() {
 }
 
 /**
+ * Get saved FundRequestBank records for the logged-in retailer (for bank selection dropdown).
+ */
+export function getMySavedBankList() {
+  return api
+    .get<ApiEnvelope<FundRequestBank[]>>("/api/v1/fund-requests/banks")
+    .then(unwrap);
+}
+
+/**
  * Resubmit a rejected fund request
  */
 export function resubmitFundRequest(id: string, payload: FormData) {
@@ -234,4 +274,82 @@ export function approveFundRequest(id: string, payload?: ApproveFundRequestPaylo
  */
 export function rejectFundRequest(id: string, payload: RejectFundRequestPayload) {
   return api.patch<ApiEnvelope<FundRequest>>(`/api/v1/admin/fund-requests/${id}/reject`, payload).then(unwrap);
+}
+
+// ============================================================
+// ADMIN FUND REQUEST BANK CRUD APIS
+// ============================================================
+
+export interface FundRequestBankMeta {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export interface CreateFundRequestBankPayload {
+  bank: string;
+  ifscCode: string;
+  accountNumber: string;
+  branchName: string;
+}
+
+export interface UpdateFundRequestBankPayload {
+  bank?: string;
+  ifscCode?: string;
+  accountNumber?: string;
+  branchName?: string;
+}
+
+/**
+ * List all FundRequestBank records (admin).
+ * Optional: ?page, ?limit.
+ */
+export function listFundRequestBanks(params?: {
+  page?: number;
+  limit?: number;
+}) {
+  return api
+    .get<ApiEnvelope<FundRequestBank[]> & { meta: FundRequestBankMeta }>(
+      "/api/v1/admin/fund-requests/banks",
+      { params }
+    )
+    .then((r) => r.data);
+}
+
+/**
+ * Get a single FundRequestBank record by its _id (admin).
+ */
+export function getFundRequestBankById(bankId: string) {
+  return api
+    .get<ApiEnvelope<FundRequestBank>>(`/api/v1/admin/fund-requests/banks/${bankId}`)
+    .then(unwrap);
+}
+
+/**
+ * Create a new FundRequestBank record and link it to a FundRequest (admin).
+ */
+export function createFundRequestBank(payload: CreateFundRequestBankPayload) {
+  return api
+    .post<ApiEnvelope<FundRequestBank>>("/api/v1/admin/fund-requests/banks", payload)
+    .then(unwrap);
+}
+
+/**
+ * Update an existing FundRequestBank record (admin).
+ * At least one of: bank, ifscCode, accountNumber, branchName.
+ */
+export function updateFundRequestBank(bankId: string, payload: UpdateFundRequestBankPayload) {
+  return api
+    .patch<ApiEnvelope<FundRequestBank>>(`/api/v1/admin/fund-requests/banks/${bankId}`, payload)
+    .then(unwrap);
+}
+
+/**
+ * Delete a FundRequestBank record and clear the reference on the parent FundRequest (admin).
+ */
+export function deleteFundRequestBank(bankId: string) {
+  return api
+    .delete<ApiEnvelope<null>>(`/api/v1/admin/fund-requests/banks/${bankId}`)
+    .then(unwrap);
 }

@@ -19,12 +19,12 @@ import {
   createFundRequest,
   getMyFundRequests,
   getMyFundRequestStats,
-  getBankList,
+  getMySavedBankList,
   resubmitFundRequest,
 
   type FundRequest,
   type FundRequestStats,
-  type Bank,
+  type FundRequestBank,
 } from "../../../services/api/retailer/fundRequestApi";
 
 const PAYMENT_MODES = [
@@ -47,6 +47,8 @@ export default function FundRequest() {
   const [amount, setAmount] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [bank, setBank] = useState("");
+  const [bankId, setBankId] = useState("");
+  const [bankCode, setBankCode] = useState("");
   const [ifscCode, setIfscCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [branchName, setBranchName] = useState("");
@@ -71,7 +73,7 @@ export default function FundRequest() {
     total: 0,
     totalPages: 0,
   });
-  const [bankList, setBankList] = useState<Bank[]>([]);
+  const [bankList, setBankList] = useState<FundRequestBank[]>([]);
   const [bankDropdownOpen, setBankDropdownOpen] = useState(false);
   const [bankSearchTerm, setBankSearchTerm] = useState("");
 
@@ -120,15 +122,9 @@ export default function FundRequest() {
 
   const fetchBankList = useCallback(async () => {
     try {
-      const res = await getBankList();
+      const res = await getMySavedBankList();
       if (res?.data && Array.isArray(res.data)) {
-        // Map backend response to frontend Bank interface
-        const mappedBanks = res.data.map((bank) => ({
-          _id: bank.bank_id || bank.code,
-          bankName: bank.name,
-          bankCode: bank.code,
-        }));
-        setBankList(mappedBanks);
+        setBankList(res.data);
       }
     } catch (err: unknown) {
       console.error("Failed to fetch bank list:", err);
@@ -141,11 +137,16 @@ export default function FundRequest() {
     fetchBankList();
   }, []);
 
+  // Refetch whenever the history tab opens or the status filter / pagination
+  // changes. The status filter is applied server-side, so a refetch is required.
+  // Driving the fetch from this effect (instead of calling fetchFundRequests()
+  // right after setState in the onClick handlers) avoids a stale-closure fetch
+  // that previously ignored the just-set filterStatus / page.
   useEffect(() => {
     if (activeTab === "history") {
       fetchFundRequests();
     }
-  }, [activeTab]);
+  }, [activeTab, filterStatus, pagination.page, pagination.limit]);
   /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -227,10 +228,15 @@ export default function FundRequest() {
       if (rrn.trim()) formData.append("rrn", rrn.trim());
       formData.append("amount", amount);
       formData.append("paymentDate", paymentDate);
-      formData.append("bank", bank.trim());
-      formData.append("ifscCode", ifscCode.trim().toUpperCase());
-      formData.append("accountNumber", accountNumber.trim());
-      formData.append("branchName", branchName.trim());
+      if (bankId) {
+        formData.append("bankId", bankId);
+      } else {
+        formData.append("bank", bank.trim());
+        formData.append("ifscCode", ifscCode.trim().toUpperCase());
+        formData.append("accountNumber", accountNumber.trim());
+        formData.append("branchName", branchName.trim());
+      }
+      if (bankCode) formData.append("bankCode", bankCode);
       if (receiptFile) formData.append("receiptSlip", receiptFile);
       if (notes.trim()) formData.append("notes", notes.trim());
 
@@ -244,6 +250,8 @@ export default function FundRequest() {
         setAmount("");
         setPaymentDate("");
         setBank("");
+        setBankId("");
+        setBankCode("");
         setIfscCode("");
         setAccountNumber("");
         setBranchName("");
@@ -272,6 +280,7 @@ export default function FundRequest() {
       formData.append("amount", amount);
       formData.append("paymentDate", paymentDate);
       formData.append("bank", bank.trim());
+      if (bankCode) formData.append("bankCode", bankCode);
       formData.append("ifscCode", ifscCode.trim().toUpperCase());
       formData.append("accountNumber", accountNumber.trim());
       formData.append("branchName", branchName.trim());
@@ -290,6 +299,8 @@ export default function FundRequest() {
         setAmount("");
         setPaymentDate("");
         setBank("");
+        setBankId("");
+        setBankCode("");
         setIfscCode("");
         setAccountNumber("");
         setBranchName("");
@@ -313,10 +324,12 @@ export default function FundRequest() {
     setRrn(request.rrn || "");
     setAmount(request.amount.toString());
     setPaymentDate(request.paymentDate.split("T")[0]);
-    setBank(request.bank);
-    setIfscCode(request.ifscCode);
-    setAccountNumber(request.accountNumber);
-    setBranchName(request.branchName);
+    setBank(request.bankDetails?.bank || request.bank || "");
+    setBankId(request.bankDetails?._id || "");
+    setBankCode(request.bankDetails?.bankCode || "");
+    setIfscCode(request.bankDetails?.ifscCode || request.ifscCode || "");
+    setAccountNumber(request.bankDetails?.accountNumber || request.accountNumber || "");
+    setBranchName(request.bankDetails?.branchName || request.branchName || "");
     setReceiptFileName("");
     setReceiptFile(null);
     setNotes(request.notes || "");
@@ -556,25 +569,39 @@ export default function FundRequest() {
                             {bankList.length > 0 ? (
                               bankList
                                 .filter((bankItem) =>
-                                  bankItem.bankName?.toLowerCase().includes(bankSearchTerm.toLowerCase())
+                                  (bankItem.bank || "").toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                                  (bankItem.ifscCode || "").toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                                  (bankItem.accountNumber || "").includes(bankSearchTerm)
                                 )
                                 .map((bankItem) => (
                                   <button
                                     key={bankItem._id}
                                     type="button"
                                     onClick={() => {
-                                      setBank(bankItem.bankName);
+                                      setBank(bankItem.bank);
+                                      setBankId(bankItem._id);
+                                      setBankCode(bankItem.bankCode || "");
+                                      setIfscCode(bankItem.ifscCode || "");
+                                      setAccountNumber(bankItem.accountNumber || "");
+                                      setBranchName(bankItem.branchName || "");
                                       setBankDropdownOpen(false);
                                       setBankSearchTerm("");
                                     }}
-                                    className="w-full px-4 py-3 text-left text-sm text-[#6b7280] hover:bg-[#f8f5ff] hover:text-[#7c3aed] transition"
+                                    className="w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff]"
                                   >
-                                    {bankItem.bankName}
+                                    <p className="text-sm font-semibold text-[#1f2937]">{bankItem.bank}</p>
+                                    <p className="mt-0.5 text-xs text-[#6b7280]">
+                                      {[
+                                        bankItem.ifscCode,
+                                        bankItem.branchName,
+                                        bankItem.accountNumber ? `Acct •••• ${String(bankItem.accountNumber).slice(-4)}` : null,
+                                      ].filter(Boolean).join(" • ")}
+                                    </p>
                                   </button>
                                 ))
                             ) : (
                               <div className="px-4 py-3 text-sm text-[#6b7280]">
-                                No banks available
+                                No banks available — please contact admin
                               </div>
                             )}
                           </div>
@@ -590,6 +617,7 @@ export default function FundRequest() {
                     <input
                       type="text"
                       value={ifscCode}
+                      readOnly={!!bankId}
                       onChange={(e) => {
                         const value = e.target.value
                           .toUpperCase()
@@ -599,7 +627,7 @@ export default function FundRequest() {
                       }}
                       placeholder="e.g., SBIN0001234"
                       maxLength={11}
-                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                      className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                     />
                   </div>
 
@@ -610,10 +638,11 @@ export default function FundRequest() {
                     <input
                       type="text"
                       value={accountNumber}
+                      readOnly={!!bankId}
                       onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
                       placeholder="Enter account number"
                       maxLength={18}
-                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                      className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                     />
                   </div>
 
@@ -624,9 +653,10 @@ export default function FundRequest() {
                     <input
                       type="text"
                       value={branchName}
+                      readOnly={!!bankId}
                       onChange={(e) => setBranchName(e.target.value)}
                       placeholder="Enter branch name"
-                      className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                      className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                     />
                   </div>
                 </div>
@@ -707,7 +737,6 @@ export default function FundRequest() {
                   onClick={() => {
                     setFilterStatus("ALL");
                     setPagination((prev) => ({ ...prev, page: 1 }));
-                    fetchFundRequests();
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     filterStatus === "ALL"
@@ -722,7 +751,6 @@ export default function FundRequest() {
                   onClick={() => {
                     setFilterStatus("PENDING");
                     setPagination((prev) => ({ ...prev, page: 1 }));
-                    fetchFundRequests();
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     filterStatus === "PENDING"
@@ -737,7 +765,6 @@ export default function FundRequest() {
                   onClick={() => {
                     setFilterStatus("APPROVED");
                     setPagination((prev) => ({ ...prev, page: 1 }));
-                    fetchFundRequests();
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     filterStatus === "APPROVED"
@@ -752,7 +779,6 @@ export default function FundRequest() {
                   onClick={() => {
                     setFilterStatus("REJECTED");
                     setPagination((prev) => ({ ...prev, page: 1 }));
-                    fetchFundRequests();
                   }}
                   className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
                     filterStatus === "REJECTED"
@@ -875,6 +901,7 @@ export default function FundRequest() {
                           <td className="px-4 py-4 font-mono text-sm text-[#1f2937]">
                             {request.rrn || "—"}
                           </td>
+                        
                           <td className="px-4 py-4">
                             {request.status === "REJECTED" ? (
                               <button
@@ -907,7 +934,6 @@ export default function FundRequest() {
                     type="button"
                     onClick={() => {
                       setPagination((prev) => ({ ...prev, page: prev.page - 1 }));
-                      fetchFundRequests();
                     }}
                     disabled={pagination.page === 1 || isLoading}
                     className="px-4 py-2 rounded-xl text-xs font-semibold border-2 border-[#d1d5db] bg-white text-[#6b7280] hover:border-[#7c3aed] hover:text-[#7c3aed] hover:bg-[#f8f5ff] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
@@ -935,7 +961,6 @@ export default function FundRequest() {
                           type="button"
                           onClick={() => {
                             setPagination((prev) => ({ ...prev, page: pageNum }));
-                            fetchFundRequests();
                           }}
                           disabled={isLoading}
                           className={`w-10 h-10 rounded-xl text-xs font-semibold transition-all ${
@@ -954,7 +979,6 @@ export default function FundRequest() {
                     type="button"
                     onClick={() => {
                       setPagination((prev) => ({ ...prev, page: prev.page + 1 }));
-                      fetchFundRequests();
                     }}
                     disabled={pagination.page === pagination.totalPages || isLoading}
                     className="px-4 py-2 rounded-xl text-xs font-semibold border-2 border-[#d1d5db] bg-white text-[#6b7280] hover:border-[#7c3aed] hover:text-[#7c3aed] hover:bg-[#f8f5ff] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
@@ -1128,25 +1152,39 @@ export default function FundRequest() {
                                 {bankList.length > 0 ? (
                                   bankList
                                     .filter((bankItem) =>
-                                      bankItem.bankName?.toLowerCase().includes(bankSearchTerm.toLowerCase())
+                                      (bankItem.bank || "").toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                                      (bankItem.ifscCode || "").toLowerCase().includes(bankSearchTerm.toLowerCase()) ||
+                                      (bankItem.accountNumber || "").includes(bankSearchTerm)
                                     )
                                     .map((bankItem) => (
                                       <button
                                         key={bankItem._id}
                                         type="button"
                                         onClick={() => {
-                                          setBank(bankItem.bankName);
+                                          setBank(bankItem.bank);
+                                          setBankId(bankItem._id);
+                                          setBankCode(bankItem.bankCode || "");
+                                          setIfscCode(bankItem.ifscCode || "");
+                                          setAccountNumber(bankItem.accountNumber || "");
+                                          setBranchName(bankItem.branchName || "");
                                           setBankDropdownOpen(false);
                                           setBankSearchTerm("");
                                         }}
-                                        className="w-full px-4 py-3 text-left text-sm text-[#6b7280] hover:bg-[#f8f5ff] hover:text-[#7c3aed] transition"
+                                        className="w-full px-4 py-3 text-left transition hover:bg-[#f8f5ff]"
                                       >
-                                        {bankItem.bankName}
+                                        <p className="text-sm font-semibold text-[#1f2937]">{bankItem.bank}</p>
+                                        <p className="mt-0.5 text-xs text-[#6b7280]">
+                                          {[
+                                            bankItem.ifscCode,
+                                            bankItem.branchName,
+                                            bankItem.accountNumber ? `Acct •••• ${String(bankItem.accountNumber).slice(-4)}` : null,
+                                          ].filter(Boolean).join(" • ")}
+                                        </p>
                                       </button>
                                     ))
                                 ) : (
                                   <div className="px-4 py-3 text-sm text-[#6b7280]">
-                                    No banks available
+                                    No banks available — please contact admin
                                   </div>
                                 )}
                               </div>
@@ -1162,6 +1200,7 @@ export default function FundRequest() {
                         <input
                           type="text"
                           value={ifscCode}
+                          readOnly={!!bankId}
                           onChange={(e) => {
                             const value = e.target.value
                               .toUpperCase()
@@ -1171,7 +1210,7 @@ export default function FundRequest() {
                           }}
                           placeholder="e.g., SBIN0001234"
                           maxLength={11}
-                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                          className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                         />
                       </div>
 
@@ -1182,10 +1221,11 @@ export default function FundRequest() {
                         <input
                           type="text"
                           value={accountNumber}
+                          readOnly={!!bankId}
                           onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
                           placeholder="Enter account number"
                           maxLength={18}
-                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono"
+                          className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all font-mono ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                         />
                       </div>
 
@@ -1196,9 +1236,10 @@ export default function FundRequest() {
                         <input
                           type="text"
                           value={branchName}
+                          readOnly={!!bankId}
                           onChange={(e) => setBranchName(e.target.value)}
                           placeholder="Enter branch name"
-                          className="w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all"
+                          className={`w-full rounded-xl border-2 border-[#d1d5db] bg-white px-4 py-3 text-sm text-[#1f2937] placeholder:text-[#9ca3af] focus:border-[#7c3aed] focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/20 shadow-sm hover:border-[#7c3aed] transition-all ${bankId ? "bg-[#f3f4f6] cursor-not-allowed" : ""}`}
                         />
                       </div>
                     </div>

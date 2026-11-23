@@ -1,4 +1,4 @@
-import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw, Filter, CheckCheck, User, Building2, ShieldCheck } from "lucide-react";
+import { Bell, Check, Info, AlertTriangle, BellRing, Search, Loader2, RefreshCw, Filter, CheckCheck, User, Building2, ShieldCheck, IndianRupee } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,7 +12,7 @@ export default function AdminNotifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState<"all" | "unread" | "registrations" | "banks" | "kyc">("all");
+  const [activeTab, setActiveTab] = useState<"all" | "unread" | "registrations" | "banks" | "kyc" | "fund_requests">("all");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -99,6 +99,9 @@ export default function AdminNotifications() {
     if (type === "BANK_REJECTED") return "danger";
     if (type === "KYC_APPROVED") return "success";
     if (type === "KYC_REJECTED") return "danger";
+    if (type === "NEW_FUND_REQUEST" || type === "FUND_REQUEST_RESUBMITTED") return "warning";
+    if (type === "FUND_REQUEST_APPROVED") return "success";
+    if (type === "FUND_REQUEST_REJECTED") return "danger";
     return "info";
   };
 
@@ -125,6 +128,14 @@ export default function AdminNotifications() {
       return (
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
           <ShieldCheck className="h-5 w-5" />
+        </div>
+      );
+    }
+
+    if (type.includes("FUND_REQUEST")) {
+      return (
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+          <IndianRupee className="h-5 w-5" />
         </div>
       );
     }
@@ -161,9 +172,14 @@ export default function AdminNotifications() {
   // Returns the URL to navigate to when a notification is clicked (if any)
   const getNotificationLink = (notification: Notification): string | null => {
     const retailerId = notification.data?.retailerId as string | undefined;
+    const type = notification.type;
+
+    if (type === "NEW_FUND_REQUEST" || type === "FUND_REQUEST_RESUBMITTED") {
+      return "/admin/fund-requests";
+    }
+
     if (!retailerId) return null;
 
-    const type = notification.type;
     if (
       type === "NEW_RETAILER_REGISTRATION" ||
       type === "BANK_PENDING_APPROVAL" ||
@@ -210,6 +226,13 @@ export default function AdminNotifications() {
       if (
         activeTab === "kyc" &&
         !n.type.includes("KYC")
+      ) {
+        return false;
+      }
+
+      if (
+        activeTab === "fund_requests" &&
+        !n.type.includes("FUND_REQUEST")
       ) {
         return false;
       }
@@ -347,6 +370,18 @@ export default function AdminNotifications() {
           >
             KYC Reviews
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("fund_requests")}
+            className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+              activeTab === "fund_requests"
+                ? "bg-[#315bd1] text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            Fund Requests
+          </button>
         </div>
 
         {/* SEARCH INPUT */}
@@ -448,7 +483,9 @@ export default function AdminNotifications() {
                     <div className="mt-2.5 flex items-center justify-between gap-2">
                       {hasLink && (
                         <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#315bd1] transition group-hover:underline">
-                          View Retailer →
+                          {notification.type.includes("FUND_REQUEST")
+                            ? "View Fund Requests →"
+                            : "View Retailer →"}
                         </span>
                       )}
 

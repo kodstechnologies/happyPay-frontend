@@ -15,14 +15,21 @@ import {
   ArrowUpDown,
   Download,
   Calendar,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import {
   getAllFundRequests,
   getAdminFundRequestStats,
   approveFundRequest,
   rejectFundRequest,
+  listFundRequestBanks,
+  createFundRequestBank,
+  deleteFundRequestBank,
   type FundRequest,
   type FundRequestStats,
+  type FundRequestBank,
+  type FundRequestBankMeta,
 } from "../../../services/api/admin/fundRequestApi";
 
 export default function AdminFundRequest() {
@@ -45,6 +52,23 @@ export default function AdminFundRequest() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState<"createdAt" | "amount" | "status">("createdAt");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  // Banks tab state
+  const [activeTab, setActiveTab] = useState<"requests" | "banks">("requests");
+  const BANKS_PAGE_LIMIT = 10;
+  const [banks, setBanks] = useState<FundRequestBank[]>([]);
+  const [banksLoading, setBanksLoading] = useState(false);
+  const [banksMeta, setBanksMeta] = useState<FundRequestBankMeta | null>(null);
+  const [banksPage, setBanksPage] = useState(1);
+  const [showAddBankModal, setShowAddBankModal] = useState(false);
+  const [savingBank, setSavingBank] = useState(false);
+  const [deletingBankId, setDeletingBankId] = useState<string | null>(null);
+  const [bankForm, setBankForm] = useState({
+    bank: "",
+    ifscCode: "",
+    accountNumber: "",
+    branchName: "",
+  });
 
   const fetchFundRequests = useCallback(async () => {
     try {
@@ -74,7 +98,7 @@ export default function AdminFundRequest() {
         request.userId?.lastName?.toLowerCase().includes(term) ||
         request.userId?.mobile?.includes(term) ||
         request.userId?.email?.toLowerCase().includes(term) ||
-        request.bank?.toLowerCase().includes(term) ||
+        (request.bankDetails?.bank || request.bank)?.toLowerCase().includes(term) ||
         request.paymentMode?.toLowerCase().includes(term) ||
         request._id?.toLowerCase().includes(term)
       );
@@ -119,7 +143,7 @@ export default function AdminFundRequest() {
       String(request.userId?.email || ""),
       String(request.amount.toFixed(2)),
       String(request.paymentMode || ""),
-      String(request.bank || ""),
+      String(request.bankDetails?.bank || request.bank || ""),
       String(request.status || ""),
       String(request.notes || ""),
     ]);
@@ -154,9 +178,90 @@ export default function AdminFundRequest() {
   /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
   useEffect(() => {
     fetchStats();
-    fetchFundRequests();
   }, []);
+
+  // The status filter is applied server-side (passed to getAllFundRequests),
+  // so the list must be refetched whenever filterStatus changes.
+  useEffect(() => {
+    fetchFundRequests();
+  }, [filterStatus]);
   /* eslint-enable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
+
+  const fetchBanks = useCallback(async (page: number) => {
+    try {
+      setBanksLoading(true);
+      const res = await listFundRequestBanks({ page, limit: BANKS_PAGE_LIMIT });
+      if (res?.data) {
+        setBanks(Array.isArray(res.data) ? res.data : []);
+      }
+      if (res?.meta) {
+        setBanksMeta(res.meta);
+      }
+    } catch (err: unknown) {
+      console.error("Failed to fetch bank records:", err);
+      showToast("error", err, "Failed to load bank records");
+    } finally {
+      setBanksLoading(false);
+    }
+  }, []);
+
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (activeTab === "banks") {
+      fetchBanks(banksPage);
+    }
+  }, [activeTab, banksPage, fetchBanks]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const openAddBankModal = () => {
+    setBankForm({ bank: "", ifscCode: "", accountNumber: "", branchName: "" });
+    setShowAddBankModal(true);
+  };
+
+  const handleAddBank = async () => {
+    if (!bankForm.bank.trim() || !bankForm.ifscCode.trim() ||
+        !bankForm.accountNumber.trim() || !bankForm.branchName.trim() || savingBank) {
+      showToast("error", "Please fill all required bank fields");
+      return;
+    }
+
+    try {
+      setSavingBank(true);
+      await createFundRequestBank({
+        bank: bankForm.bank.trim(),
+        ifscCode: bankForm.ifscCode.trim().toUpperCase(),
+        accountNumber: bankForm.accountNumber.trim(),
+        branchName: bankForm.branchName.trim(),
+      });
+      showToast("success", "Bank record added successfully");
+      setShowAddBankModal(false);
+      fetchBanks(banksPage);
+    } catch (err: unknown) {
+      console.error("Failed to add bank record:", err);
+      showToast("error", err, "Failed to add bank record");
+    } finally {
+      setSavingBank(false);
+    }
+  };
+
+  const handleDeleteBank = async (bankId: string) => {
+    if (deletingBankId) return;
+    if (!window.confirm("Delete this bank record?")) {
+      return;
+    }
+
+    try {
+      setDeletingBankId(bankId);
+      await deleteFundRequestBank(bankId);
+      showToast("success", "Bank record deleted successfully");
+      fetchBanks(banksPage);
+    } catch (err: unknown) {
+      console.error("Failed to delete bank record:", err);
+      showToast("error", err, "Failed to delete bank record");
+    } finally {
+      setDeletingBankId(null);
+    }
+  };
 
   const handleApprove = async (request: FundRequest) => {
     if (approvingId) return;
@@ -264,6 +369,47 @@ export default function AdminFundRequest() {
         </button>
       </div>
 
+      {/* Tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("requests")}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              activeTab === "requests"
+                ? "bg-gradient-to-r from-[#315bd1] to-[#2a4cb8] text-white shadow-lg shadow-[#315bd1]/30"
+                : "bg-white text-slate-600 border border-slate-200 hover:border-[#315bd1] hover:text-[#315bd1]"
+            }`}
+          >
+            Fund Requests
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("banks")}
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
+              activeTab === "banks"
+                ? "bg-gradient-to-r from-[#315bd1] to-[#2a4cb8] text-white shadow-lg shadow-[#315bd1]/30"
+                : "bg-white text-slate-600 border border-slate-200 hover:border-[#315bd1] hover:text-[#315bd1]"
+            }`}
+          >
+            Added Banks
+          </button>
+        </div>
+
+        {activeTab === "banks" && (
+          <button
+            type="button"
+            onClick={openAddBankModal}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 transition-all duration-200"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Bank</span>
+          </button>
+        )}
+      </div>
+
+      {activeTab === "requests" && (
+      <>
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -504,7 +650,7 @@ export default function AdminFundRequest() {
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2">
                         <Building2 className="h-4 w-4 text-slate-400" />
-                        <p className="text-sm text-slate-700">{request.bank}</p>
+                        <p className="text-sm text-slate-700">{request.bankDetails?.bank || request.bank || "—"}</p>
                       </div>
                     </td>
                     <td className="px-5 py-4">
@@ -559,6 +705,236 @@ export default function AdminFundRequest() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+      </>
+      )}
+
+      {/* Added Banks Tab */}
+      {activeTab === "banks" && (
+        <div className="space-y-4">
+          {banksLoading && banks.length === 0 ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <Loader2 className="h-12 w-12 animate-spin text-[#315bd1] mx-auto" />
+                <p className="mt-4 text-sm text-slate-500">Loading bank records...</p>
+              </div>
+            </div>
+          ) : banks.length === 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-16 text-center shadow-sm">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-slate-100 mb-4">
+                <Building2 className="h-10 w-10 text-slate-300" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900">No Bank Records Found</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                Bank details added to fund requests will appear here
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-lg">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
+                    <tr>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Bank
+                      </th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                        IFSC
+                      </th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Account Number
+                      </th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Branch
+                      </th>
+                      <th className="px-5 py-4 text-left text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Added On
+                      </th>
+                      <th className="px-5 py-4 text-center text-xs font-bold uppercase tracking-wider text-slate-600">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {banks.map((bank) => {
+                      return (
+                        <tr key={bank._id} className="hover:bg-gradient-to-r hover:from-slate-50 hover:to-slate-100 transition-all duration-200">
+                          <td className="px-5 py-4">
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-slate-400" />
+                              <p className="text-sm font-semibold text-slate-900">{bank.bank}</p>
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="font-mono text-sm font-semibold text-slate-900">{bank.ifscCode}</p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="font-mono text-sm text-slate-700">
+                              {bank.accountNumber
+                                ? `•••• •••• ${String(bank.accountNumber).slice(-4)}`
+                                : "—"}
+                            </p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="text-sm text-slate-700">{bank.branchName || "—"}</p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <p className="text-sm text-slate-700">
+                              {new Date(bank.createdAt).toLocaleDateString("en-GB")}
+                            </p>
+                          </td>
+                          <td className="px-5 py-4">
+                            <div className="flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                disabled={deletingBankId === bank._id}
+                                onClick={() => handleDeleteBank(bank._id)}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 hover:border-rose-300 transition-all duration-200 disabled:opacity-50"
+                                title="Delete Bank Record"
+                              >
+                                {deletingBankId === bank._id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {banksMeta && banksMeta.totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4">
+                  <p className="text-xs text-slate-500">
+                    Page {banksMeta.page} of {banksMeta.totalPages} • {banksMeta.total} records
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={banksPage <= 1 || banksLoading}
+                      onClick={() => setBanksPage((p) => Math.max(1, p - 1))}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={banksPage >= banksMeta.totalPages || banksLoading}
+                      onClick={() => setBanksPage((p) => p + 1)}
+                      className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Add Bank Modal */}
+      {showAddBankModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-8 shadow-2xl">
+            <div className="mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-500 text-white">
+                  <Plus className="h-6 w-6" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900">Add Bank Details</h3>
+              </div>
+              <p className="text-sm text-slate-500 ml-15">
+                Add bank account details to the bank list
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Bank Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bankForm.bank}
+                    onChange={(e) => setBankForm((f) => ({ ...f, bank: e.target.value }))}
+                    placeholder="e.g., State Bank of India"
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    IFSC Code <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bankForm.ifscCode}
+                    onChange={(e) => setBankForm((f) => ({ ...f, ifscCode: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 11) }))}
+                    placeholder="e.g., SBIN0001234"
+                    maxLength={11}
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 transition-all duration-200"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Account Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bankForm.accountNumber}
+                    onChange={(e) => setBankForm((f) => ({ ...f, accountNumber: e.target.value.replace(/\D/g, "") }))}
+                    placeholder="Account number"
+                    maxLength={18}
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 transition-all duration-200"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                    Branch Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bankForm.branchName}
+                    onChange={(e) => setBankForm((f) => ({ ...f, branchName: e.target.value }))}
+                    placeholder="e.g., Main Branch"
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/20 transition-all duration-200"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowAddBankModal(false)}
+                className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingBank}
+                onClick={handleAddBank}
+                className="rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 hover:shadow-xl hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:shadow-none"
+              >
+                {savingBank ? (
+                  <>
+                    <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
+                    Saving...
+                  </>
+                ) : (
+                  "Add Bank"
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -710,9 +1086,9 @@ export default function AdminFundRequest() {
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">Mobile</p>
                     <p className="text-sm font-semibold text-slate-900">{showViewModal.request.userId?.mobile}</p>
                   </div>
-                  <div className="bg-white rounded-xl p-4 border border-slate-100">
+                  <div className="bg-white rounded-xl p-4 border border-slate-100 min-w-0 overflow-hidden">
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">Email</p>
-                    <p className="text-sm font-semibold text-slate-900">{showViewModal.request.userId?.email}</p>
+                    <p className="text-sm font-semibold text-slate-900 break-all">{showViewModal.request.userId?.email || "—"}</p>
                   </div>
                 </div>
               </div>
@@ -756,23 +1132,23 @@ export default function AdminFundRequest() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="bg-white rounded-xl p-4 border border-slate-100">
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">Bank Name</p>
-                    <p className="text-sm font-semibold text-slate-900">{showViewModal.request.bank}</p>
+                    <p className="text-sm font-semibold text-slate-900">{showViewModal.request.bankDetails?.bank || showViewModal.request.bank || "—"}</p>
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-slate-100">
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">Branch</p>
-                    <p className="text-sm font-semibold text-slate-900">{showViewModal.request.branchName || "—"}</p>
+                    <p className="text-sm font-semibold text-slate-900">{showViewModal.request.bankDetails?.branchName || showViewModal.request.branchName || "—"}</p>
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-slate-100">
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">Account Number</p>
                     <p className="font-mono text-sm font-semibold text-slate-900">
-                      {showViewModal.request.accountNumber
-                        ? `•••• •••• ${showViewModal.request.accountNumber.slice(-4)}`
+                      {(showViewModal.request.bankDetails?.accountNumber || showViewModal.request.accountNumber)
+                        ? `•••• •••• ${(showViewModal.request.bankDetails?.accountNumber || showViewModal.request.accountNumber || "").slice(-4)}`
                         : "—"}
                     </p>
                   </div>
                   <div className="bg-white rounded-xl p-4 border border-slate-100">
                     <p className="text-[10px] uppercase font-semibold text-slate-400 mb-1">IFSC Code</p>
-                    <p className="font-mono text-sm font-semibold text-slate-900">{showViewModal.request.ifscCode}</p>
+                    <p className="font-mono text-sm font-semibold text-slate-900">{showViewModal.request.bankDetails?.ifscCode || showViewModal.request.ifscCode || "—"}</p>
                   </div>
                 </div>
               </div>

@@ -9,7 +9,8 @@ import {
   RefreshCw,
   Search,
   UploadCloud,
-  Check
+  Check,
+  Power
 } from "lucide-react";
 import { showToast } from "../../../utils/toast";
 import ModalWrapper from "../../../components/common/ModalWrapper";
@@ -50,6 +51,9 @@ export default function AdminBanners() {
   const [formData, setFormData] = useState<BannerFormData>({
     title: "",
     imageUrl: "",
+    isActive: true,
+    position: "top",
+    order: 0,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
@@ -125,12 +129,38 @@ export default function AdminBanners() {
     }
   };
 
+  const handleToggleStatus = async (banner: Banner) => {
+    const nextActive = banner.isActive === false;
+    try {
+      await updateAdminBanner(banner._id, {
+        title: banner.title || "",
+        imageUrl: banner.imageUrl || "",
+        isActive: nextActive,
+        position: banner.position || "top",
+        order: banner.order ?? 0,
+      });
+      showToast(
+        "success",
+        `Banner ${nextActive ? "activated" : "deactivated"} successfully`
+      );
+      setBanners((prev) =>
+        prev.map((b) => (b._id === banner._id ? { ...b, isActive: nextActive } : b))
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to update banner status";
+      showToast("error", err, msg);
+    }
+  };
+
   const handleOpenModal = (banner?: Banner) => {
     if (banner) {
       setEditingId(banner._id);
       setFormData({
         title: banner.title || "",
         imageUrl: banner.imageUrl || "",
+        isActive: banner.isActive !== false,
+        position: banner.position || "top",
+        order: banner.order ?? 0,
       });
       setImageFile(null);
       setImagePreview(banner.imageUrl || "");
@@ -139,6 +169,9 @@ export default function AdminBanners() {
       setFormData({
         title: "",
         imageUrl: "",
+        isActive: true,
+        position: "top",
+        order: 0,
       });
       setImageFile(null);
       setImagePreview("");
@@ -429,6 +462,15 @@ export default function AdminBanners() {
                         "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&q=80";
                     }}
                   />
+                  <span
+                    className={`absolute left-2.5 top-2.5 rounded-lg px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                      banner.isActive !== false
+                        ? "bg-emerald-500/90 text-white"
+                        : "bg-slate-800/80 text-slate-200"
+                    }`}
+                  >
+                    {banner.isActive !== false ? "Active" : "Inactive"}
+                  </span>
                 </div>
 
                 {/* Card Content */}
@@ -446,6 +488,19 @@ export default function AdminBanners() {
                   <div className="mt-4 flex items-center justify-end border-t border-slate-100 pt-3">
                     {/* Action Buttons */}
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(banner)}
+                        title={banner.isActive !== false ? "Deactivate banner" : "Activate banner"}
+                        className={`rounded-xl p-2 transition ${
+                          banner.isActive !== false
+                            ? "text-emerald-600 hover:bg-emerald-50"
+                            : "text-slate-400 hover:bg-slate-100 hover:text-emerald-600"
+                        }`}
+                      >
+                        <Power className="h-4 w-4" />
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleOpenModal(banner)}
@@ -541,6 +596,66 @@ export default function AdminBanners() {
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-800 placeholder-slate-400 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
               placeholder="e.g. Festival Cashback Special 2026"
             />
+          </div>
+
+          {/* Status, Position & Order */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Status
+              </label>
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, isActive: !(formData.isActive !== false) })}
+                className={`flex w-full items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs font-semibold transition ${
+                  formData.isActive !== false
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-50 text-slate-500"
+                }`}
+              >
+                <span>{formData.isActive !== false ? "Active" : "Inactive"}</span>
+                <Power className="h-4 w-4" />
+              </button>
+              <p className="mt-1 text-[10px] text-slate-400">
+                Inactive banners are hidden from dashboards.
+              </p>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Position
+              </label>
+              <select
+                value={formData.position || "top"}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    position: e.target.value as "top" | "middle" | "bottom",
+                  })
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
+              >
+                <option value="top">Top</option>
+                <option value="middle">Middle</option>
+                <option value="bottom">Bottom</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-700">
+                Display Order
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={formData.order ?? 0}
+                onChange={(e) =>
+                  setFormData({ ...formData, order: Number(e.target.value) || 0 })
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-medium text-slate-800 transition focus:border-[#315bd1] focus:outline-none focus:ring-1 focus:ring-[#315bd1]"
+                placeholder="0"
+              />
+            </div>
           </div>
 
           {/* Banner Image Upload Dropzone */}

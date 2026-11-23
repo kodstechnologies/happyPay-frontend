@@ -416,6 +416,42 @@ export default function EditProfileModal({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  PAN Number
+                </label>
+                <input
+                  type="text"
+                  value={profile.panNumber || ""}
+                  readOnly
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 font-mono text-xs text-slate-900 cursor-not-allowed tracking-wider"
+                  placeholder="Not provided"
+                />
+                <p className="mt-1 text-[10px] text-slate-500">KYC-verified identifier — cannot be changed</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Aadhaar Number
+                </label>
+                <input
+                  type="text"
+                  value={
+                    profile.aadhaarNumber
+                      ? profile.aadhaarNumber.length >= 4
+                        ? `XXXX XXXX ${profile.aadhaarNumber.slice(-4)}`
+                        : profile.aadhaarNumber
+                      : ""
+                  }
+                  readOnly
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 font-mono text-xs text-slate-900 cursor-not-allowed tracking-wider"
+                  placeholder="Not provided"
+                />
+                <p className="mt-1 text-[10px] text-slate-500">KYC-verified identifier — cannot be changed</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Father's Name
                 </label>
                 <input
@@ -515,7 +551,7 @@ export default function EditProfileModal({
 
             <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
               <span className="font-semibold text-slate-700">Note: </span>
-              PAN number, Aadhaar number, Mobile number, and Email address are verified identifiers and cannot be altered directly. Use the "Change" button on the profile overview page to update Mobile/Email via OTP verification.
+              PAN and Aadhaar are KYC-verified identifiers displayed above for reference — they cannot be changed. To update your mobile or email, use the "Change" button on the profile overview page (OTP verification required).
             </div>
           </div>
         ) : (

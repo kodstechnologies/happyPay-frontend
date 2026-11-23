@@ -445,7 +445,7 @@ const ShopDetailsStep = forwardRef<ShopDetailsStepHandle, ShopDetailsStepProps>(
 
       loadDistrictsForInitialData();
     }
-  }, [state, stateCode]);
+  }, [state, stateCode, districtList.length]);
 
   // Load state list function for pagination
   const loadStates = useCallback((page: number = 1, append: boolean = false) => {
