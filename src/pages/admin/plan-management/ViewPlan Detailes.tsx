@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Layers, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowLeft, Calendar, Clock, CheckCircle, XCircle, Layers, ChevronDown, ChevronUp, IndianRupee } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getPlanById, type Plan, type Pricing, type PricingSlab } from "../../../apis/pricingApi";
 import { showToast } from "../../../utils/toast";
@@ -197,6 +197,12 @@ const ViewPlanDetails = () => {
                   <Clock className="h-4 w-4" />
                   <span>
                     Validity: {plan.validityPeriod} {plan.validityUnit.toLowerCase()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <IndianRupee className="h-4 w-4" />
+                  <span>
+                    Subscription Amount: ₹{Number(plan.subscriptionAmount ?? 0).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex items-center gap-1.5">

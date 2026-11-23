@@ -69,6 +69,7 @@ export interface PendingRetailerBank extends RetailerBank {
 export interface RetailerFullProfile {
   id: string;
   _id?: string;
+  retailerId?: string | null;
   mobile: string;
   isMobileVerified: boolean;
   email: string;

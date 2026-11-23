@@ -271,6 +271,14 @@ export default function AdminFundRequest() {
       await approveFundRequest(request._id, { adminNotes: adminNotes.trim() || undefined });
       showToast("success", "Fund request approved successfully");
       setAdminNotes("");
+      setShowViewModal((prev) =>
+        prev.request?._id === request._id
+          ? { ...prev, request: { ...prev.request, status: "APPROVED" } }
+          : prev
+      );
+      setFundRequests((prev) =>
+        prev.map((r) => (r._id === request._id ? { ...r, status: "APPROVED" } : r))
+      );
       await fetchFundRequests();
       await fetchStats();
     } catch (err: unknown) {
@@ -297,6 +305,17 @@ export default function AdminFundRequest() {
       setShowRejectModal({ open: false, request: null });
       setRejectionReason("");
       setAdminNotes("");
+      const rejectedId = showRejectModal.request?._id;
+      setShowViewModal((prev) =>
+        prev.request && prev.request._id === rejectedId
+          ? { ...prev, request: { ...prev.request, status: "REJECTED" } }
+          : prev
+      );
+      if (rejectedId) {
+        setFundRequests((prev) =>
+          prev.map((r) => (r._id === rejectedId ? { ...r, status: "REJECTED" } : r))
+        );
+      }
       await fetchFundRequests();
       await fetchStats();
     } catch (err: unknown) {

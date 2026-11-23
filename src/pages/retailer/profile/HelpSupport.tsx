@@ -41,6 +41,7 @@ type Ticket = {
   response?: string;
   priority: string;
   createdAt: string;
+  updatedAt: string;
 };
 
 type FaqCategory =
@@ -427,6 +428,7 @@ const HelpSupport = () => {
             response: undefined,
             priority: ticket.priority,
             createdAt: ticket.createdAt,
+            updatedAt: ticket.updatedAt,
           })
         );
 
@@ -502,6 +504,7 @@ const HelpSupport = () => {
         response: undefined,
         priority: response.data.priority,
         createdAt: response.data.createdAt,
+        updatedAt: response.data.updatedAt,
       };
 
       setTickets((prev) => [newTicket, ...prev]);
@@ -1192,35 +1195,28 @@ const HelpSupport = () => {
                   SUPPORT RESPONSE
               ================================================== */}
 
-              {selectedTicket.response ? (
+              {new Date(selectedTicket.updatedAt).getTime() >
+              new Date(selectedTicket.createdAt).getTime() ? (
                 <>
                   <h4 className="mt-6 text-lg font-bold text-[#20a873]">
-                    Support Team Response
+                    Ticket Status
                   </h4>
 
                   <div className="mt-5 rounded-[20px] border border-[#b9e8d4] bg-[#eefbf5] px-6 py-6 sm:px-7 sm:py-7">
 
                     <p className="text-sm leading-6 text-[#172033] sm:text-base">
-                      {selectedTicket.response}
+                      Your ticket status has been updated to{" "}
+                      <span className="font-bold">{selectedTicket.status}</span>.
+                      {selectedTicket.status === "Resolved"
+                        ? " This ticket has been resolved."
+                        : selectedTicket.status === "In Progress"
+                          ? " Our team is working on your ticket."
+                          : ""}
                     </p>
 
                   </div>
                 </>
-              ) : (
-                <>
-                  <h4 className="mt-6 text-lg font-bold text-[#687286]">
-                    Support Team Response
-                  </h4>
-
-                  <div className="mt-5 rounded-[20px] border border-[#e4e6eb] bg-[#f8f9fb] px-6 py-6 sm:px-7 sm:py-7">
-
-                    <p className="text-sm leading-6 text-[#687286] sm:text-base">
-                      No response yet. Our team is working on your ticket.
-                    </p>
-
-                  </div>
-                </>
-              )}
+              ) : null}
 
               {/* ==================================================
                   CLOSE

@@ -31,6 +31,7 @@ import BankDetails from "../pages/retailer/profile/BankDetails";
 import Settlements from "../pages/retailer/profile/Settlements";
 import SecuritySettings from "../pages/retailer/profile/SecuritySettings";
 import HelpSupport from "../pages/retailer/profile/HelpSupport";
+import RetailerCertificate from "../pages/retailer/profile/RetailerCertificate";
 import Wallet from "../pages/retailer/wallet/Wallet";
 import FundRequest from "../pages/retailer/fund-request/FundRequest";
 import RetailerNotifications from "../pages/retailer/notifications/RetailerNotifications";
@@ -249,6 +250,12 @@ const Router: RouteObject[] = [
           {
             path: "profile/support",
             element: <HelpSupport />,
+          },
+
+          // RETAILER CERTIFICATE
+          {
+            path: "certificate",
+            element: <RetailerCertificate />,
           },
 
           // NOTIFICATIONS

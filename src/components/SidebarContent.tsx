@@ -21,6 +21,7 @@ import {
   Bell,
   Crown,
   IndianRupee,
+  Award,
 } from "lucide-react";
 
 interface SidebarContentProps {
@@ -217,6 +218,13 @@ const SidebarContent = ({
             icon={<Crown />}
             active={location.pathname.startsWith("/retailer/plans")}
             onClick={() => goTo("/retailer/plans")}
+          />
+
+          <SidebarItem
+            label="Certificate"
+            icon={<Award />}
+            active={isActive("/retailer/certificate")}
+            onClick={() => goTo("/retailer/certificate")}
           />
 
           <SidebarItem
