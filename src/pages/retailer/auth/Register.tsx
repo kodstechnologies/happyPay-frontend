@@ -203,6 +203,30 @@ const RetailerRegister = ({
     };
   }, [retailerUserId]);
 
+  // Restore the user's last completed step on refresh (only when no ?step= param is present)
+  const restoredStepUserRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!registrationData || stepParam || !retailerUserId) return;
+    if (restoredStepUserRef.current === retailerUserId) return;
+    restoredStepUserRef.current = retailerUserId;
+
+    // Backend currentRegistrationStep = last completed step; resume on the next one.
+    const backendStep = String(registrationData.currentRegistrationStep || "ACCOUNT").toUpperCase();
+    const stepMap: Record<string, number> = {
+      ACCOUNT: 1,
+      SHOP_DETAILS: 2,
+      ABOUT: 3,
+      AADHAAR_DETAILS: 4,
+      SUBMITTED: 4,
+    };
+
+    let target = stepMap[backendStep] ?? 0;
+    if (!registrationData.isMobileVerified) target = 0;
+    if (registrationData.registrationStatus === "COMPLETED") target = steps.length - 1;
+
+    setCurrentStep(target);
+  }, [registrationData, stepParam, retailerUserId]);
+
   /*
    * ==========================================================
    * NAVIGATION
