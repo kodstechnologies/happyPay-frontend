@@ -1,6 +1,6 @@
 import { showToast } from "../../../../utils/toast";
 import { useState, useEffect } from "react";
-import { User, Store, ChevronDown, Loader2 } from "lucide-react";
+import { User, Store, ChevronDown, Loader2, Navigation } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import type { ModalSize } from "../../../../components/common/ModalWrapper";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
@@ -81,6 +81,12 @@ export default function EditProfileModal({
   const [completeAddress, setCompleteAddress] = useState(
     profile.shop?.completeAddress || ""
   );
+  const [latitude, setLatitude] = useState(
+    profile.shop?.location?.latitude != null ? String(profile.shop.location.latitude) : ""
+  );
+  const [longitude, setLongitude] = useState(
+    profile.shop?.location?.longitude != null ? String(profile.shop.location.longitude) : ""
+  );
 
   // State/District dropdown data
   const [stateList, setStateList] = useState<UpiState[]>([]);
@@ -95,6 +101,27 @@ export default function EditProfileModal({
   const [proofTypes, setProofTypes] = useState<MasterDataItem[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      showToast("error", "Geolocation not supported by this browser.");
+      return;
+    }
+    setIsDetectingLocation(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(pos.coords.latitude.toFixed(6));
+        setLongitude(pos.coords.longitude.toFixed(6));
+        setIsDetectingLocation(false);
+        showToast("success", "Location detected successfully.");
+      },
+      (err) => {
+        setIsDetectingLocation(false);
+        showToast("error", "Location error: " + err.message);
+      }
+    );
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -284,6 +311,8 @@ export default function EditProfileModal({
         districtCode: districtCode.trim(),
         pincode: pincode.trim(),
         completeAddress: completeAddress.trim() || undefined,
+        latitude: latitude.trim() !== "" ? Number(latitude) : undefined,
+        longitude: longitude.trim() !== "" ? Number(longitude) : undefined,
       };
 
       const response = await updateRetailerProfile(payload);
@@ -743,6 +772,55 @@ export default function EditProfileModal({
                 className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
                 placeholder="Enter shop complete street address"
               />
+            </div>
+
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Shop Location (Coordinates)
+                </label>
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={isDetectingLocation}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-[#7c3aed] hover:text-[#6d28d9] transition disabled:opacity-50"
+                >
+                  {isDetectingLocation ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Navigation className="h-3 w-3" />
+                  )}
+                  <span>{isDetectingLocation ? "Detecting..." : "Detect via GPS"}</span>
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                    Latitude (-90 to 90)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={latitude}
+                    onChange={(e) => setLatitude(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                    placeholder="e.g. 28.6139"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                    Longitude (-180 to 180)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={longitude}
+                    onChange={(e) => setLongitude(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs text-slate-900 focus:border-[#7c3aed] focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                    placeholder="e.g. 77.2090"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
