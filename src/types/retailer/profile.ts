@@ -47,6 +47,7 @@ export interface RetailerBank {
   _id?: string;
   bank_id?: string | number;
   bank_code?: string;
+  bankMasterId?: string | null;
   name: string;
   ifscCode: string;
   accountNumber: string;

@@ -262,7 +262,10 @@ export default function Profile() {
         pendingBank._id,
         {
           bankName: pendingBank.name,
-          bank_code: pendingBank.bank_code,
+          // Clear stale bank_code when a BankMaster link exists so the
+          // master-resolved payout code is used instead.
+          bank_code: pendingBank.bankMasterId ? "" : pendingBank.bank_code,
+          bankMasterId: pendingBank.bankMasterId || undefined,
           ifscCode: pendingBank.ifscCode,
           accountNumber: pendingBank.accountNumber,
           branchName: pendingBank.branchName,

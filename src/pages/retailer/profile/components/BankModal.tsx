@@ -10,14 +10,13 @@ import {
   Search,
   Check,
   ChevronDown,
-  Loader2,
   X,
   Eye,
   EyeOff,
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
 import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
-import { getSettlementBankList, type SettlementBank } from "../../../../services/api/retailer/retailerAuthApi";
+import { getBankMasterList, type BankMasterItem } from "../../../../services/api/retailer/retailerAuthApi";
 import type {
   RetailerBank,
   RetailerFullProfile,
@@ -32,8 +31,6 @@ interface BankModalProps {
   onDeleteRequest?: (bank: RetailerBank) => void;
   size?: "sm" | "md" | "lg" | "xl" | "2xl";
 }
-
-const BANKS_PER_PAGE = 50;
 
 export default function BankModal({
   open,
@@ -50,6 +47,9 @@ export default function BankModal({
   const [bank_id, setBankId] = useState<string | number | undefined>(
     bankToEdit?.bank_code || bankToEdit?.bank_id
   );
+  const [bankMasterId, setBankMasterId] = useState<string | undefined>(
+    bankToEdit?.bankMasterId || undefined
+  );
   const [accountNumber, setAccountNumber] = useState(bankToEdit?.accountNumber || "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState(
     bankToEdit?.accountNumber || ""
@@ -60,11 +60,8 @@ export default function BankModal({
     Boolean(bankToEdit?.isPrimary) || isOnlyBank
   );
 
-  const [availableBanks, setAvailableBanks] = useState<SettlementBank[]>([]);
+  const [availableBanks, setAvailableBanks] = useState<BankMasterItem[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [bankSearch, setBankSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -106,14 +103,21 @@ export default function BankModal({
     if (!open) return;
 
     let ignore = false;
-    getSettlementBankList(1, BANKS_PER_PAGE)
+    getBankMasterList()
       .then((res) => {
         if (ignore) return;
         if (res?.success && res.data) {
-          setAvailableBanks(res.data);
-          const meta = res.meta as unknown as { totalPages?: number } | undefined;
-          if (meta?.totalPages) {
-            setTotalPages(meta.totalPages);
+          const banks = res.data as BankMasterItem[];
+          setAvailableBanks(banks);
+
+          // Pre-link existing bank to its BankMaster record when editing
+          if (isEdit && !bankToEdit?.bankMasterId && bankToEdit?.name) {
+            const matched = banks.find(
+              (b) => b.bankName.toLowerCase() === bankToEdit.name.trim().toLowerCase()
+            );
+            if (matched) {
+              setBankMasterId(matched._id);
+            }
           }
         }
       })
@@ -131,6 +135,7 @@ export default function BankModal({
     return () => {
       ignore = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   useEffect(() => {
@@ -143,43 +148,19 @@ export default function BankModal({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLoadMoreBanks = async () => {
-    if (currentPage < totalPages && !loadingMore) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      setLoadingMore(true);
-      try {
-        const res = await getSettlementBankList(nextPage, BANKS_PER_PAGE);
-        if (res?.success && res.data) {
-          setAvailableBanks((prev) => {
-            const existing = new Set(prev.map((b) => b.code));
-            const next = res.data.filter((b) => !existing.has(b.code));
-            return [...prev, ...next];
-          });
-          const meta = res.meta as unknown as { totalPages?: number } | undefined;
-          if (meta?.totalPages) {
-            setTotalPages(meta.totalPages);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to load more banks in BankModal:", err);
-      } finally {
-        setLoadingMore(false);
-      }
-    }
-  };
-
-  const handleBankSelect = (bank: SettlementBank) => {
-    setBankName(bank.description);
-    setBankId(bank.code);
+  const handleBankSelect = (bank: BankMasterItem) => {
+    setBankName(bank.bankName);
+    setBankId(bank.bankId ?? bank.iin ?? undefined);
+    setBankMasterId(bank._id);
     setIsDropdownOpen(false);
     setBankSearch("");
-    
   };
 
-  const filteredBanks = availableBanks.filter((b) =>
-    b.description.toLowerCase().includes(bankSearch.toLowerCase()) ||
-    b.code.toLowerCase().includes(bankSearch.toLowerCase())
+  const filteredBanks = availableBanks.filter(
+    (b) =>
+      b.bankName.toLowerCase().includes(bankSearch.toLowerCase()) ||
+      (b.iin || "").toLowerCase().includes(bankSearch.toLowerCase()) ||
+      (b.bankId || "").toLowerCase().includes(bankSearch.toLowerCase())
   );
 
   if (!open) return null;
@@ -217,18 +198,38 @@ export default function BankModal({
     try {
       setIsSubmitting(true);
 
-      const effectiveBankCode =
+      // When a BankMaster bank is selected, the payout bank code is resolved
+      // server-side via bankMasterId — send an empty bank_code so any stale
+      // stored code is cleared and cannot take precedence over the master.
+      const matchedMaster = bankMasterId
+        ? bankMasterId
+        : availableBanks.find(
+            (b) => b.bankName.toLowerCase() === bankName.trim().toLowerCase()
+          )?._id;
+
+      const hasMasterSelection = Boolean(matchedMaster);
+      const legacyBankCode =
         bank_id !== undefined && bank_id !== null && bank_id !== ""
           ? String(bank_id)
           : availableBanks.find(
-              (b) => b.description.toLowerCase() === bankName.trim().toLowerCase()
-            )?.code;
+              (b) => b.bankName.toLowerCase() === bankName.trim().toLowerCase()
+            )?.bankId ??
+            availableBanks.find(
+              (b) => b.bankName.toLowerCase() === bankName.trim().toLowerCase()
+            )?.iin;
 
       const payload: Record<string, unknown> = {
         action: isEdit ? "EDIT_BANK" : "ADD_BANK",
         bankId: bankToEdit?._id,
         bankName: bankName.trim(),
-        bank_code: effectiveBankCode ? String(effectiveBankCode) : undefined,
+        bankMasterId: matchedMaster || undefined,
+        // Empty string clears a stale stored bank_code on edit so the
+        // BankMaster-resolved payout code is used instead.
+        bank_code: hasMasterSelection
+          ? ""
+          : legacyBankCode
+            ? String(legacyBankCode)
+            : undefined,
         accountNumber: accountNumber,
         confirmAccountNumber: confirmAccountNumber,
         ifscCode: ifscCode,
@@ -308,6 +309,8 @@ export default function BankModal({
                     onClick={(e) => {
                       e.stopPropagation();
                       setBankName("");
+                      setBankMasterId(undefined);
+                      setBankId(undefined);
                     }}
                     className="p-0.5 text-slate-400 hover:text-slate-600"
                     title="Clear selection"
@@ -353,20 +356,20 @@ export default function BankModal({
                   <div className="max-h-52 overflow-y-auto">
                     {filteredBanks.map((bank) => (
                       <button
-                        key={bank.code || bank.description}
+                        key={bank._id}
                         type="button"
                         onClick={() => handleBankSelect(bank)}
                         className={`flex w-full items-center justify-between px-3.5 py-2 text-left text-xs font-medium transition ${
-                          bankName === bank.description
+                          bankMasterId === bank._id || bankName === bank.bankName
                             ? "bg-purple-50 text-[#7c3aed] font-bold"
                             : "text-slate-700 hover:bg-slate-50"
                         }`}
                       >
                         <div className="flex items-center gap-2 truncate">
                           <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{bank.description}</span>
+                          <span className="truncate">{bank.bankName}</span>
                         </div>
-                        {bankName === bank.description && (
+                        {(bankMasterId === bank._id || bankName === bank.bankName) && (
                           <Check className="h-3.5 w-3.5 text-[#7c3aed] shrink-0" strokeWidth={2.5} />
                         )}
                       </button>
@@ -378,29 +381,6 @@ export default function BankModal({
                       </div>
                     )}
 
-                    {/* Pagination: Load More */}
-                    {currentPage < totalPages && (
-                      <div className="border-t border-slate-100 p-2 text-center bg-slate-50/60">
-                        <button
-                          type="button"
-                          onClick={handleLoadMoreBanks}
-                          disabled={loadingMore}
-                          className="inline-flex items-center justify-center gap-1.5 w-full py-1 text-xs font-bold text-[#7c3aed] hover:underline disabled:opacity-50"
-                        >
-                          {loadingMore ? (
-                            <>
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              <span>Loading more banks...</span>
-                            </>
-                          ) : (
-                            <>
-                              <ChevronDown className="h-3.5 w-3.5" />
-                              <span>Load more banks ({availableBanks.length} loaded · Page {currentPage}/{totalPages})</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
