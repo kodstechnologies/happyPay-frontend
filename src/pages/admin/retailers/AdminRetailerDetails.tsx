@@ -1417,36 +1417,36 @@ export default function AdminRetailerDetails() {
                             </div>
 
                             <div className="flex items-center gap-1.5">
-                              {doc.status !== "approved" && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleApproveDoc(doc.id)}
-                                  disabled={processingDocId === doc.id}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  {processingDocId === doc.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <CheckCircle className="h-3.5 w-3.5" />
-                                  )}
-                                  Approve
-                                </button>
-                              )}
-                              {doc.status !== "rejected" && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setRejectingDoc(doc);
-                                    setIsRejectingRetailer(false);
-                                    setRejectionReason("");
-                                    setRejectionReasonError("");
-                                  }}
-                                  disabled={processingDocId === doc.id}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <XCircle className="h-3.5 w-3.5" />
-                                  Reject
-                                </button>
+                              {doc.status === "pending" && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveDoc(doc.id)}
+                                    disabled={processingDocId === doc.id}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    {processingDocId === doc.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-3.5 w-3.5" />
+                                    )}
+                                    Approve
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRejectingDoc(doc);
+                                      setIsRejectingRetailer(false);
+                                      setRejectionReason("");
+                                      setRejectionReasonError("");
+                                    }}
+                                    disabled={processingDocId === doc.id}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                  >
+                                    <XCircle className="h-3.5 w-3.5" />
+                                    Reject
+                                  </button>
+                                </>
                               )}
                               {doc.status === "approved" && (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -2073,36 +2073,36 @@ export default function AdminRetailerDetails() {
                 })()}
               </div>
               <div className="flex items-center gap-2">
-                {viewingDoc.status !== "approved" && (
-                  <button
-                    type="button"
-                    onClick={() => handleApproveDoc(viewingDoc.id)}
-                    disabled={processingDocId === viewingDoc.id}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {processingDocId === viewingDoc.id ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <CheckCircle className="h-3.5 w-3.5" />
-                    )}
-                    Approve Document
-                  </button>
-                )}
-                {viewingDoc.status !== "rejected" && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRejectingDoc(viewingDoc);
-                      setIsRejectingRetailer(false);
-                      setRejectionReason("");
-                      setRejectionReasonError("");
-                    }}
-                    disabled={processingDocId === viewingDoc.id}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Reject Document
-                  </button>
+                {viewingDoc.status === "pending" && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleApproveDoc(viewingDoc.id)}
+                      disabled={processingDocId === viewingDoc.id}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {processingDocId === viewingDoc.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle className="h-3.5 w-3.5" />
+                      )}
+                      Approve Document
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRejectingDoc(viewingDoc);
+                        setIsRejectingRetailer(false);
+                        setRejectionReason("");
+                        setRejectionReasonError("");
+                      }}
+                      disabled={processingDocId === viewingDoc.id}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <XCircle className="h-3.5 w-3.5" />
+                      Reject Document
+                    </button>
+                  </>
                 )}
               </div>
             </div>
