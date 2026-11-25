@@ -170,18 +170,23 @@ export default function Profile() {
   const [bankModalState, setBankModalState] = useState<{
     open: boolean;
     bankToEdit?: RetailerBank | null;
-  }>({ open: false, bankToEdit: null });
+    resubmitBankId?: string | null;
+  }>({ open: false, bankToEdit: null, resubmitBankId: null });
   const [settingPrimaryBankId, setSettingPrimaryBankId] = useState<string | null>(null);
   const [deletingBank, setDeletingBank] = useState<RetailerBank | null>(null);
   const [isDeletingBank, setIsDeletingBank] = useState(false);
   const [resubmittingBank, setResubmittingBank] = useState<PendingRetailerBank | null>(null);
 
   const handleOpenAddBank = () => {
-    setBankModalState({ open: true, bankToEdit: null });
+    setBankModalState({ open: true, bankToEdit: null, resubmitBankId: null });
   };
 
   const handleOpenEditBank = (bank: RetailerBank) => {
-    setBankModalState({ open: true, bankToEdit: bank });
+    setBankModalState({ open: true, bankToEdit: bank, resubmitBankId: null });
+  };
+
+  const handleOpenResubmitBank = (bank: PendingRetailerBank) => {
+    setBankModalState({ open: true, bankToEdit: bank, resubmitBankId: bank._id || null });
   };
 
   const handleBankUpdated = (updated?: RetailerFullProfile) => {
@@ -190,7 +195,9 @@ export default function Profile() {
     } else {
       refreshProfile();
     }
-    showToast("success", bankModalState.bankToEdit
+    showToast("success", bankModalState.resubmitBankId
+        ? "Bank account resubmitted for approval."
+        : bankModalState.bankToEdit
         ? "Bank account details updated successfully."
         : "Bank account submitted for approval. It will be active once approved by admin."
     );
@@ -1272,7 +1279,7 @@ export default function Profile() {
                                   )}
                                 </div>
 
-                                <div className="mt-3 border-t border-rose-200/50 pt-3">
+                                <div className="mt-3 border-t border-rose-200/50 pt-3 space-y-2">
                                   <button
                                     type="button"
                                     disabled={resubmittingBank?._id === bank._id}
@@ -1290,6 +1297,14 @@ export default function Profile() {
                                         <span>Resubmit for Approval</span>
                                       </>
                                     )}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResubmitBank(bank)}
+                                    className="w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-rose-300 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition"
+                                  >
+                                    <Edit3 className="h-3 w-3" />
+                                    <span>Edit Details & Resubmit</span>
                                   </button>
                                 </div>
                               </div>
@@ -1495,10 +1510,11 @@ export default function Profile() {
         {/* Bank Add / Edit Modal */}
         {bankModalState.open && (
           <BankModal
-            key={bankModalState.bankToEdit?._id || "new-bank"}
+            key={`${bankModalState.bankToEdit?._id || "new-bank"}-${bankModalState.resubmitBankId || "edit"}`}
             open={bankModalState.open}
-            onClose={() => setBankModalState({ open: false, bankToEdit: null })}
+            onClose={() => setBankModalState({ open: false, bankToEdit: null, resubmitBankId: null })}
             bankToEdit={bankModalState.bankToEdit}
+            resubmitBankId={bankModalState.resubmitBankId}
             isOnlyBank={Boolean(!profile?.banks || profile.banks.length <= 1)}
             onSuccess={handleBankUpdated}
             onDeleteRequest={(bank) => setDeletingBank(bank)}

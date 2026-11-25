@@ -15,7 +15,7 @@ import {
   EyeOff,
 } from "lucide-react";
 import Modal from "../../../../components/common/Modal";
-import { updateRetailerProfile } from "../../../../services/api/retailer/retailerProfileApi";
+import { updateRetailerProfile, resubmitBank } from "../../../../services/api/retailer/retailerProfileApi";
 import { getBankMasterList, type BankMasterItem } from "../../../../services/api/retailer/retailerAuthApi";
 import type {
   RetailerBank,
@@ -26,6 +26,7 @@ interface BankModalProps {
   open: boolean;
   onClose: () => void;
   bankToEdit?: RetailerBank | null;
+  resubmitBankId?: string | null;
   isOnlyBank?: boolean;
   onSuccess: (updatedProfile?: RetailerFullProfile) => void;
   onDeleteRequest?: (bank: RetailerBank) => void;
@@ -36,12 +37,14 @@ export default function BankModal({
   open,
   onClose,
   bankToEdit,
+  resubmitBankId = null,
   isOnlyBank = false,
   onSuccess,
   onDeleteRequest,
   size = "md",
 }: BankModalProps) {
-  const isEdit = Boolean(bankToEdit);
+  const isResubmit = Boolean(resubmitBankId);
+  const isEdit = Boolean(bankToEdit) && !isResubmit;
 
   const [bankName, setBankName] = useState(bankToEdit?.name || "");
   const [bank_id, setBankId] = useState<string | number | undefined>(
@@ -111,7 +114,7 @@ export default function BankModal({
           setAvailableBanks(banks);
 
           // Pre-link existing bank to its BankMaster record when editing
-          if (isEdit && !bankToEdit?.bankMasterId && bankToEdit?.name) {
+          if (bankToEdit && !bankToEdit?.bankMasterId && bankToEdit?.name) {
             const matched = banks.find(
               (b) => b.bankName.toLowerCase() === bankToEdit.name.trim().toLowerCase()
             );
@@ -218,6 +221,24 @@ export default function BankModal({
               (b) => b.bankName.toLowerCase() === bankName.trim().toLowerCase()
             )?.iin;
 
+      if (isResubmit && resubmitBankId) {
+        const res = await resubmitBank(resubmitBankId, {
+          bankName: bankName.trim(),
+          bank_code: hasMasterSelection ? "" : legacyBankCode ? String(legacyBankCode) : undefined,
+          bankMasterId: matchedMaster || undefined,
+          ifscCode: ifscCode,
+          accountNumber: accountNumber,
+          branchName: branchName.trim(),
+        });
+        if (res && (res.success || res.data)) {
+          onSuccess(res.data);
+          onClose();
+        } else {
+          throw new Error(res?.message || "Failed to resubmit bank account.");
+        }
+        return;
+      }
+
       const payload: Record<string, unknown> = {
         action: isEdit ? "EDIT_BANK" : "ADD_BANK",
         bankId: bankToEdit?._id,
@@ -256,16 +277,26 @@ export default function BankModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={isEdit ? "Edit Bank Account" : "Add Bank Account"}
+      title={
+        isResubmit
+          ? "Edit & Resubmit Bank Account"
+          : isEdit
+            ? "Edit Bank Account"
+            : "Add Bank Account"
+      }
       description={
-        isEdit
-          ? "Update your settlement account details"
-          : "Link a new account for instant settlement payouts"
+        isResubmit
+          ? "Correct the rejected bank details and resubmit for admin approval"
+          : isEdit
+            ? "Update your settlement account details"
+            : "Link a new account for instant settlement payouts"
       }
       icon={Building2}
       size={size}
       formId="bank-account-modal-form"
-      submitLabel={isEdit ? "Save Changes" : "Link Bank Account"}
+      submitLabel={
+        isResubmit ? "Resubmit for Approval" : isEdit ? "Save Changes" : "Link Bank Account"
+      }
       isSubmitting={isSubmitting}
       onDelete={
         isEdit && onDeleteRequest && !isOnlyBank
@@ -514,6 +545,7 @@ export default function BankModal({
           </div>
 
           {/* Primary Bank Toggle */}
+          {!isResubmit && (
           <div className="rounded-2xl border border-purple-100 bg-gradient-to-r from-purple-50/60 to-white p-3.5 transition">
             <label className="flex items-start gap-3 cursor-pointer select-none">
               <input
@@ -540,6 +572,7 @@ export default function BankModal({
               </div>
             </label>
           </div>
+          )}
 
           {/* Compliance note */}
           <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-1">
