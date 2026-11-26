@@ -564,6 +564,24 @@ const Aeps = () => {
       const actualErrorMsg = getErrorMessage(err, "Failed to check eKYC status");
       const prompt = readEkycPrompt(err);
 
+      // Provider may return "already completed" wrapped as an error
+      // (action: NO-ACTION-REQUIRED / status: APPROVED). Treat as done.
+      const errPayload = JSON.stringify(err);
+      const alreadyCompletedAtBank =
+        /"action"\s*:\s*"NO-ACTION-REQUIRED"/i.test(errPayload) ||
+        /"status"\s*:\s*"APPROVED"/i.test(errPayload) ||
+        actualErrorMsg.toLowerCase().includes("already completed") ||
+        actualErrorMsg.toLowerCase().includes("no action required");
+
+      if (alreadyCompletedAtBank) {
+        setBioKycCompletedLocally(true);
+        setBioKycError("");
+        if (refreshUser) {
+          void refreshUser();
+        }
+        return;
+      }
+
       if (actualErrorMsg) {
         setBioKycError(actualErrorMsg);
       }
@@ -2447,7 +2465,7 @@ const Aeps = () => {
         )}
 
         {/* Biometric eKYC Action Banner (Visible when NOT loading auth, ONBOARDED, and Bio KYC NOT done or PENDING) */}
-        {!isAuthLoading && isOnboarded && (!isBioKycDone || isBioKycPending) && (
+        {!isAuthLoading && isOnboarded && !isBioKycDone && (
           <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3.5">

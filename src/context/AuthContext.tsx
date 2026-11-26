@@ -35,6 +35,17 @@ export const getAuthUser = (): RetailerUser | null => inMemoryAuthUser;
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const resolveUserRoleName = (data: RetailerUser | null | undefined): string | null => {
+  if (data?.role?.name) {
+    return data.role.name;
+  }
+  const roles = Array.isArray(data?.roles) ? data.roles : [];
+  if (roles.includes("distributor")) {
+    return "distributor";
+  }
+  return roles[0] || null;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Pure in-memory React state (zero user data in localStorage)
   const [user, setUserState] = useState<RetailerUser | null>(null);
@@ -111,8 +122,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await getAuthenticatedRetailer();
       if (res?.data) {
         setUser(res.data);
-        if (res.data?.role?.name) {
-          localStorage.setItem("userRole", res.data.role.name);
+        const roleName = resolveUserRoleName(res.data);
+        if (roleName) {
+          localStorage.setItem("userRole", roleName);
         }
         setIsAuthenticated(true);
         applyWalletLock(res.data);
@@ -176,8 +188,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (res?.data) {
           inMemoryAuthUser = res.data;
           setUserState(res.data);
-          if (res.data?.role?.name) {
-            localStorage.setItem("userRole", res.data.role.name);
+          const roleName = resolveUserRoleName(res.data);
+          if (roleName) {
+            localStorage.setItem("userRole", roleName);
           }
           setIsAuthenticated(true);
           applyWalletLock(res.data);

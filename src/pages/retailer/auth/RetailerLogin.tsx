@@ -202,8 +202,12 @@ const RetailerLogin = () => {
       setTokens(accessToken, refreshToken);
       localStorage.setItem("token", accessToken);
       localStorage.setItem("role", "retailer");
-      if (role?.name) {
-        localStorage.setItem("userRole", role.name);
+      const userRoles = Array.isArray(user?.roles) ? user.roles : [];
+      const resolvedRoleName =
+        role?.name ||
+        (userRoles.includes("distributor") ? "distributor" : userRoles[0]);
+      if (resolvedRoleName) {
+        localStorage.setItem("userRole", resolvedRoleName);
       }
       login(user as any);
       setOtpVerified(true);
