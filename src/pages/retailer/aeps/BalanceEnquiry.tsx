@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Banknote, ArrowLeft, IdCard, Fingerprint, Phone, Building2, ChevronDown, X } from "lucide-react";
 import { balanceEnquiry } from "../../../services/api/retailer/aepsApi";
 import { getToken } from "../../../utils/auth";
+import { useAuth } from "../../../context/AuthContext";
 import { mfs110Service } from "../../../services/bimetric/mfs110.service";
 import { ensureConfirmedLocation } from "../../../utils/geolocation";
 import { parsePidXml } from "../../../services/api/retailer/aepsApi";
@@ -21,6 +22,7 @@ interface Bank {
 }
 
 const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
+  const { user: authUser } = useAuth();
   const [aadhaarNumber, setAadhaarNumber] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
@@ -134,15 +136,20 @@ const BalanceEnquiry = ({ onBack }: BalanceEnquiryProps) => {
 
       // Decode JWT token to get outletId and referenceKey
       const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-      const referenceKey = tokenPayload.referenceKey || "";
+      const outletId =
+        authUser?.AepsEkyc?.outletId ||
+        authUser?.outletId ||
+        tokenPayload.outletId ||
+        tokenPayload.outletid ||
+        "";
+      const referenceKey =
+        authUser?.AepsEkyc?.referenceKey ||
+        authUser?.referenceKey ||
+        tokenPayload.referenceKey ||
+        "";
 
       if (!outletId) {
         throw new Error("Outlet ID is missing from your account. Please complete eKYC first.");
-      }
-
-      if (!referenceKey) {
-        throw new Error("Reference key is missing from your account. Please complete eKYC first.");
       }
 
       // Obtain genuine geolocation (gatekeeper)

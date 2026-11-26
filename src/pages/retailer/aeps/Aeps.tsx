@@ -393,6 +393,7 @@ const Aeps = () => {
   const [bioKycReferenceKey, setBioKycReferenceKey] = useState<string>("");
   const bioKycRefKeyRef = useRef<string>("");
   const hasCheckedKycRef = useRef<boolean>(false);
+  const hasSyncedRefKeyRef = useRef<boolean>(false);
   const [bioKycError, setBioKycError] = useState<string>("");
   const [bioKycSuccess, setBioKycSuccess] = useState<string>("");
   // Bank Outlet Registration States
@@ -480,6 +481,29 @@ const Aeps = () => {
     [onboardedOutletId, authUserOutletId, authUserAepsOutletId, tokenOutletId, ekycPrompt?.outletId]
   );
 
+  // Helper to resolve effective referenceKey across authUser, state, prompt, and JWT token
+  const getEffectiveReferenceKey = useCallback((): string => {
+    let tokenRefKey = "";
+    const currentToken = getToken();
+    if (currentToken) {
+      try {
+        const tokenPayload = JSON.parse(atob(currentToken.split(".")[1]));
+        tokenRefKey = tokenPayload.referenceKey || "";
+      } catch {
+        // ignore
+      }
+    }
+
+    const candidate =
+      authUser?.AepsEkyc?.referenceKey ||
+      authUser?.referenceKey ||
+      bioKycReferenceKey ||
+      ekycPrompt?.referenceKey ||
+      tokenRefKey ||
+      "";
+    return candidate ? String(candidate).trim() : "";
+  }, [authUser, bioKycReferenceKey, ekycPrompt?.referenceKey]);
+
   // Check eKYC status from server ONLY if onboarded and NOT yet completed in DB
   const checkKycStatus = useCallback(async (forcedOutletId?: string) => {
     // If already completed in database or session, do NOT call check API
@@ -538,105 +562,228 @@ const Aeps = () => {
 
         // If the error contains "aeps activation pending", use a more user-friendly message
         const lowerErrorMsg = errorMsg.toLowerCase();
-        if (lowerErrorMsg.includes("aeps activation pending") ||
-            lowerErrorMsg.includes("activation is pending") ||
-            lowerErrorMsg.includes("pending at the bank") ||
-            lowerErrorMsg.includes("pending from the bank")) {
+        if (
+          lowerErrorMsg.includes("aeps activation pending") ||
+          lowerErrorMsg.includes("activation is pending") ||
+          lowerErrorMsg.includes("pending at the bank") ||
+          lowerErrorMsg.includes("pending from the bank")
+        ) {
           setBioKycError("AEPS activation is pending from the bank.");
         } else {
           setBioKycError(errorMsg);
         }
       }
 
-      const isCompleted =
-        statusData?.eKYCStatus === "COMPLETED" ||
-        providerStatus === "NO-ACTION-REQUIRED" ||
-        statusData?.kycRequired === false;
+const isCompleted =
+  statusData?.eKYCStatus === "COMPLETED" ||
+  providerStatus === "NO-ACTION-REQUIRED" ||
+  statusData?.kycRequired === false;
 
-      if (isCompleted) {
-        setBioKycCompletedLocally(true);
-        if (refreshUser) {
-          void refreshUser();
-        }
-      }
+if (isCompleted) {
+  setBioKycCompletedLocally(true);
+  if (refreshUser) {
+    void refreshUser();
+  }
+}
     } catch (err: unknown) {
-      console.warn("[AePS] eKYC status check error:", err);
-      const actualErrorMsg = getErrorMessage(err, "Failed to check eKYC status");
-      const prompt = readEkycPrompt(err);
+  console.warn("[AePS] eKYC status check error:", err);
+  const actualErrorMsg = getErrorMessage(err, "Failed to check eKYC status");
+  const prompt = readEkycPrompt(err);
 
-      // Provider may return "already completed" wrapped as an error
-      // (action: NO-ACTION-REQUIRED / status: APPROVED). Treat as done.
-      const errPayload = JSON.stringify(err);
-      const alreadyCompletedAtBank =
-        /"action"\s*:\s*"NO-ACTION-REQUIRED"/i.test(errPayload) ||
-        /"status"\s*:\s*"APPROVED"/i.test(errPayload) ||
-        actualErrorMsg.toLowerCase().includes("already completed") ||
-        actualErrorMsg.toLowerCase().includes("no action required");
+  // Provider may return "already completed" wrapped as an error
+  // (action: NO-ACTION-REQUIRED / status: APPROVED). Treat as done.
+  const errPayload = JSON.stringify(err);
+  const alreadyCompletedAtBank =
+    /"action"\s*:\s*"NO-ACTION-REQUIRED"/i.test(errPayload) ||
+    /"status"\s*:\s*"APPROVED"/i.test(errPayload) ||
+    actualErrorMsg.toLowerCase().includes("already completed") ||
+    actualErrorMsg.toLowerCase().includes("no action required");
 
-      if (alreadyCompletedAtBank) {
-        setBioKycCompletedLocally(true);
-        setBioKycError("");
-        if (refreshUser) {
-          void refreshUser();
-        }
-        return;
-      }
-
-      if (actualErrorMsg) {
-        setBioKycError(actualErrorMsg);
-      }
-
-      setEkycPrompt((prev) => ({
-        message: actualErrorMsg || prompt.message || prev?.message || "Biometric authentication required",
-        outletId: prompt.outletId || prev?.outletId || "",
-        referenceKey: prompt.referenceKey || prev?.referenceKey || "",
-        pidOptionWadh: prompt.pidOptionWadh || prev?.pidOptionWadh || "",
-      }));
-
-      // Extract referenceKey & pidOptionWadh even if check-bio-kyc returned 400 (e.g. pending registration)
-      if (prompt.referenceKey) {
-        bioKycRefKeyRef.current = prompt.referenceKey;
-        setBioKycReferenceKey(prompt.referenceKey);
-        console.log("[AePS] Captured referenceKey from check bio kyc response:", prompt.referenceKey);
-      }
-    } finally {
-      setIsCheckingKyc(false);
+  if (alreadyCompletedAtBank) {
+    setBioKycCompletedLocally(true);
+    setBioKycError("");
+    if (refreshUser) {
+      void refreshUser();
     }
+    return;
+  }
+
+  if (actualErrorMsg) {
+    setBioKycError(actualErrorMsg);
+  }
+
+  setEkycPrompt((prev) => ({
+    message: actualErrorMsg || prompt.message || prev?.message || "Biometric authentication required",
+    outletId: prompt.outletId || prev?.outletId || "",
+    referenceKey: prompt.referenceKey || prev?.referenceKey || "",
+    pidOptionWadh: prompt.pidOptionWadh || prev?.pidOptionWadh || "",
+  }));
+
+  // Extract referenceKey & pidOptionWadh even if check-bio-kyc returned 400 (e.g. pending registration)
+  if (prompt.referenceKey) {
+    bioKycRefKeyRef.current = prompt.referenceKey;
+    setBioKycReferenceKey(prompt.referenceKey);
+    console.log("[AePS] Captured referenceKey from check bio kyc response:", prompt.referenceKey);
+  }
+} finally {
+  setIsCheckingKyc(false);
+}
   }, [isBioKycDone, authUser, getEffectiveOutletId, refreshUser]);
 
-  useEffect(() => {
-    // Wait for auth context to load from DB first; run check bio kyc strictly once
-    if (isAuthLoading || isBioKycDone || !isOnboarded || hasCheckedKycRef.current) return;
+useEffect(() => {
+  if (isAuthLoading || !isOnboarded) return;
 
+  // Wait for auth context to load from DB first; run check bio kyc strictly once
+  if (isAuthLoading || isBioKycDone || !isOnboarded || hasCheckedKycRef.current) return;
+  if (!isBioKycDone && !hasCheckedKycRef.current) {
     hasCheckedKycRef.current = true;
     void checkKycStatus();
-  }, [isAuthLoading, isBioKycDone, isOnboarded, checkKycStatus]);
+    return;
+  }
 
-  // Re-verify and request location permission on first entering AePS if not yet cached
-  useEffect(() => {
-    if (!hasValidCoordinates()) {
-      void initAepsLocation();
+  hasCheckedKycRef.current = true;
+  void checkKycStatus();
+}, [isAuthLoading, isBioKycDone, isOnboarded, checkKycStatus]);
+
+// If eKYC is already COMPLETED in DB but referenceKey is still missing (null),
+// silently sync it once from checkDoEkyc so transactions have a valid referenceKey.
+useEffect(() => {
+if (isBioKycDone && !getEffectiveReferenceKey() && !hasSyncedRefKeyRef.current) {
+  const effectiveOutletId = getEffectiveOutletId();
+  const userId = authUser?.id || authUser?._id;
+  if (!effectiveOutletId || !userId) return;
+
+  hasSyncedRefKeyRef.current = true;
+  checkDoEkyc(effectiveOutletId, userId)
+    .then((res) => {
+      const prompt = readEkycPrompt(res);
+      const syncedRefKey =
+        res?.data?.referenceKey ||
+        prompt.referenceKey ||
+        "";
+      if (syncedRefKey) {
+        bioKycRefKeyRef.current = syncedRefKey;
+        setBioKycReferenceKey(syncedRefKey);
+        if (refreshUser) {
+          void refreshUser();
+        }
+      }
+    })
+    .catch(() => {
+      // Non-fatal: backend transaction controllers also auto-resolve referenceKey
+    });
+}
+  }, [
+  isAuthLoading,
+  isBioKycDone,
+  isOnboarded,
+  checkKycStatus,
+  getEffectiveReferenceKey,
+  getEffectiveOutletId,
+  authUser,
+  refreshUser,
+]);
+
+// Re-verify and request location permission on first entering AePS if not yet cached
+useEffect(() => {
+  if (!hasValidCoordinates()) {
+    void initAepsLocation();
+  }
+}, []);
+
+// Real Biometric States
+const [availableDevices, setAvailableDevices] = useState<(import("../../../utils/rdService").ActiveDevice & {
+  model?: string;
+  serialNumber?: string;
+  detailedInfo?: string;
+})[]>([]);
+const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
+const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
+const [isScanningDevices, setIsScanningDevices] = useState(true);
+const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
+
+const handleScanDevices = async () => {
+  setIsScanningDevices(true);
+  setWithdrawalDeviceName("Scanning...");
+
+  try {
+    console.log("=== Starting Manual Device Scan ===");
+    const devices = await rdService.scanAllDevices();
+
+    // Enhanced device info gathering using getDeviceInfo
+    const enhancedDevices = await Promise.all(
+      devices.map(async (device) => {
+        try {
+          console.log(`Getting detailed info for device on port ${device.port}...`);
+          const deviceInfoResponse = await getDeviceInfo(device.port);
+          const deviceInfo = deviceInfoResponse.data;
+
+          // Extract more detailed device information
+          let enhancedName = device.name;
+          let deviceModel = "";
+          let serialNumber = "";
+
+          if (typeof deviceInfo === "string") {
+            // Extract device model from info attribute
+            const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
+            if (modelMatch) {
+              deviceModel = modelMatch[1];
+              enhancedName = `${deviceModel}`;
+            }
+
+            // Extract serial number
+            const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
+            if (serialMatch) {
+              serialNumber = serialMatch[1];
+            }
+
+            console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
+          }
+
+          return {
+            ...device,
+            name: enhancedName || device.name,
+            model: deviceModel,
+            serialNumber: serialNumber,
+            detailedInfo: deviceInfo
+          };
+        } catch (error) {
+          console.log(`Could not get detailed info for device on port ${device.port}:`, error);
+          return device; // Return original device info if detailed info fails
+        }
+      })
+    );
+
+    setAvailableDevices(enhancedDevices);
+
+    if (enhancedDevices.length > 0) {
+      setSelectedDevicePort(enhancedDevices[0].port);
+      setWithdrawalDeviceName(enhancedDevices[0].name);
+      console.log(`=== Scan Success: Found ${enhancedDevices.length} device(s) ===`);
+    } else {
+      setSelectedDevicePort(null);
+      setWithdrawalDeviceName("No device found");
+      console.log("=== Scan Complete: No devices found ===");
+      showToast("warning", "No biometric devices found. Please ensure RD Service is running and device is connected via USB.");
     }
-  }, []);
+  } catch (error) {
+    console.error("=== Device Scanning Failed ===", error);
+    setSelectedDevicePort(null);
+    setWithdrawalDeviceName("Scan failed");
+    showToast("error", error, "Device scan failed. Please check your RD service connection.");
+  }
 
-  // Real Biometric States
-  const [availableDevices, setAvailableDevices] = useState<(import("../../../utils/rdService").ActiveDevice & {
-    model?: string;
-    serialNumber?: string;
-    detailedInfo?: string;
-  })[]>([]);
-  const [selectedDevicePort, setSelectedDevicePort] = useState<number | null>(null);
-  const [withdrawalDeviceName, setWithdrawalDeviceName] = useState("Scanning...");
-  const [isScanningDevices, setIsScanningDevices] = useState(true);
-  const [isDeviceDropdownOpen, setIsDeviceDropdownOpen] = useState(false);
+  setIsScanningDevices(false);
+};
 
-  const handleScanDevices = async () => {
-    setIsScanningDevices(true);
-    setWithdrawalDeviceName("Scanning...");
+useEffect(() => {
+  let isMounted = true;
 
+  const scanAndEnhanceDevices = async () => {
     try {
-      console.log("=== Starting Manual Device Scan ===");
       const devices = await rdService.scanAllDevices();
+
+      if (!isMounted) return;
 
       // Enhanced device info gathering using getDeviceInfo
       const enhancedDevices = await Promise.all(
@@ -652,14 +799,14 @@ const Aeps = () => {
             let serialNumber = "";
 
             if (typeof deviceInfo === "string") {
-              // Extract device model from info attribute
+              // Extract device model from mi attribute
               const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
               if (modelMatch) {
                 deviceModel = modelMatch[1];
                 enhancedName = `${deviceModel}`;
               }
 
-              // Extract serial number
+              // Extract serial number from ci attribute
               const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
               if (serialMatch) {
                 serialNumber = serialMatch[1];
@@ -682,941 +829,952 @@ const Aeps = () => {
         })
       );
 
+      if (!isMounted) return;
+
       setAvailableDevices(enhancedDevices);
 
       if (enhancedDevices.length > 0) {
         setSelectedDevicePort(enhancedDevices[0].port);
         setWithdrawalDeviceName(enhancedDevices[0].name);
-        console.log(`=== Scan Success: Found ${enhancedDevices.length} device(s) ===`);
       } else {
         setSelectedDevicePort(null);
         setWithdrawalDeviceName("No device found");
-        console.log("=== Scan Complete: No devices found ===");
-        showToast("warning", "No biometric devices found. Please ensure RD Service is running and device is connected via USB.");
       }
     } catch (error) {
-      console.error("=== Device Scanning Failed ===", error);
-      setSelectedDevicePort(null);
-      setWithdrawalDeviceName("Scan failed");
-      showToast("error", error, "Device scan failed. Please check your RD service connection.");
+      console.error("Initial device scan failed:", error);
+      if (isMounted) {
+        setSelectedDevicePort(null);
+        setWithdrawalDeviceName("Scan failed");
+      }
+    } finally {
+      if (isMounted) {
+        setIsScanningDevices(false);
+      }
     }
-
-    setIsScanningDevices(false);
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  scanAndEnhanceDevices();
 
-    const scanAndEnhanceDevices = async () => {
+  return () => {
+    isMounted = false;
+  };
+}, []);
+
+/*
+ * Retailer authentication & 2FA State
+ */
+const [retailerAadhaar, setRetailerAadhaar] = useState("");
+
+const [isCapturingRetailer, setIsCapturingRetailer] =
+  useState(false);
+
+const [isVerifyingTfa, setIsVerifyingTfa] =
+  useState(false);
+
+const [capturedPidData, setCapturedPidData] =
+  useState<string>("");
+
+const [retailerAuthenticated, setRetailerAuthenticated] =
+  useState(false);
+
+const [actcode, setActcode] = useState("");
+
+const [isCheckingLoginStatus, setIsCheckingLoginStatus] =
+  useState(false);
+
+const [tfaError, setTfaError] = useState("");
+
+const [tfaStatusMessage, setTfaStatusMessage] =
+  useState("");
+
+const fetchLoginStatus = useCallback(async (): Promise<void> => {
+  // Gatekeeper: Never call check login status if not onboarded or if Bio KYC is not completed
+  if (!isOnboarded || !isBioKycDone) {
+    setIsCheckingLoginStatus(false);
+    setRetailerAuthenticated(false);
+    return;
+  }
+
+  try {
+    const token = getToken();
+    if (!token) {
+      setRetailerAuthenticated(false);
+      setActcode("");
+      setTfaStatusMessage("");
+      setTfaError(
+        "Authentication token not found. Please login again."
+      );
+      return;
+    }
+
+    // Decode JWT token or use authUser / newly onboarded outletId
+    const outletId = getEffectiveOutletId();
+
+    if (!outletId) {
+      setRetailerAuthenticated(false);
+      setActcode("");
+      setTfaStatusMessage("");
+      setTfaError(
+        "Merchant is not onboarded to AEPS yet. Please click 'Onboard to AEPS' above to activate your account."
+      );
+      return;
+    }
+
+    const response = await checkAepsLoginStatus(outletId);
+    const currentActcode = extractActcode(response);
+
+    setActcode(currentActcode);
+
+    if (!currentActcode) {
+      setRetailerAuthenticated(false);
+      setTfaStatusMessage("");
+      setTfaError(
+        "Unable to determine AEPS login status. Please refresh and try again."
+      );
+      return;
+    }
+
+    if (currentActcode === "LOGINREQUIRED") {
+      setRetailerAuthenticated(false);
+      setTfaError("");
+      setTfaStatusMessage(
+        "Daily 2FA authentication is required. Verify using Aadhaar and fingerprint."
+      );
+      return;
+    }
+
+    setRetailerAuthenticated(true);
+    setTfaError("");
+    setTfaStatusMessage(
+      "Daily 2FA is completed or not required for today."
+    );
+  } catch (error: unknown) {
+    console.error(
+      "Failed to check AEPS login status:",
+      error
+    );
+
+    setRetailerAuthenticated(false);
+    setTfaStatusMessage("");
+    setTfaError(
+      getErrorMessage(
+        error,
+        "Failed to check AEPS login status."
+      )
+    );
+  } finally {
+    setIsCheckingLoginStatus(false);
+  }
+}, [isOnboarded, isBioKycDone, getEffectiveOutletId]);
+
+const handleRefreshLoginStatus = (): void => {
+  if (!isOnboarded || !isBioKycDone) return;
+  setIsCheckingLoginStatus(true);
+  setTfaError("");
+  void fetchLoginStatus();
+};
+
+useEffect(() => {
+  // Call login status ONLY if auth is loaded, onboarded, AND Bio KYC is completed
+  if (isAuthLoading || !isOnboarded || !isBioKycDone) {
+    return;
+  }
+
+  let isMounted = true;
+
+  const checkStatus = async () => {
+    setIsCheckingLoginStatus(true);
+    await Promise.resolve();
+    if (!isMounted) return;
+    await fetchLoginStatus();
+  };
+
+  void checkStatus();
+
+  return () => {
+    isMounted = false;
+  };
+}, [isAuthLoading, isOnboarded, isBioKycDone, fetchLoginStatus]);
+
+// Fetch retailer Aadhaar on mount
+useEffect(() => {
+  const fetchRetailerDetails = async () => {
+    try {
+      const token = getToken();
+      if (!token) {
+        console.error("Authentication token not found.");
+        return;
+      }
+
+      // Decode JWT token to get userId
+      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
+      const userId = tokenPayload.id || tokenPayload._id || tokenPayload.userId;
+
+      if (userId) {
+        const response = await getRetailerAadhaarAndMobile(userId);
+        if (response.success && response.data) {
+          if (response.data.aadhaarNumber) {
+            setRetailerAadhaar(response.data.aadhaarNumber);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch retailer details:", error);
+    }
+  };
+
+  void fetchRetailerDetails();
+}, []);
+
+/*
+ * Customer Mobile
+ */
+const [customerMobile, setCustomerMobile] = useState("");
+
+/*
+ * Customer Aadhaar
+ */
+const [customerAadhaar, setCustomerAadhaar] =
+  useState("");
+
+/*
+ * Bank
+ */
+const [selectedBank, setSelectedBank] =
+  useState<Bank | null>(null);
+const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
+const [loadingBanks, setLoadingBanks] = useState(false);
+const [banksFetched, setBanksFetched] = useState(false);
+const [currentPage, setCurrentPage] = useState(1);
+const [totalPages, setTotalPages] = useState(0);
+const [loadingMore, setLoadingMore] = useState(false);
+const [bankSearchTerm, setBankSearchTerm] = useState("");
+const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
+const bankDropdownRef = useRef<HTMLDivElement>(null);
+
+// Close bank dropdown on click outside
+useEffect(() => {
+  const handleClickOutside = (e: MouseEvent) => {
+    if (bankDropdownRef.current && !bankDropdownRef.current.contains(e.target as Node)) {
+      setIsBankDropdownOpen(false);
+    }
+  };
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
+
+// Fetch bank list when needed or on initial mount
+const fetchBanks = async (append: boolean = false) => {
+  if (append) {
+    setLoadingMore(true);
+  } else {
+    setLoadingBanks(true);
+  }
+
+  try {
+    const response = await getBankMasterList();
+    if (response.success && response.data) {
+      if (append) {
+        setAvailableBanks((prev) => {
+          const existing = new Set(prev.map((b) => b._id));
+          const newUnique = response.data.filter((b) => !existing.has(b._id));
+          return [...prev, ...newUnique] as Bank[];
+        });
+      } else {
+        setAvailableBanks([...response.data] as Bank[]);
+      }
+      setBanksFetched(true);
+      // Update total pages from meta if available
+      if (response.meta && typeof response.meta === 'object' && 'totalPages' in response.meta) {
+        setTotalPages((response.meta as { totalPages: number }).totalPages);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch bank list:", err);
+  } finally {
+    setLoadingBanks(false);
+    setLoadingMore(false);
+  }
+};
+
+// Fetch initial bank list on mount asynchronously to prevent cascading renders
+useEffect(() => {
+  let ignore = false;
+
+  getBankMasterList()
+    .then((response) => {
+      if (ignore) return;
+      if (response.success && response.data) {
+        setAvailableBanks(response.data as Bank[]);
+        setBanksFetched(true);
+      }
+    })
+    .catch((err) => {
+      if (!ignore) {
+        console.error("Failed to fetch initial bank list:", err);
+      }
+    })
+    .finally(() => {
+      if (!ignore) {
+        setLoadingBanks(false);
+      }
+    });
+
+  return () => {
+    ignore = true;
+  };
+}, []);
+
+const handleLoadMoreBanks = () => {
+  if (currentPage < totalPages && !loadingMore) {
+    const nextPage = currentPage + 1;
+    setCurrentPage(nextPage);
+    void fetchBanks(true);
+  }
+};
+
+
+
+const [consent, setConsent] =
+  useState(false);
+
+/*
+ * AEPS service
+ */
+const [selectedService, setSelectedService] =
+  useState<ServiceId | "">("");
+
+/*
+ * Modal
+ */
+const [modalType, setModalType] = useState<ModalType>("");
+const [balWithBalanceChecked, setBalWithBalanceChecked] = useState(false);
+const [fetchedBalance, setFetchedBalance] = useState<number | null>(null);
+
+/*
+ * Processing state
+ */
+const [isProcessing, setIsProcessing] =
+  useState(false);
+const [isFetchingService, setIsFetchingService] = useState(false);
+const [serviceFetchingMessage, setServiceFetchingMessage] = useState("");
+
+/*
+ * Withdrawal amount
+ */
+const [withdrawalAmount, setWithdrawalAmount] =
+  useState(1000);
+
+/*
+ * OTP
+ */
+const [otp, setOtp] = useState("");
+const [otpReferenceKey, setOtpReferenceKey] = useState("");
+
+/*
+ * Receipt & Mini Statement
+ */
+const [showReceipt, setShowReceipt] =
+  useState(false);
+
+const [receiptData, setReceiptData] =
+  useState<ReceiptData | null>(null);
+
+const [showMiniStatement, setShowMiniStatement] = useState(false);
+const [miniStatementResult, setMiniStatementResult] = useState<MiniStatementData | null>(null);
+const [copiedReceiptTxnId, setCopiedReceiptTxnId] = useState(false);
+
+/*
+ * ============================================================
+ * COMMON HELPERS
+ * ============================================================
+ */
+
+const formatCurrency = (value: number) => {
+  return `₹${value.toFixed(2)}`;
+};
+
+
+const handleCustomerAadhaarChange = (
+  event: React.ChangeEvent<HTMLInputElement>
+) => {
+  const value = event.target.value
+    .replace(/\D/g, "")
+    .slice(0, 12);
+
+  setCustomerAadhaar(value);
+};
+
+/*
+ * ============================================================
+ * RETAILER 2FA
+ * ============================================================
+ */
+
+/*
+ * Step 1: Scan Biometric Device & Capture Fingerprint
+ */
+const handleScanAndCaptureBiometric = async (): Promise<void> => {
+  if (retailerAadhaar.length !== 12) {
+    setTfaError(
+      "Please enter a valid 12-digit Aadhaar number before scanning."
+    );
+    return;
+  }
+
+  setIsCapturingRetailer(true);
+  setTfaError("");
+  setTfaStatusMessage("");
+
+  try {
+    let targetPort = selectedDevicePort;
+
+    // If no device is currently selected or scanned, scan and auto-select
+    if (targetPort === null || availableDevices.length === 0) {
+      setIsScanningDevices(true);
+      setWithdrawalDeviceName("Scanning devices...");
+
       try {
+        console.log("=== Auto-scanning for biometric devices ===");
         const devices = await rdService.scanAllDevices();
 
-        if (!isMounted) return;
-
-        // Enhanced device info gathering using getDeviceInfo
+        // Enhanced device info gathering
         const enhancedDevices = await Promise.all(
           devices.map(async (device) => {
             try {
-              console.log(`Getting detailed info for device on port ${device.port}...`);
               const deviceInfoResponse = await getDeviceInfo(device.port);
               const deviceInfo = deviceInfoResponse.data;
 
-              // Extract more detailed device information
               let enhancedName = device.name;
               let deviceModel = "";
-              let serialNumber = "";
 
               if (typeof deviceInfo === "string") {
-                // Extract device model from mi attribute
                 const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
                 if (modelMatch) {
                   deviceModel = modelMatch[1];
                   enhancedName = `${deviceModel}`;
                 }
-
-                // Extract serial number from ci attribute
-                const serialMatch = deviceInfo.match(/ci="([^"]+)"/i);
-                if (serialMatch) {
-                  serialNumber = serialMatch[1];
-                }
-
-                console.log(`Device ${device.port}: Model=${deviceModel}, Serial=${serialNumber}`);
               }
 
               return {
                 ...device,
                 name: enhancedName || device.name,
                 model: deviceModel,
-                serialNumber: serialNumber,
                 detailedInfo: deviceInfo
               };
             } catch (error) {
               console.log(`Could not get detailed info for device on port ${device.port}:`, error);
-              return device; // Return original device info if detailed info fails
+              return device;
             }
           })
         );
 
-        if (!isMounted) return;
-
         setAvailableDevices(enhancedDevices);
+        setIsScanningDevices(false);
 
         if (enhancedDevices.length > 0) {
+          targetPort = enhancedDevices[0].port;
           setSelectedDevicePort(enhancedDevices[0].port);
           setWithdrawalDeviceName(enhancedDevices[0].name);
+          console.log(`Auto-selected device: ${enhancedDevices[0].name} on port ${targetPort}`);
         } else {
           setSelectedDevicePort(null);
           setWithdrawalDeviceName("No device found");
+          throw new Error(
+            "No Biometric Device found. Please connect your USB RD Service scanner and retry."
+          );
         }
       } catch (error) {
-        console.error("Initial device scan failed:", error);
-        if (isMounted) {
-          setSelectedDevicePort(null);
-          setWithdrawalDeviceName("Scan failed");
-        }
-      } finally {
-        if (isMounted) {
-          setIsScanningDevices(false);
-        }
+        setIsScanningDevices(false);
+        throw error;
       }
-    };
-
-    scanAndEnhanceDevices();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  /*
-   * Retailer authentication & 2FA State
-   */
-  const [retailerAadhaar, setRetailerAadhaar] = useState("");
-
-  const [isCapturingRetailer, setIsCapturingRetailer] =
-    useState(false);
-
-  const [isVerifyingTfa, setIsVerifyingTfa] =
-    useState(false);
-
-  const [capturedPidData, setCapturedPidData] =
-    useState<string>("");
-
-  const [retailerAuthenticated, setRetailerAuthenticated] =
-    useState(false);
-
-  const [actcode, setActcode] = useState("");
-
-  const [isCheckingLoginStatus, setIsCheckingLoginStatus] =
-    useState(false);
-
-  const [tfaError, setTfaError] = useState("");
-
-  const [tfaStatusMessage, setTfaStatusMessage] =
-    useState("");
-
-  const fetchLoginStatus = useCallback(async (): Promise<void> => {
-    // Gatekeeper: Never call check login status if not onboarded or if Bio KYC is not completed
-    if (!isOnboarded || !isBioKycDone) {
-      setIsCheckingLoginStatus(false);
-      setRetailerAuthenticated(false);
-      return;
     }
 
-    try {
-      const token = getToken();
-      if (!token) {
-        setRetailerAuthenticated(false);
-        setActcode("");
-        setTfaStatusMessage("");
-        setTfaError(
-          "Authentication token not found. Please login again."
-        );
-        return;
-      }
+    // Call RD Service API to capture fingerprint
+    console.log(`=== Starting fingerprint capture on port ${targetPort} ===`);
+    setTfaStatusMessage(`Capturing fingerprint from ${withdrawalDeviceName}...`);
 
-      // Decode JWT token or use authUser / newly onboarded outletId
-      const outletId = getEffectiveOutletId();
+    const captureResult = await rdService.captureFingerprint(targetPort);
 
-      if (!outletId) {
-        setRetailerAuthenticated(false);
-        setActcode("");
-        setTfaStatusMessage("");
-        setTfaError(
-          "Merchant is not onboarded to AEPS yet. Please click 'Onboard to AEPS' above to activate your account."
-        );
-        return;
-      }
+    console.log("=== Capture Result ===", captureResult);
 
-      const response = await checkAepsLoginStatus(outletId);
-      const currentActcode = extractActcode(response);
+    if (!captureResult.success || !captureResult.data) {
+      throw new Error(
+        captureResult.message ||
+        "Failed to capture fingerprint from device."
+      );
+    }
 
+    setCapturedPidData(captureResult.data);
+    setTfaStatusMessage(
+      "Fingerprint captured successfully! Click 'VERIFY 2FA' below to authenticate."
+    );
+    console.log("=== Fingerprint Capture Successful ===");
+  } catch (error: unknown) {
+    console.error("=== Biometric Capture Failed ===", error);
+    setCapturedPidData("");
+    setTfaError(
+      getErrorMessage(
+        error,
+        "Failed to capture fingerprint from device. Please check scanner connection."
+      )
+    );
+  } finally {
+    setIsCapturingRetailer(false);
+  }
+};
+
+/*
+ * Step 2: Verify TFA API call using captured biometric data
+ */
+const handleVerifyTfa = async (): Promise<void> => {
+  if (retailerAadhaar.length !== 12) {
+    setTfaError(
+      "Please enter a valid 12-digit Aadhaar number."
+    );
+    return;
+  }
+
+  if (!capturedPidData) {
+    setTfaError(
+      "Please scan and capture fingerprint first."
+    );
+    return;
+  }
+
+  setIsVerifyingTfa(true);
+  setTfaError("");
+  setTfaStatusMessage("");
+
+  try {
+    const token = getToken();
+    if (!token) {
+      throw new Error("Authentication token not found. Please login again.");
+    }
+
+    // Decode JWT token to get outletId and referenceKey
+    const outletId = getEffectiveOutletId();
+    const referenceKey = getEffectiveReferenceKey();
+
+    if (!outletId) {
+      throw new Error(
+        "Outlet ID is missing. Please check your retailer account."
+      );
+    }
+
+    let currentActcode = actcode;
+
+    // Refresh login status if actcode is not available.
+    if (!currentActcode) {
+      const statusResponse =
+        await checkAepsLoginStatus(outletId);
+
+      currentActcode = extractActcode(statusResponse);
       setActcode(currentActcode);
+    }
 
-      if (!currentActcode) {
-        setRetailerAuthenticated(false);
-        setTfaStatusMessage("");
-        setTfaError(
-          "Unable to determine AEPS login status. Please refresh and try again."
-        );
-        return;
-      }
+    if (!currentActcode) {
+      throw new Error(
+        "Unable to determine AEPS login status. Please refresh and try again."
+      );
+    }
 
-      if (currentActcode === "LOGINREQUIRED") {
-        setRetailerAuthenticated(false);
-        setTfaError("");
-        setTfaStatusMessage(
-          "Daily 2FA authentication is required. Verify using Aadhaar and fingerprint."
-        );
-        return;
-      }
-
+    // The provider indicates that daily 2FA is not required.
+    if (currentActcode !== "LOGINREQUIRED") {
       setRetailerAuthenticated(true);
-      setTfaError("");
+      setCapturedPidData("");
       setTfaStatusMessage(
         "Daily 2FA is completed or not required for today."
       );
-    } catch (error: unknown) {
-      console.error(
-        "Failed to check AEPS login status:",
-        error
-      );
-
-      setRetailerAuthenticated(false);
-      setTfaStatusMessage("");
-      setTfaError(
-        getErrorMessage(
-          error,
-          "Failed to check AEPS login status."
-        )
-      );
-    } finally {
-      setIsCheckingLoginStatus(false);
-    }
-  }, [isOnboarded, isBioKycDone, getEffectiveOutletId]);
-
-  const handleRefreshLoginStatus = (): void => {
-    if (!isOnboarded || !isBioKycDone) return;
-    setIsCheckingLoginStatus(true);
-    setTfaError("");
-    void fetchLoginStatus();
-  };
-
-  useEffect(() => {
-    // Call login status ONLY if auth is loaded, onboarded, AND Bio KYC is completed
-    if (isAuthLoading || !isOnboarded || !isBioKycDone) {
       return;
     }
 
-    let isMounted = true;
-
-    const checkStatus = async () => {
-      setIsCheckingLoginStatus(true);
-      await Promise.resolve();
-      if (!isMounted) return;
-      await fetchLoginStatus();
-    };
-
-    void checkStatus();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthLoading, isOnboarded, isBioKycDone, fetchLoginStatus]);
-
-  // Fetch retailer Aadhaar on mount
-  useEffect(() => {
-    const fetchRetailerDetails = async () => {
-      try {
-        const token = getToken();
-        if (!token) {
-          console.error("Authentication token not found.");
-          return;
-        }
-
-        // Decode JWT token to get userId
-        const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-        const userId = tokenPayload.id || tokenPayload._id || tokenPayload.userId;
-
-        if (userId) {
-          const response = await getRetailerAadhaarAndMobile(userId);
-          if (response.success && response.data) {
-            if (response.data.aadhaarNumber) {
-              setRetailerAadhaar(response.data.aadhaarNumber);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Failed to fetch retailer details:", error);
-      }
-    };
-
-    void fetchRetailerDetails();
-  }, []);
-
-  /*
-   * Customer Mobile
-   */
-  const [customerMobile, setCustomerMobile] = useState("");
-
-  /*
-   * Customer Aadhaar
-   */
-  const [customerAadhaar, setCustomerAadhaar] =
-    useState("");
-
-  /*
-   * Bank
-   */
-  const [selectedBank, setSelectedBank] =
-    useState<Bank | null>(null);
-  const [availableBanks, setAvailableBanks] = useState<Bank[]>([]);
-  const [loadingBanks, setLoadingBanks] = useState(false);
-  const [banksFetched, setBanksFetched] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [bankSearchTerm, setBankSearchTerm] = useState("");
-  const [isBankDropdownOpen, setIsBankDropdownOpen] = useState(false);
-  const bankDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close bank dropdown on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (bankDropdownRef.current && !bankDropdownRef.current.contains(e.target as Node)) {
-        setIsBankDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Fetch bank list when needed or on initial mount
-  const fetchBanks = async (append: boolean = false) => {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoadingBanks(true);
-    }
-
-    try {
-      const response = await getBankMasterList();
-      if (response.success && response.data) {
-        if (append) {
-          setAvailableBanks((prev) => {
-            const existing = new Set(prev.map((b) => b._id));
-            const newUnique = response.data.filter((b) => !existing.has(b._id));
-            return [...prev, ...newUnique] as Bank[];
-          });
-        } else {
-          setAvailableBanks([...response.data] as Bank[]);
-        }
-        setBanksFetched(true);
-        // Update total pages from meta if available
-        if (response.meta && typeof response.meta === 'object' && 'totalPages' in response.meta) {
-          setTotalPages((response.meta as { totalPages: number }).totalPages);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch bank list:", err);
-    } finally {
-      setLoadingBanks(false);
-      setLoadingMore(false);
-    }
-  };
-
-  // Fetch initial bank list on mount asynchronously to prevent cascading renders
-  useEffect(() => {
-    let ignore = false;
-
-    getBankMasterList()
-      .then((response) => {
-        if (ignore) return;
-        if (response.success && response.data) {
-          setAvailableBanks(response.data as Bank[]);
-          setBanksFetched(true);
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          console.error("Failed to fetch initial bank list:", err);
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setLoadingBanks(false);
-        }
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, []);
-
-  const handleLoadMoreBanks = () => {
-    if (currentPage < totalPages && !loadingMore) {
-      const nextPage = currentPage + 1;
-      setCurrentPage(nextPage);
-      void fetchBanks(true);
-    }
-  };
-
-
-
-  const [consent, setConsent] =
-    useState(false);
-
-  /*
-   * AEPS service
-   */
-  const [selectedService, setSelectedService] =
-    useState<ServiceId | "">("");
-
-  /*
-   * Modal
-   */
-  const [modalType, setModalType] = useState<ModalType>("");
-  const [balWithBalanceChecked, setBalWithBalanceChecked] = useState(false);
-  const [fetchedBalance, setFetchedBalance] = useState<number | null>(null);
-
-  /*
-   * Processing state
-   */
-  const [isProcessing, setIsProcessing] =
-    useState(false);
-  const [isFetchingService, setIsFetchingService] = useState(false);
-  const [serviceFetchingMessage, setServiceFetchingMessage] = useState("");
-
-  /*
-   * Withdrawal amount
-   */
-  const [withdrawalAmount, setWithdrawalAmount] =
-    useState(1000);
-
-  /*
-   * OTP
-   */
-  const [otp, setOtp] = useState("");
-  const [otpReferenceKey, setOtpReferenceKey] = useState("");
-
-  /*
-   * Receipt & Mini Statement
-   */
-  const [showReceipt, setShowReceipt] =
-    useState(false);
-
-  const [receiptData, setReceiptData] =
-    useState<ReceiptData | null>(null);
-
-  const [showMiniStatement, setShowMiniStatement] = useState(false);
-  const [miniStatementResult, setMiniStatementResult] = useState<MiniStatementData | null>(null);
-  const [copiedReceiptTxnId, setCopiedReceiptTxnId] = useState(false);
-
-  /*
-   * ============================================================
-   * COMMON HELPERS
-   * ============================================================
-   */
-
-  const formatCurrency = (value: number) => {
-    return `₹${value.toFixed(2)}`;
-  };
-
-
-  const handleCustomerAadhaarChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const value = event.target.value
-      .replace(/\D/g, "")
-      .slice(0, 12);
-
-    setCustomerAadhaar(value);
-  };
-
-  /*
-   * ============================================================
-   * RETAILER 2FA
-   * ============================================================
-   */
-
-  /*
-   * Step 1: Scan Biometric Device & Capture Fingerprint
-   */
-  const handleScanAndCaptureBiometric = async (): Promise<void> => {
-    if (retailerAadhaar.length !== 12) {
-      setTfaError(
-        "Please enter a valid 12-digit Aadhaar number before scanning."
-      );
-      return;
-    }
-
-    setIsCapturingRetailer(true);
-    setTfaError("");
-    setTfaStatusMessage("");
-
-    try {
-      let targetPort = selectedDevicePort;
-
-      // If no device is currently selected or scanned, scan and auto-select
-      if (targetPort === null || availableDevices.length === 0) {
-        setIsScanningDevices(true);
-        setWithdrawalDeviceName("Scanning devices...");
-
-        try {
-          console.log("=== Auto-scanning for biometric devices ===");
-          const devices = await rdService.scanAllDevices();
-
-          // Enhanced device info gathering
-          const enhancedDevices = await Promise.all(
-            devices.map(async (device) => {
-              try {
-                const deviceInfoResponse = await getDeviceInfo(device.port);
-                const deviceInfo = deviceInfoResponse.data;
-
-                let enhancedName = device.name;
-                let deviceModel = "";
-
-                if (typeof deviceInfo === "string") {
-                  const modelMatch = deviceInfo.match(/mi="([^"]+)"/i);
-                  if (modelMatch) {
-                    deviceModel = modelMatch[1];
-                    enhancedName = `${deviceModel}`;
-                  }
-                }
-
-                return {
-                  ...device,
-                  name: enhancedName || device.name,
-                  model: deviceModel,
-                  detailedInfo: deviceInfo
-                };
-              } catch (error) {
-                console.log(`Could not get detailed info for device on port ${device.port}:`, error);
-                return device;
-              }
-            })
-          );
-
-          setAvailableDevices(enhancedDevices);
-          setIsScanningDevices(false);
-
-          if (enhancedDevices.length > 0) {
-            targetPort = enhancedDevices[0].port;
-            setSelectedDevicePort(enhancedDevices[0].port);
-            setWithdrawalDeviceName(enhancedDevices[0].name);
-            console.log(`Auto-selected device: ${enhancedDevices[0].name} on port ${targetPort}`);
-          } else {
-            setSelectedDevicePort(null);
-            setWithdrawalDeviceName("No device found");
-            throw new Error(
-              "No Biometric Device found. Please connect your USB RD Service scanner and retry."
-            );
-          }
-        } catch (error) {
-          setIsScanningDevices(false);
-          throw error;
-        }
-      }
-
-      // Call RD Service API to capture fingerprint
-      console.log(`=== Starting fingerprint capture on port ${targetPort} ===`);
-      setTfaStatusMessage(`Capturing fingerprint from ${withdrawalDeviceName}...`);
-
-      const captureResult = await rdService.captureFingerprint(targetPort);
-
-      console.log("=== Capture Result ===", captureResult);
-
-      if (!captureResult.success || !captureResult.data) {
-        throw new Error(
-          captureResult.message ||
-          "Failed to capture fingerprint from device."
-        );
-      }
-
-      setCapturedPidData(captureResult.data);
-      setTfaStatusMessage(
-        "Fingerprint captured successfully! Click 'VERIFY 2FA' below to authenticate."
-      );
-      console.log("=== Fingerprint Capture Successful ===");
-    } catch (error: unknown) {
-      console.error("=== Biometric Capture Failed ===", error);
-      setCapturedPidData("");
-      setTfaError(
-        getErrorMessage(
-          error,
-          "Failed to capture fingerprint from device. Please check scanner connection."
-        )
-      );
-    } finally {
-      setIsCapturingRetailer(false);
-    }
-  };
-
-  /*
-   * Step 2: Verify TFA API call using captured biometric data
-   */
-  const handleVerifyTfa = async (): Promise<void> => {
-    if (retailerAadhaar.length !== 12) {
-      setTfaError(
-        "Please enter a valid 12-digit Aadhaar number."
-      );
-      return;
-    }
-
-    if (!capturedPidData) {
-      setTfaError(
-        "Please scan and capture fingerprint first."
-      );
-      return;
-    }
-
-    setIsVerifyingTfa(true);
-    setTfaError("");
-    setTfaStatusMessage("");
-
-    try {
-      const token = getToken();
-      if (!token) {
-        throw new Error("Authentication token not found. Please login again.");
-      }
-
-      // Decode JWT token to get outletId and referenceKey
-      const tokenPayload = JSON.parse(atob(token.split('.')[1]));
-      const outletId = getEffectiveOutletId();
-      const referenceKey =
-        authUser?.AepsEkyc?.referenceKey ||
-        authUser?.referenceKey ||
-        tokenPayload.referenceKey ||
-        bioKycReferenceKey ||
-        "";
-
-      if (!outletId) {
-        throw new Error(
-          "Outlet ID is missing. Please check your retailer account."
-        );
-      }
-
-      let currentActcode = actcode;
-
-      // Refresh login status if actcode is not available.
-      if (!currentActcode) {
-        const statusResponse =
-          await checkAepsLoginStatus(outletId);
-
-        currentActcode = extractActcode(statusResponse);
-        setActcode(currentActcode);
-      }
-
-      if (!currentActcode) {
-        throw new Error(
-          "Unable to determine AEPS login status. Please refresh and try again."
-        );
-      }
-
-      // The provider indicates that daily 2FA is not required.
-      if (currentActcode !== "LOGINREQUIRED") {
-        setRetailerAuthenticated(true);
-        setCapturedPidData("");
-        setTfaStatusMessage(
-          "Daily 2FA is completed or not required for today."
-        );
-        return;
-      }
-
-      // Obtain genuine geolocation coordinates (gatekeeper)
-      const coords = await ensureConfirmedLocation();
-
-      // Parse the captured RD Service PID XML.
-      const pidData = parsePidXml(capturedPidData);
-
-      // Send the biometric data for TFA verification.
-      const payload: TfaPayload = {
-        actcode: currentActcode,
-        aadhaar: retailerAadhaar,
-        outlet_id: outletId,
-        referenceKey,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-        // ts: pidData.ts || new Date().toISOString(),
-        ...pidData,
-        ts: pidData.ts || new Date().toISOString(),
-      };
-
-      const result: Envelope<VerifyTfaResult> = await verifyTfa(payload);
-
-      console.log("verifyTfa response:", result);
-
-      setRetailerAuthenticated(true);
-      setCapturedPidData("");
-      setTfaError("");
-
-      // Display wallet balance if available in response, otherwise fetch it
-      if (result?.data?.wallet) {
-        const wallet = result.data.wallet;
-        const balance = wallet.availableBalance || wallet.balance || 0;
-        setTfaStatusMessage(
-          `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
-        );
-      } else {
-        // Fallback: fetch wallet balance separately
-        try {
-          const walletResponse = await getWalletBalanceApi();
-          const balance = walletResponse.data.availableBalance || walletResponse.data.balance || 0;
-          setTfaStatusMessage(
-            `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
-          );
-        } catch (walletError) {
-          console.error("Failed to fetch wallet balance:", walletError);
-          setTfaStatusMessage(
-            "TFA verified successfully."
-          );
-        }
-      }
-    } catch (error: unknown) {
-      console.error(
-        "Retailer 2FA verification failed:",
-        error
-      );
-
-      setRetailerAuthenticated(false);
-      setTfaError(
-        getErrorMessage(
-          error,
-          "Biometric 2FA verification failed. Please try again."
-        )
-      );
-    } finally {
-      setIsVerifyingTfa(false);
-    }
-  };
-
-  const handleStartTransaction = () => {
-    setStep(1);
-  };
-
-  /*
-   * ============================================================
-   * BANK SELECTION
-   * ============================================================
-   */
-
-
-
-  const handleBankSelect = (bank: Bank) => {
-    setSelectedBank(bank);
-    setIsBankDropdownOpen(false);
-    setBankSearchTerm("");
-  };
-
-  /*
-   * ============================================================
-   * SERVICE HANDLERS
-   * ============================================================
-   */
-
-  const handleServiceClick = (
-    serviceId: ServiceId
-  ) => {
-    setSelectedService(serviceId);
-
-    if (
-      serviceId === "cash-withdrawal" ||
-      serviceId === "cash-deposit"
-    ) {
-      setModalType("amount");
-    } else if (serviceId === "balance-withdrawal") {
-      setBalWithBalanceChecked(false);
-      setFetchedBalance(null);
-      setModalType("biometric");
-      startBiometric(serviceId);
-    } else {
-      setModalType("biometric");
-      startBiometric(serviceId);
-    }
-  };
-
-  /*
-   * ============================================================
-   * SERVICE HELPERS
-   * ============================================================
-   */
-
-  const getSelectedBankName = () => {
-    return selectedBank?.bankName || "ICICI Bank";
-  };
-
-  const getCustomerAadhaarDisplay = () => {
-    return `XXXX XXXX ${customerAadhaar.slice(-4) || "9999"
-      }`;
-  };
-
-  /*
-   * ============================================================
-   * BIOMETRIC
-   * ============================================================
-   *
-   * IMPORTANT:
-   *
-   * serviceId is passed directly into this function.
-   *
-   * This prevents the React state timing issue where:
-   *
-   * setSelectedService(...)
-   * startBiometric()
-   *
-   * could use the previous service value.
-   */
-
-  const prepareAepsPayload = async (
-    pidData: ReturnType<typeof parsePidXml>,
-    overrideReferenceKey?: string | null
-  ): Promise<AepsServicePayload> => {
-    const token = getToken();
-    let tokenRefKey = "";
-    if (token) {
-      try {
-        const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-        tokenRefKey = tokenPayload.referenceKey || "";
-      } catch (e) {
-        console.warn("Failed to parse token payload", e);
-      }
-    }
-
-    const outletId = getEffectiveOutletId();
-
-    const retailerRefKey =
-      authUser?.AepsEkyc?.referenceKey ||
-      authUser?.referenceKey ||
-      tokenRefKey ||
-      bioKycReferenceKey ||
-      "";
-
-    const referenceKey =
-      overrideReferenceKey !== undefined
-        ? overrideReferenceKey
-        : retailerRefKey;
-
+    // Obtain genuine geolocation coordinates (gatekeeper)
     const coords = await ensureConfirmedLocation();
 
-    return {
+    // Parse the captured RD Service PID XML.
+    const pidData = parsePidXml(capturedPidData);
+
+    // Send the biometric data for TFA verification.
+    const payload: TfaPayload = {
+      actcode: currentActcode,
+      aadhaar: retailerAadhaar,
       outlet_id: outletId,
       referenceKey,
       latitude: coords.latitude,
       longitude: coords.longitude,
-      aadhaar: customerAadhaar,
-      mobile: customerMobile,
-      bankiin: selectedBank?.iin || "",
-      // Send bankMasterId so backend can resolve & validate from BankMaster
-      ...(selectedBank?._id ? { bankMasterId: selectedBank._id } : {}),
+      // ts: pidData.ts || new Date().toISOString(),
       ...pidData,
       ts: pidData.ts || new Date().toISOString(),
     };
-  };
 
-  const createReceipt = (
-    type: ReceiptType,
-    amount: number,
-    resultData: Record<string, unknown>,
-    fallbackStatus = "SUCCESS"
-  ): ReceiptData => {
-    const rawBalance =
-      resultData.balance ??
-      resultData.balanceamount ??
-      resultData.bankBalance ??
-      resultData.accountBalance;
-    const numericBalance = Number(rawBalance);
+    const result: Envelope<VerifyTfaResult> = await verifyTfa(payload);
 
-    const transactionId =
-      (resultData.txnid as string) ||
-      (resultData.transactionId as string) ||
-      (resultData.clientRefId as string) ||
-      (resultData.ackno as string) ||
-      generateTransactionId();
+    console.log("verifyTfa response:", result);
 
-    const rrn =
-      (resultData.rrn as string) ||
-      (resultData.bankrrn as string) ||
-      (resultData.bankRrn as string) ||
-      generateRRN();
+    setRetailerAuthenticated(true);
+    setCapturedPidData("");
+    setTfaError("");
 
-    const status =
-      (resultData.status as string) ||
-      (resultData.txnStatus as string) ||
-      fallbackStatus;
-
-    const message =
-      (resultData.msg as string) ||
-      (resultData.message as string) ||
-      "Transaction Successful";
-
-    return {
-      receiptType: type,
-      bankName: selectedBank?.bankName || getSelectedBankName(),
-      amount,
-      balance: isNaN(numericBalance) ? 0 : numericBalance,
-      aadhaar: getCustomerAadhaarDisplay(),
-      mobile: `+91 ${customerMobile}`,
-      transactionId,
-      rrn,
-      biometricDevice: withdrawalDeviceName || "Mantra MFS100",
-      authMode: "Biometric / AEPS Verified",
-      status,
-      message,
-      transactions: [],
-    };
-  };
-
-  const startBiometric = async (
-    serviceId: ServiceId,
-    verifiedOtp?: string
-  ) => {
-    setIsProcessing(true);
-
-    try {
-      // Pass OTP to RD Service PidOptions if withdrawal amount > 5000 (UIDAI / AEPS 2FA standard)
-      const otpForCapture =
-        (serviceId === "cash-withdrawal" || serviceId === "balance-withdrawal") &&
-          withdrawalAmount > 5000
-          ? (verifiedOtp || otp || undefined)
-          : undefined;
-
-      // 1. Actually capture the fingerprint using RD service
-      const captureResult = await rdService.captureFingerprint(selectedDevicePort, {
-        otp: otpForCapture,
-        fType: "2",
-      });
-
-      if (!captureResult.success) {
-        setIsProcessing(false);
-        setModalType("");
-        alert(captureResult.message || "Failed to capture fingerprint from device");
-        return;
+    // Display wallet balance if available in response, otherwise fetch it
+    if (result?.data?.wallet) {
+      const wallet = result.data.wallet;
+      const balance = wallet.availableBalance || wallet.balance || 0;
+      setTfaStatusMessage(
+        `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
+      );
+    } else {
+      // Fallback: fetch wallet balance separately
+      try {
+        const walletResponse = await getWalletBalanceApi();
+        const balance = walletResponse.data.availableBalance || walletResponse.data.balance || 0;
+        setTfaStatusMessage(
+          `TFA verified successfully. Wallet balance: ₹${balance.toFixed(2)}`
+        );
+      } catch (walletError) {
+        console.error("Failed to fetch wallet balance:", walletError);
+        setTfaStatusMessage(
+          "TFA verified successfully."
+        );
       }
+    }
+  } catch (error: unknown) {
+    console.error(
+      "Retailer 2FA verification failed:",
+      error
+    );
 
-      // Close biometric modal immediately upon capture success
-      setModalType("");
+    setRetailerAuthenticated(false);
+    setTfaError(
+      getErrorMessage(
+        error,
+        "Biometric 2FA verification failed. Please try again."
+      )
+    );
+  } finally {
+    setIsVerifyingTfa(false);
+  }
+};
+
+const handleStartTransaction = () => {
+  setStep(1);
+};
+
+/*
+ * ============================================================
+ * BANK SELECTION
+ * ============================================================
+ */
+
+
+
+const handleBankSelect = (bank: Bank) => {
+  setSelectedBank(bank);
+  setIsBankDropdownOpen(false);
+  setBankSearchTerm("");
+};
+
+/*
+ * ============================================================
+ * SERVICE HANDLERS
+ * ============================================================
+ */
+
+const handleServiceClick = (
+  serviceId: ServiceId
+) => {
+  setSelectedService(serviceId);
+
+  if (
+    serviceId === "cash-withdrawal" ||
+    serviceId === "cash-deposit"
+  ) {
+    setModalType("amount");
+  } else if (serviceId === "balance-withdrawal") {
+    setBalWithBalanceChecked(false);
+    setFetchedBalance(null);
+    setModalType("biometric");
+    startBiometric(serviceId);
+  } else {
+    setModalType("biometric");
+    startBiometric(serviceId);
+  }
+};
+
+/*
+ * ============================================================
+ * SERVICE HELPERS
+ * ============================================================
+ */
+
+const getSelectedBankName = () => {
+  return selectedBank?.bankName || "ICICI Bank";
+};
+
+const getCustomerAadhaarDisplay = () => {
+  return `XXXX XXXX ${customerAadhaar.slice(-4) || "9999"
+    }`;
+};
+
+/*
+ * ============================================================
+ * BIOMETRIC
+ * ============================================================
+ *
+ * IMPORTANT:
+ *
+ * serviceId is passed directly into this function.
+ *
+ * This prevents the React state timing issue where:
+ *
+ * setSelectedService(...)
+ * startBiometric()
+ *
+ * could use the previous service value.
+ */
+
+const prepareAepsPayload = async (
+  pidData: ReturnType<typeof parsePidXml>,
+  overrideReferenceKey?: string | null
+): Promise<AepsServicePayload> => {
+  const outletId = getEffectiveOutletId();
+  const retailerRefKey = getEffectiveReferenceKey();
+
+  const referenceKey =
+    overrideReferenceKey !== undefined
+      ? overrideReferenceKey
+      : retailerRefKey;
+
+  const coords = await ensureConfirmedLocation();
+
+  return {
+    outlet_id: outletId,
+    referenceKey,
+    latitude: coords.latitude,
+    longitude: coords.longitude,
+    aadhaar: customerAadhaar,
+    mobile: customerMobile,
+    bankiin: selectedBank?.iin || "",
+    // Send bankMasterId so backend can resolve & validate from BankMaster
+    ...(selectedBank?._id ? { bankMasterId: selectedBank._id } : {}),
+    ...pidData,
+    ts: pidData.ts || new Date().toISOString(),
+  };
+};
+
+const createReceipt = (
+  type: ReceiptType,
+  amount: number,
+  resultData: Record<string, unknown>,
+  fallbackStatus = "SUCCESS"
+): ReceiptData => {
+  const rawBalance =
+    resultData.balance ??
+    resultData.balanceamount ??
+    resultData.bankBalance ??
+    resultData.accountBalance;
+  const numericBalance = Number(rawBalance);
+
+  const transactionId =
+    (resultData.txnid as string) ||
+    (resultData.transactionId as string) ||
+    (resultData.clientRefId as string) ||
+    (resultData.ackno as string) ||
+    generateTransactionId();
+
+  const rrn =
+    (resultData.rrn as string) ||
+    (resultData.bankrrn as string) ||
+    (resultData.bankRrn as string) ||
+    generateRRN();
+
+  const status =
+    (resultData.status as string) ||
+    (resultData.txnStatus as string) ||
+    fallbackStatus;
+
+  const message =
+    (resultData.msg as string) ||
+    (resultData.message as string) ||
+    "Transaction Successful";
+
+  return {
+    receiptType: type,
+    bankName: selectedBank?.bankName || getSelectedBankName(),
+    amount,
+    balance: isNaN(numericBalance) ? 0 : numericBalance,
+    aadhaar: getCustomerAadhaarDisplay(),
+    mobile: `+91 ${customerMobile}`,
+    transactionId,
+    rrn,
+    biometricDevice: withdrawalDeviceName || "Mantra MFS100",
+    authMode: "Biometric / AEPS Verified",
+    status,
+    message,
+    transactions: [],
+  };
+};
+
+const startBiometric = async (
+  serviceId: ServiceId,
+  verifiedOtp?: string
+) => {
+  setIsProcessing(true);
+
+  try {
+    // Pass OTP to RD Service PidOptions if withdrawal amount > 5000 (UIDAI / AEPS 2FA standard)
+    const otpForCapture =
+      (serviceId === "cash-withdrawal" || serviceId === "balance-withdrawal") &&
+        withdrawalAmount > 5000
+        ? (verifiedOtp || otp || undefined)
+        : undefined;
+
+    // 1. Actually capture the fingerprint using RD service
+    const captureResult = await rdService.captureFingerprint(selectedDevicePort, {
+      otp: otpForCapture,
+      fType: "2",
+    });
+
+    if (!captureResult.success) {
       setIsProcessing(false);
+      setModalType("");
+      alert(captureResult.message || "Failed to capture fingerprint from device");
+      return;
+    }
 
-      // 2. Parse the captured RD Service PID XML
-      const pidDataXML = captureResult.data;
-      console.log("Captured PidData XML ready for backend:", pidDataXML);
-      const pidData = parsePidXml(pidDataXML || "");
+    // Close biometric modal immediately upon capture success
+    setModalType("");
+    setIsProcessing(false);
 
-      // 3. Initiate dedicated fetching state
-      setIsFetchingService(true);
-      const bankName = selectedBank?.bankName || "Bank CBS";
+    // 2. Parse the captured RD Service PID XML
+    const pidDataXML = captureResult.data;
+    console.log("Captured PidData XML ready for backend:", pidDataXML);
+    const pidData = parsePidXml(pidDataXML || "");
 
-      /*
-       * B. BALANCE CHECK
-       */
-      if (serviceId === "balance-check") {
-        setServiceFetchingMessage(`Fetching account balance from ${bankName}...`);
+    // 3. Initiate dedicated fetching state
+    setIsFetchingService(true);
+    const bankName = selectedBank?.bankName || "Bank CBS";
+
+    /*
+     * B. BALANCE CHECK
+     */
+    if (serviceId === "balance-check") {
+      setServiceFetchingMessage(`Fetching account balance from ${bankName}...`);
+      try {
+        const payload = await prepareAepsPayload(pidData);
+        console.log("Balance enquiry payload:", payload);
+        const result = await balanceEnquiry(payload);
+        console.log("Balance enquiry result:", result);
+
+        const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+        if (isApiFailed(result, resultData)) {
+          alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
+          return;
+        }
+
+        setReceiptData(createReceipt("balance", 0, resultData));
+        setShowReceipt(true);
+      } catch (error) {
+        console.error("Balance enquiry failed:", error);
+        alert(getErrorMessage(error, "Failed to check balance"));
+      } finally {
+        setIsFetchingService(false);
+      }
+      return;
+    }
+
+    /*
+     * C. MINI STATEMENT
+     */
+    if (serviceId === "mini-statement") {
+      setServiceFetchingMessage(`Fetching mini statement from ${bankName}...`);
+      try {
+        const payload = await prepareAepsPayload(pidData);
+        console.log("Mini statement payload:", payload);
+        const result: Envelope<MiniStatementResult> = await miniStatement(payload);
+        console.log("Mini statement result:", result);
+
+        const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+        if (isApiFailed(result, resultData)) {
+          alert(getResultErrorMessage(result, resultData, "Failed to fetch mini statement"));
+          return;
+        }
+
+        setMiniStatementResult(resultData as MiniStatementData);
+
+        // Display wallet balance if available in response
+        if (result.data?.wallet) {
+          const wallet = result.data.wallet;
+          const balance = wallet.availableBalance || wallet.balance || 0;
+          showToast("success", `Mini statement fetched successfully. You received ₹1 cashback! Wallet balance: ₹${balance.toFixed(2)}`);
+        } else {
+          showToast("success", "Mini statement fetched successfully. You received ₹1 cashback!");
+        }
+
+        setShowMiniStatement(true);
+      } catch (error) {
+        console.error("Mini statement failed:", error);
+        alert(getErrorMessage(error, "Failed to fetch mini statement"));
+      } finally {
+        setIsFetchingService(false);
+      }
+      return;
+    }
+
+    /*
+     * A. CASH WITHDRAWAL
+     */
+    if (serviceId === "cash-withdrawal") {
+      setServiceFetchingMessage(`Processing cash withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
+      try {
+        const refKeyToUse =
+          withdrawalAmount > 5000
+            ? (otpReferenceKey || null)
+            : null;
+        // (authUser?.AepsEkyc?.referenceKey || undefined)
+        const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
+        const payload: CashWithdrawalPayload = {
+          ...basePayload,
+          referenceKey: refKeyToUse,
+          amount: withdrawalAmount,
+        };
+
+        console.log("Cash withdrawal payload:", payload);
+        const result = await cashWithdrawal(payload);
+        console.log("Cash withdrawal result:", result);
+
+        const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+        if (isApiFailed(result, resultData)) {
+          alert(getResultErrorMessage(result, resultData, "Failed to complete cash withdrawal"));
+          return;
+        }
+
+        setReceiptData(createReceipt("withdrawal", withdrawalAmount, resultData));
+        setModalType("");
+        setOtp("");
+        setOtpReferenceKey("");
+        setShowReceipt(true);
+      } catch (error) {
+        console.error("Cash withdrawal failed:", error);
+        alert(getErrorMessage(error, "Failed to complete cash withdrawal"));
+      } finally {
+        setIsFetchingService(false);
+      }
+      return;
+    }
+
+    /*
+     * D. BALANCE CHECK + WITHDRAWAL
+     */
+    if (serviceId === "balance-withdrawal") {
+      if (!balWithBalanceChecked) {
+        setServiceFetchingMessage(`Step 1: Checking account balance with ${bankName}...`);
         try {
           const payload = await prepareAepsPayload(pidData);
-          console.log("Balance enquiry payload:", payload);
           const result = await balanceEnquiry(payload);
-          console.log("Balance enquiry result:", result);
-
           const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
           if (isApiFailed(result, resultData)) {
@@ -1624,67 +1782,34 @@ const Aeps = () => {
             return;
           }
 
-          setReceiptData(createReceipt("balance", 0, resultData));
-          setShowReceipt(true);
+          const rawBalance =
+            resultData.balance ??
+            resultData.balanceamount ??
+            resultData.bankBalance;
+          const numericBalance = Number(rawBalance);
+          const verifiedBalance = isNaN(numericBalance) ? 0 : numericBalance;
+
+          setBalWithBalanceChecked(true);
+          setFetchedBalance(verifiedBalance);
+
+          // Auto-adjust default amount if balance is positive and less than current default
+          if (verifiedBalance > 0 && verifiedBalance < withdrawalAmount) {
+            setWithdrawalAmount(Math.min(1000, verifiedBalance));
+          }
+          setModalType("amount");
         } catch (error) {
-          console.error("Balance enquiry failed:", error);
+          console.error("Balance check failed in balance-withdrawal:", error);
           alert(getErrorMessage(error, "Failed to check balance"));
         } finally {
           setIsFetchingService(false);
         }
-        return;
-      }
-
-      /*
-       * C. MINI STATEMENT
-       */
-      if (serviceId === "mini-statement") {
-        setServiceFetchingMessage(`Fetching mini statement from ${bankName}...`);
-        try {
-          const payload = await prepareAepsPayload(pidData);
-          console.log("Mini statement payload:", payload);
-          const result: Envelope<MiniStatementResult> = await miniStatement(payload);
-          console.log("Mini statement result:", result);
-
-          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
-
-          if (isApiFailed(result, resultData)) {
-            alert(getResultErrorMessage(result, resultData, "Failed to fetch mini statement"));
-            return;
-          }
-
-          setMiniStatementResult(resultData as MiniStatementData);
-
-          // Display wallet balance if available in response
-          if (result.data?.wallet) {
-            const wallet = result.data.wallet;
-            const balance = wallet.availableBalance || wallet.balance || 0;
-            showToast("success", `Mini statement fetched successfully. You received ₹1 cashback! Wallet balance: ₹${balance.toFixed(2)}`);
-          } else {
-            showToast("success", "Mini statement fetched successfully. You received ₹1 cashback!");
-          }
-
-          setShowMiniStatement(true);
-        } catch (error) {
-          console.error("Mini statement failed:", error);
-          alert(getErrorMessage(error, "Failed to fetch mini statement"));
-        } finally {
-          setIsFetchingService(false);
-        }
-        return;
-      }
-
-      /*
-       * A. CASH WITHDRAWAL
-       */
-      if (serviceId === "cash-withdrawal") {
-        setServiceFetchingMessage(`Processing cash withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
+      } else {
+        setServiceFetchingMessage(`Step 2: Authorizing withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
         try {
           const refKeyToUse =
             withdrawalAmount > 5000
               ? (otpReferenceKey || null)
               : null;
-          // (authUser?.AepsEkyc?.referenceKey || undefined)
           const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
           const payload: CashWithdrawalPayload = {
             ...basePayload,
@@ -1692,301 +1817,223 @@ const Aeps = () => {
             amount: withdrawalAmount,
           };
 
-          console.log("Cash withdrawal payload:", payload);
           const result = await cashWithdrawal(payload);
-          console.log("Cash withdrawal result:", result);
-
           const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
           if (isApiFailed(result, resultData)) {
-            alert(getResultErrorMessage(result, resultData, "Failed to complete cash withdrawal"));
+            alert(getResultErrorMessage(result, resultData, "Failed to complete withdrawal"));
             return;
           }
 
-          setReceiptData(createReceipt("withdrawal", withdrawalAmount, resultData));
+          setReceiptData(createReceipt("balance-withdrawal", withdrawalAmount, resultData));
           setModalType("");
           setOtp("");
           setOtpReferenceKey("");
+          setBalWithBalanceChecked(false);
+          setFetchedBalance(null);
           setShowReceipt(true);
         } catch (error) {
-          console.error("Cash withdrawal failed:", error);
-          alert(getErrorMessage(error, "Failed to complete cash withdrawal"));
+          console.error("Withdrawal failed:", error);
+          alert(getErrorMessage(error, "Failed to complete withdrawal"));
         } finally {
           setIsFetchingService(false);
         }
-        return;
       }
-
-      /*
-       * D. BALANCE CHECK + WITHDRAWAL
-       */
-      if (serviceId === "balance-withdrawal") {
-        if (!balWithBalanceChecked) {
-          setServiceFetchingMessage(`Step 1: Checking account balance with ${bankName}...`);
-          try {
-            const payload = await prepareAepsPayload(pidData);
-            const result = await balanceEnquiry(payload);
-            const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
-
-            if (isApiFailed(result, resultData)) {
-              alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
-              return;
-            }
-
-            const rawBalance =
-              resultData.balance ??
-              resultData.balanceamount ??
-              resultData.bankBalance;
-            const numericBalance = Number(rawBalance);
-            const verifiedBalance = isNaN(numericBalance) ? 0 : numericBalance;
-
-            setBalWithBalanceChecked(true);
-            setFetchedBalance(verifiedBalance);
-
-            // Auto-adjust default amount if balance is positive and less than current default
-            if (verifiedBalance > 0 && verifiedBalance < withdrawalAmount) {
-              setWithdrawalAmount(Math.min(1000, verifiedBalance));
-            }
-            setModalType("amount");
-          } catch (error) {
-            console.error("Balance check failed in balance-withdrawal:", error);
-            alert(getErrorMessage(error, "Failed to check balance"));
-          } finally {
-            setIsFetchingService(false);
-          }
-        } else {
-          setServiceFetchingMessage(`Step 2: Authorizing withdrawal of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
-          try {
-            const refKeyToUse =
-              withdrawalAmount > 5000
-                ? (otpReferenceKey || null)
-                : null;
-            const basePayload = await prepareAepsPayload(pidData, refKeyToUse);
-            const payload: CashWithdrawalPayload = {
-              ...basePayload,
-              referenceKey: refKeyToUse,
-              amount: withdrawalAmount,
-            };
-
-            const result = await cashWithdrawal(payload);
-            const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
-
-            if (isApiFailed(result, resultData)) {
-              alert(getResultErrorMessage(result, resultData, "Failed to complete withdrawal"));
-              return;
-            }
-
-            setReceiptData(createReceipt("balance-withdrawal", withdrawalAmount, resultData));
-            setModalType("");
-            setOtp("");
-            setOtpReferenceKey("");
-            setBalWithBalanceChecked(false);
-            setFetchedBalance(null);
-            setShowReceipt(true);
-          } catch (error) {
-            console.error("Withdrawal failed:", error);
-            alert(getErrorMessage(error, "Failed to complete withdrawal"));
-          } finally {
-            setIsFetchingService(false);
-          }
-        }
-        return;
-      }
-
-      /*
-       * E. CASH DEPOSIT
-       */
-      if (serviceId === "cash-deposit") {
-        setServiceFetchingMessage(`Processing cash deposit of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
-        try {
-          // Pass the correct referenceKey from context from AepsEkyc object of retailer
-          const cashDepositRefKey =
-            authUser?.AepsEkyc?.referenceKey ||
-            authUser?.referenceKey ||
-            "";
-
-          const basePayload = await prepareAepsPayload(pidData, cashDepositRefKey);
-          const rawPid = pidData as Record<string, unknown>;
-          const payload: CashDepositPayload = {
-            ...basePayload,
-            referenceKey: cashDepositRefKey || basePayload.referenceKey,
-            amount: withdrawalAmount,
-            txnid: generateTransactionId(),
-            PidDatatype: (rawPid.PidDatatype as string) || "X",
-            Piddata: (rawPid.Piddata as string) || "",
-            sysid: (rawPid.sysid as string) || "SYS01",
-            nmPoints: (rawPid.nmPoints as string) || "0",
-            qScore: (rawPid.qScore as string) || "100",
-            pCount: (rawPid.pCount as string) || "0",
-            pType: (rawPid.pType as string) || "0",
-            iCount: (rawPid.iCount as string) || "0",
-            iType: (rawPid.iType as string) || "0",
-            fCount: (rawPid.fCount as string) || "1",
-            fType: (rawPid.fType as string) || "2",
-            srno: (rawPid.srno as string) || "SR001",
-            mi: (rawPid.mi as string) || "Mantra",
-            errCode: (rawPid.errCode as string) || "0",
-            errInfo: (rawPid.errInfo as string) || "",
-            sessionKey: (rawPid.sessionKey as string) || "",
-            rdsVer: (rawPid.rdsVer as string) || "1.0",
-            rdsId: (rawPid.rdsId as string) || "MFS100",
-            dpId: (rawPid.dpId as string) || "MFS100",
-            mc: (rawPid.mc as string) || "",
-            hmac: (rawPid.hmac as string) || "",
-            ci: (rawPid.ci as string) || "",
-            dc: (rawPid.dc as string) || "",
-            mobile: customerMobile,
-            bankiin: selectedBank?.iin || "",
-          };
-
-          console.log("Cash deposit payload:", payload);
-          const result = await cashDeposit(payload);
-          console.log("Cash deposit result:", result);
-
-          const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
-
-          if (isApiFailed(result, resultData)) {
-            alert(getResultErrorMessage(result, resultData, "Failed to complete cash deposit"));
-            return;
-          }
-
-          setReceiptData(createReceipt("cash-deposit", withdrawalAmount, resultData));
-          setModalType("");
-          setShowReceipt(true);
-        } catch (error) {
-          console.error("Cash deposit failed:", error);
-          alert(getErrorMessage(error, "Failed to complete cash deposit"));
-        } finally {
-          setIsFetchingService(false);
-        }
-        return;
-      }
-    } catch (error) {
-      console.error(error);
-      setIsProcessing(false);
-      setIsFetchingService(false);
-      setModalType("");
-      alert("Something went wrong with the Biometric Scanner.");
-    }
-  };
-
-  /*
-   * ============================================================
-   * SERVICE CLICK
-   * ============================================================
-   */
-
-
-
-  /*
-   * ============================================================
-   * AMOUNT CONFIRM
-   * ============================================================
-   */
-
-  const handleConfirmAmount = async () => {
-    if (withdrawalAmount <= 0) {
-      return;
-    }
-
-    if (
-      selectedService !==
-      "cash-withdrawal" &&
-      selectedService !==
-      "balance-withdrawal" &&
-      selectedService !==
-      "cash-deposit"
-    ) {
-      return;
-    }
-
-    if (selectedService === "cash-deposit") {
-      setModalType("biometric");
-      startBiometric("cash-deposit");
-      return;
-    }
-
-    if (
-      selectedService === "balance-withdrawal" &&
-      fetchedBalance !== null &&
-      withdrawalAmount > fetchedBalance
-    ) {
-      alert(`Withdrawal amount cannot exceed available balance of ₹${fetchedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`);
       return;
     }
 
     /*
-     * More than ₹5,000 requires OTP first.
+     * E. CASH DEPOSIT
      */
-    if (withdrawalAmount > 5000) {
-      setOtp("");
-      setOtpReferenceKey("");
-      setIsProcessing(true);
+    if (serviceId === "cash-deposit") {
+      setServiceFetchingMessage(`Processing cash deposit of ₹${withdrawalAmount.toLocaleString("en-IN")} with ${bankName}...`);
       try {
-        const token = getToken();
-        if (!token) {
-          throw new Error("Authentication token not found. Please login again.");
-        }
+        // Pass the correct referenceKey from context/state/token
+        const cashDepositRefKey = getEffectiveReferenceKey();
 
-        const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-        const outletId = getEffectiveOutletId();
-        const referenceKey =
-          authUser?.AepsEkyc?.referenceKey ||
-          authUser?.referenceKey ||
-          tokenPayload.referenceKey ||
-          bioKycReferenceKey ||
-          "";
-        if (!outletId || !referenceKey) {
-          throw new Error(
-            "Outlet ID or Reference key is missing. Please complete eKYC first."
-          );
-        }
-
-        const coords = await ensureConfirmedLocation();
-
-        const otpResponse = await sendAepsOtp({
-          outlet_id: outletId,
-          referenceKey,
-          latitude: coords.latitude,
-          longitude: coords.longitude,
-          aadhaar: customerAadhaar,
-          MobileNumber: customerMobile,
-          bankiin: selectedBank?.iin || "",
+        const basePayload = await prepareAepsPayload(pidData, cashDepositRefKey);
+        const rawPid = pidData as Record<string, unknown>;
+        const payload: CashDepositPayload = {
+          ...basePayload,
+          referenceKey: cashDepositRefKey || basePayload.referenceKey,
           amount: withdrawalAmount,
-        });
+          txnid: generateTransactionId(),
+          PidDatatype: (rawPid.PidDatatype as string) || "X",
+          Piddata: (rawPid.Piddata as string) || "",
+          sysid: (rawPid.sysid as string) || "SYS01",
+          nmPoints: (rawPid.nmPoints as string) || "0",
+          qScore: (rawPid.qScore as string) || "100",
+          pCount: (rawPid.pCount as string) || "0",
+          pType: (rawPid.pType as string) || "0",
+          iCount: (rawPid.iCount as string) || "0",
+          iType: (rawPid.iType as string) || "0",
+          fCount: (rawPid.fCount as string) || "1",
+          fType: (rawPid.fType as string) || "2",
+          srno: (rawPid.srno as string) || "SR001",
+          mi: (rawPid.mi as string) || "Mantra",
+          errCode: (rawPid.errCode as string) || "0",
+          errInfo: (rawPid.errInfo as string) || "",
+          sessionKey: (rawPid.sessionKey as string) || "",
+          rdsVer: (rawPid.rdsVer as string) || "1.0",
+          rdsId: (rawPid.rdsId as string) || "MFS100",
+          dpId: (rawPid.dpId as string) || "MFS100",
+          mc: (rawPid.mc as string) || "",
+          hmac: (rawPid.hmac as string) || "",
+          ci: (rawPid.ci as string) || "",
+          dc: (rawPid.dc as string) || "",
+          mobile: customerMobile,
+          bankiin: selectedBank?.iin || "",
+        };
 
-        const responseData = otpResponse?.data as Record<string, unknown> | undefined;
-        const innerData =
-          (responseData?.data as Record<string, unknown> | undefined) || responseData;
+        console.log("Cash deposit payload:", payload);
+        const result = await cashDeposit(payload);
+        console.log("Cash deposit result:", result);
 
-        // Check for provider failure in OTP response
-        if (responseData?.status === false || innerData?.status === false) {
-          const errMsg =
-            (innerData?.msg as string) ||
-            (innerData?.message as string) ||
-            (responseData?.msg as string) ||
-            (responseData?.message as string) ||
-            "Failed to send OTP to customer";
-          throw new Error(errMsg);
+        const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
+
+        if (isApiFailed(result, resultData)) {
+          alert(getResultErrorMessage(result, resultData, "Failed to complete cash deposit"));
+          return;
         }
 
-        const sessionRefKey =
-          (innerData?.referenceKey as string) ||
-          (innerData?.reference_key as string) ||
-          (innerData?.refKey as string) ||
-          (responseData?.referenceKey as string) ||
-          (responseData?.reference_key as string) ||
-          (responseData?.refKey as string) ||
-          "";
+        setReceiptData(createReceipt("cash-deposit", withdrawalAmount, resultData));
+        setModalType("");
+        setShowReceipt(true);
+      } catch (error) {
+        console.error("Cash deposit failed:", error);
+        alert(getErrorMessage(error, "Failed to complete cash deposit"));
+      } finally {
+        setIsFetchingService(false);
+      }
+      return;
+    }
+  } catch (error) {
+    console.error(error);
+    setIsProcessing(false);
+    setIsFetchingService(false);
+    setModalType("");
+    alert("Something went wrong with the Biometric Scanner.");
+  }
+};
 
-        console.log("OTP Send Response:", otpResponse, "Captured sessionRefKey:", sessionRefKey);
+/*
+ * ============================================================
+ * SERVICE CLICK
+ * ============================================================
+ */
 
-        if (sessionRefKey) {
-          setOtpReferenceKey(sessionRefKey);
-        }
 
-        setModalType("otp");
-      } catch (otpErr) {
+
+/*
+ * ============================================================
+ * AMOUNT CONFIRM
+ * ============================================================
+ */
+
+const handleConfirmAmount = async () => {
+  if (withdrawalAmount <= 0) {
+    return;
+  }
+
+  if (
+    selectedService !==
+    "cash-withdrawal" &&
+    selectedService !==
+    "balance-withdrawal" &&
+    selectedService !==
+    "cash-deposit"
+  ) {
+    return;
+  }
+
+  if (selectedService === "cash-deposit") {
+    setModalType("biometric");
+    startBiometric("cash-deposit");
+    return;
+  }
+
+  if (
+    selectedService === "balance-withdrawal" &&
+    fetchedBalance !== null &&
+    withdrawalAmount > fetchedBalance
+  ) {
+    alert(`Withdrawal amount cannot exceed available balance of ₹${fetchedBalance.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`);
+    return;
+  }
+
+  /*
+   * More than ₹5,000 requires OTP first.
+   */
+  if (withdrawalAmount > 5000) {
+    setOtp("");
+    setOtpReferenceKey("");
+    setIsProcessing(true);
+    try {
+      const token = getToken();
+      if (!token) {
+        throw new Error("Authentication token not found. Please login again.");
+      }
+
+      const tokenPayload = JSON.parse(atob(token.split(".")[1]));
+      const outletId = getEffectiveOutletId();
+      const referenceKey =
+        authUser?.AepsEkyc?.referenceKey ||
+        authUser?.referenceKey ||
+        tokenPayload.referenceKey ||
+        bioKycReferenceKey ||
+        getEffectiveReferenceKey() ||
+        "";
+      if (!outletId || !referenceKey) {
+        throw new Error(
+          "Outlet ID or Reference key is missing. Please complete eKYC first."
+        );
+      }
+
+      const coords = await ensureConfirmedLocation();
+
+      const otpResponse = await sendAepsOtp({
+        outlet_id: outletId,
+        referenceKey,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        aadhaar: customerAadhaar,
+        MobileNumber: customerMobile,
+        bankiin: selectedBank?.iin || "",
+        amount: withdrawalAmount,
+      });
+
+      const responseData = otpResponse?.data as Record<string, unknown> | undefined;
+      const innerData =
+        (responseData?.data as Record<string, unknown> | undefined) || responseData;
+
+      // Check for provider failure in OTP response
+      if (responseData?.status === false || innerData?.status === false) {
+        const errMsg =
+          (innerData?.msg as string) ||
+          (innerData?.message as string) ||
+          (responseData?.msg as string) ||
+          (responseData?.message as string) ||
+          "Failed to send OTP to customer";
+        throw new Error(errMsg);
+      }
+
+      const sessionRefKey =
+        (innerData?.referenceKey as string) ||
+        (innerData?.reference_key as string) ||
+        (innerData?.refKey as string) ||
+        (responseData?.referenceKey as string) ||
+        (responseData?.reference_key as string) ||
+        (responseData?.refKey as string) ||
+        "";
+
+      console.log("OTP Send Response:", otpResponse, "Captured sessionRefKey:", sessionRefKey);
+
+      if (sessionRefKey) {
+        setOtpReferenceKey(sessionRefKey);
+      }
+
+      setModalType("otp");
+    } catch (otpErr) {
         console.error("Failed to send OTP:", otpErr);
         alert(getErrorMessage(otpErr, "Failed to send OTP. Please try again."));
       } finally {
@@ -2259,6 +2306,15 @@ const Aeps = () => {
       });
 
       console.log("[AePS] doBioEkyc response:", response);
+
+      const savedRefKey =
+        response?.data?.ekyc?.referenceKey ||
+        response?.data?.referenceKey ||
+        refKeyToUse;
+      if (savedRefKey) {
+        bioKycRefKeyRef.current = savedRefKey;
+        setBioKycReferenceKey(savedRefKey);
+      }
 
       setBioKycSuccess("Biometric eKYC completed successfully!");
       setBioKycCompletedLocally(true);
@@ -2943,7 +2999,8 @@ const Aeps = () => {
 
         {/* Inputs Grid: Mobile and Aadhaar */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-             {/* Aadhaar Number */}
+          {/* Aadhaar Number */}
+          {/* Aadhaar Number */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-sm hover:border-purple-200 transition">
             <div className="flex items-center justify-between mb-2">
               <label
@@ -3029,7 +3086,8 @@ const Aeps = () => {
             </p>
           </div>
 
-       
+
+
         </div>
 
         {/* Bank Selection Section */}

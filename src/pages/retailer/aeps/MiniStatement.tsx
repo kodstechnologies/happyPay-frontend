@@ -4,6 +4,7 @@ import { rdService } from "../../../utils/rdService";
 import { miniStatement, parsePidXml, type MiniStatementResult, type Envelope } from "../../../services/api/retailer/aepsApi";
 import { ensureConfirmedLocation } from "../../../utils/geolocation";
 import { getToken } from "../../../utils/auth";
+import { useAuth } from "../../../context/AuthContext";
 import {
   Fingerprint,
   ArrowLeft,
@@ -59,6 +60,7 @@ const MiniStatement = ({
   onBack,
   onNewTransaction,
 }: MiniStatementProps) => {
+  const { user: authUser } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingApi, setIsFetchingApi] = useState(false);
   const [showReceipt, setShowReceipt] = useState(Boolean(initialData));
@@ -167,8 +169,17 @@ const MiniStatement = ({
       }
 
       const tokenPayload = JSON.parse(atob(token.split(".")[1]));
-      const outletId = tokenPayload.outletId || tokenPayload.outletid || "";
-      const referenceKey = tokenPayload.referenceKey || "";
+      const outletId =
+        authUser?.AepsEkyc?.outletId ||
+        authUser?.outletId ||
+        tokenPayload.outletId ||
+        tokenPayload.outletid ||
+        "";
+      const referenceKey =
+        authUser?.AepsEkyc?.referenceKey ||
+        authUser?.referenceKey ||
+        tokenPayload.referenceKey ||
+        "";
 
       // Obtain genuine geolocation (gatekeeper)
       const coords = await ensureConfirmedLocation();

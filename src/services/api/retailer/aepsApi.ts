@@ -255,8 +255,15 @@ export interface DoBioEkycResponse {
   eKYCStatus?: string;
   message?: string;
   kycRequired?: boolean;
+  referenceKey?: string;
   provider?: unknown;
-  ekyc?: unknown;
+  ekyc?: {
+    referenceKey?: string | null;
+    pidOptionWadh?: string | null;
+    eKYCStatus?: string;
+    outletId?: string;
+    [key: string]: unknown;
+  } | null;
 }
 
 export function doBioEkyc(payload: BiometricPayload) {
