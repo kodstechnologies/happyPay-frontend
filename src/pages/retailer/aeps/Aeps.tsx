@@ -425,6 +425,10 @@ const Aeps = () => {
       ekycPrompt.message.toLowerCase().includes("aeps activation pending")
     ));
 
+  // When bank reports "activation pending", always offer "Do Bio KYC" (retry biometric)
+  // even if a stale outlet-registration flag is also set.
+  const showRegisterOutlet = isBankRegistrationRequired && !isBankActivationPending;
+
   const token = getToken();
   let tokenOutletId = "";
   if (token) {
@@ -2461,7 +2465,7 @@ const handleConfirmAmount = async () => {
       ekycPrompt?.referenceKey ||
       "";
 
-    if (isBankRegistrationRequired) {
+    if (showRegisterOutlet) {
       await handleRegisterOutlet();
       return;
     }
@@ -2520,8 +2524,8 @@ const handleConfirmAmount = async () => {
           </div>
         )}
 
-        {/* Biometric eKYC Action Banner (Visible when NOT loading auth, ONBOARDED, and Bio KYC NOT done or PENDING) */}
-        {!isAuthLoading && isOnboarded && !isBioKycDone && (
+        {/* Biometric eKYC Action Banner (Visible when NOT loading auth, ONBOARDED, and Bio KYC NOT done, PENDING, or bank activation pending) */}
+        {!isAuthLoading && isOnboarded && (!isBioKycDone || isBankActivationPending) && (
           <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-start gap-3.5">
@@ -2531,14 +2535,14 @@ const handleConfirmAmount = async () => {
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-bold text-slate-900">
-                      {isBioKycPending ? "AEPS Activation Pending at Bank" : "Biometric eKYC Verification Required"}
+                      {isBioKycPending || isBankActivationPending ? "AEPS Activation Pending at Bank" : "Biometric eKYC Verification Required"}
                     </h3>
                     <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
                       Pending
                     </span>
                   </div>
                   <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {isBankRegistrationRequired
+                    {showRegisterOutlet
                       ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
                       : isBioKycPending || isBankActivationPending
                         ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
@@ -2557,7 +2561,7 @@ const handleConfirmAmount = async () => {
               </div>
 
               <div className="flex items-center gap-2 shrink-0">
-                {isBankRegistrationRequired ? (
+                {showRegisterOutlet ? (
                   <button
                     type="button"
                     onClick={handleRegisterOutlet}
