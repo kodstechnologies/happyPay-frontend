@@ -410,20 +410,31 @@ const Aeps = () => {
     (Boolean(bioKycError && bioKycError.toLowerCase().includes("outlet not yet registered with bank")) ||
       Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
 
+  const isActivationPendingMessage = (message: string): boolean => {
+    const lower = (message || "").toLowerCase();
+    return (
+      lower.includes("activation is pending") ||
+      lower.includes("pending at the bank") ||
+      lower.includes("pending from the bank") ||
+      lower.includes("aeps activation pending")
+    );
+  };
+
   // Check if the error is about pending activation at the bank - in this case, show "Do Bio KYC" button
   const isBankActivationPending =
-    Boolean(bioKycError && (
-      bioKycError.toLowerCase().includes("activation is pending") ||
-      bioKycError.toLowerCase().includes("pending at the bank") ||
-      bioKycError.toLowerCase().includes("pending from the bank") ||
-      bioKycError.toLowerCase().includes("aeps activation pending")
-    )) ||
-    Boolean(ekycPrompt?.message && (
-      ekycPrompt.message.toLowerCase().includes("activation is pending") ||
-      ekycPrompt.message.toLowerCase().includes("pending at the bank") ||
-      ekycPrompt.message.toLowerCase().includes("pending from the bank") ||
-      ekycPrompt.message.toLowerCase().includes("aeps activation pending")
-    ));
+    Boolean(bioKycError && isActivationPendingMessage(bioKycError)) ||
+    Boolean(ekycPrompt?.message && isActivationPendingMessage(ekycPrompt.message));
+
+  // Shows a service error and, when the bank reports AEPS activation pending,
+  // flags bioKycError so the "Do Bio KYC" banner/button is displayed.
+  const notifyServiceError = (message: string) => {
+    if (isActivationPendingMessage(message)) {
+      setBioKycError(
+        "AEPS activation is pending from the bank. Please click 'Do Bio KYC' to retry biometric authentication."
+      );
+    }
+    alert(message);
+  };
 
   // When bank reports "activation pending", always offer "Do Bio KYC" (retry biometric)
   // even if a stale outlet-registration flag is also set.
@@ -1673,7 +1684,7 @@ const startBiometric = async (
         const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
         if (isApiFailed(result, resultData)) {
-          alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
+          notifyServiceError(getResultErrorMessage(result, resultData, "Failed to check balance"));
           return;
         }
 
@@ -1681,7 +1692,7 @@ const startBiometric = async (
         setShowReceipt(true);
       } catch (error) {
         console.error("Balance enquiry failed:", error);
-        alert(getErrorMessage(error, "Failed to check balance"));
+        notifyServiceError(getErrorMessage(error, "Failed to check balance"));
       } finally {
         setIsFetchingService(false);
       }
@@ -1702,7 +1713,7 @@ const startBiometric = async (
         const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
         if (isApiFailed(result, resultData)) {
-          alert(getResultErrorMessage(result, resultData, "Failed to fetch mini statement"));
+          notifyServiceError(getResultErrorMessage(result, resultData, "Failed to fetch mini statement"));
           return;
         }
 
@@ -1720,7 +1731,7 @@ const startBiometric = async (
         setShowMiniStatement(true);
       } catch (error) {
         console.error("Mini statement failed:", error);
-        alert(getErrorMessage(error, "Failed to fetch mini statement"));
+        notifyServiceError(getErrorMessage(error, "Failed to fetch mini statement"));
       } finally {
         setIsFetchingService(false);
       }
@@ -1752,7 +1763,7 @@ const startBiometric = async (
         const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
         if (isApiFailed(result, resultData)) {
-          alert(getResultErrorMessage(result, resultData, "Failed to complete cash withdrawal"));
+          notifyServiceError(getResultErrorMessage(result, resultData, "Failed to complete cash withdrawal"));
           return;
         }
 
@@ -1763,7 +1774,7 @@ const startBiometric = async (
         setShowReceipt(true);
       } catch (error) {
         console.error("Cash withdrawal failed:", error);
-        alert(getErrorMessage(error, "Failed to complete cash withdrawal"));
+        notifyServiceError(getErrorMessage(error, "Failed to complete cash withdrawal"));
       } finally {
         setIsFetchingService(false);
       }
@@ -1782,7 +1793,7 @@ const startBiometric = async (
           const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
           if (isApiFailed(result, resultData)) {
-            alert(getResultErrorMessage(result, resultData, "Failed to check balance"));
+            notifyServiceError(getResultErrorMessage(result, resultData, "Failed to check balance"));
             return;
           }
 
@@ -1803,7 +1814,7 @@ const startBiometric = async (
           setModalType("amount");
         } catch (error) {
           console.error("Balance check failed in balance-withdrawal:", error);
-          alert(getErrorMessage(error, "Failed to check balance"));
+          notifyServiceError(getErrorMessage(error, "Failed to check balance"));
         } finally {
           setIsFetchingService(false);
         }
@@ -1825,7 +1836,7 @@ const startBiometric = async (
           const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
           if (isApiFailed(result, resultData)) {
-            alert(getResultErrorMessage(result, resultData, "Failed to complete withdrawal"));
+            notifyServiceError(getResultErrorMessage(result, resultData, "Failed to complete withdrawal"));
             return;
           }
 
@@ -1838,7 +1849,7 @@ const startBiometric = async (
           setShowReceipt(true);
         } catch (error) {
           console.error("Withdrawal failed:", error);
-          alert(getErrorMessage(error, "Failed to complete withdrawal"));
+          notifyServiceError(getErrorMessage(error, "Failed to complete withdrawal"));
         } finally {
           setIsFetchingService(false);
         }
@@ -1896,7 +1907,7 @@ const startBiometric = async (
         const resultData = ((result as ApiDataPayload)?.data || {}) as Record<string, unknown>;
 
         if (isApiFailed(result, resultData)) {
-          alert(getResultErrorMessage(result, resultData, "Failed to complete cash deposit"));
+          notifyServiceError(getResultErrorMessage(result, resultData, "Failed to complete cash deposit"));
           return;
         }
 
@@ -1905,7 +1916,7 @@ const startBiometric = async (
         setShowReceipt(true);
       } catch (error) {
         console.error("Cash deposit failed:", error);
-        alert(getErrorMessage(error, "Failed to complete cash deposit"));
+        notifyServiceError(getErrorMessage(error, "Failed to complete cash deposit"));
       } finally {
         setIsFetchingService(false);
       }
@@ -2039,7 +2050,7 @@ const handleConfirmAmount = async () => {
       setModalType("otp");
     } catch (otpErr) {
         console.error("Failed to send OTP:", otpErr);
-        alert(getErrorMessage(otpErr, "Failed to send OTP. Please try again."));
+        notifyServiceError(getErrorMessage(otpErr, "Failed to send OTP. Please try again."));
       } finally {
         setIsProcessing(false);
       }
@@ -2459,11 +2470,30 @@ const handleConfirmAmount = async () => {
       return;
     }
 
-    const currentRefKey =
+    let currentRefKey =
       bioKycRefKeyRef.current ||
       bioKycReferenceKey ||
       ekycPrompt?.referenceKey ||
       "";
+
+    // If no referenceKey is cached (e.g. the activation-pending error came from
+    // a transaction call), fetch it once from check-ekyc before capturing.
+    if (!currentRefKey) {
+      try {
+        const res = await checkDoEkyc(effectiveOutletId, userId);
+        const prompt = readEkycPrompt(res);
+        const resData = (res as { data?: Record<string, unknown> })?.data;
+        currentRefKey =
+          prompt.referenceKey ||
+          (typeof resData?.referenceKey === "string" ? resData.referenceKey : "");
+        if (currentRefKey) {
+          bioKycRefKeyRef.current = currentRefKey;
+          setBioKycReferenceKey(currentRefKey);
+        }
+      } catch {
+        // proceedWithBiometricCapture will surface the missing-key error
+      }
+    }
 
     if (showRegisterOutlet) {
       await handleRegisterOutlet();
@@ -2474,6 +2504,92 @@ const handleConfirmAmount = async () => {
   };
 
 
+
+  const renderEkycBanner = () => {
+    if (isAuthLoading || !isOnboarded || (isBioKycDone && !isBankActivationPending)) {
+      return null;
+    }
+
+    return (
+      <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md">
+              <Fingerprint className="h-6 w-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900">
+                  {isBioKycPending || isBankActivationPending ? "AEPS Activation Pending at Bank" : "Biometric eKYC Verification Required"}
+                </h3>
+                <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                  Pending
+                </span>
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {showRegisterOutlet
+                  ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
+                  : isBioKycPending || isBankActivationPending
+                    ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
+                    : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
+              </p>
+              {bioKycError && (
+                <p className="mt-2 text-xs font-semibold text-red-600 flex items-center gap-1.5">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600"></span>
+                  {bioKycError}
+                </p>
+              )}
+              {bioKycSuccess && (
+                <p className="mt-2 text-xs font-semibold text-emerald-600">{bioKycSuccess}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {showRegisterOutlet ? (
+              <button
+                type="button"
+                onClick={handleRegisterOutlet}
+                disabled={isOutletRegistering || isCheckingKyc}
+                className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-purple-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isOutletRegistering ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Registering Outlet...</span>
+                  </>
+                ) : (
+                  <>
+                    <Building2 className="h-4 w-4" />
+                    <span>Register Outlet</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleDoBioKyc}
+                disabled={isDoingBioKyc || isCheckingKyc}
+                className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-amber-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDoingBioKyc ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    <span>Verifying Biometric...</span>
+                  </>
+                ) : (
+                  <>
+                    <Fingerprint className="h-4 w-4" />
+                    <span>Do Bio KYC</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const renderRetailerAuth = () => {
     return (
@@ -2520,87 +2636,6 @@ const handleConfirmAmount = async () => {
                   </>
                 )}
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Biometric eKYC Action Banner (Visible when NOT loading auth, ONBOARDED, and Bio KYC NOT done, PENDING, or bank activation pending) */}
-        {!isAuthLoading && isOnboarded && (!isBioKycDone || isBankActivationPending) && (
-          <div className="rounded-2xl border-2 border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-4 sm:p-5 shadow-sm">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-start gap-3.5">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-500 text-white shadow-md">
-                  <Fingerprint className="h-6 w-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-slate-900">
-                      {isBioKycPending || isBankActivationPending ? "AEPS Activation Pending at Bank" : "Biometric eKYC Verification Required"}
-                    </h3>
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                      Pending
-                    </span>
-                  </div>
-                  <p className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
-                    {showRegisterOutlet
-                      ? "Outlet registration with the bank is required before biometric authentication. Please click 'Register Outlet' to initiate OTP verification."
-                      : isBioKycPending || isBankActivationPending
-                        ? "Your AEPS activation is pending at the bank. Please click 'Do Bio KYC' to retry biometric authentication."
-                        : (ekycPrompt?.message || "Please complete one-time biometric eKYC using your registered fingerprint scanner to activate AEPS cash transactions.")}
-                  </p>
-                  {bioKycError && (
-                    <p className="mt-2 text-xs font-semibold text-red-600 flex items-center gap-1.5">
-                      <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600"></span>
-                      {bioKycError}
-                    </p>
-                  )}
-                  {bioKycSuccess && (
-                    <p className="mt-2 text-xs font-semibold text-emerald-600">{bioKycSuccess}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {showRegisterOutlet ? (
-                  <button
-                    type="button"
-                    onClick={handleRegisterOutlet}
-                    disabled={isOutletRegistering || isCheckingKyc}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-purple-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isOutletRegistering ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span>Registering Outlet...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Building2 className="h-4 w-4" />
-                        <span>Register Outlet</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleDoBioKyc}
-                    disabled={isDoingBioKyc || isCheckingKyc}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-all hover:bg-amber-700 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isDoingBioKyc ? (
-                      <>
-                        <RefreshCw className="h-4 w-4 animate-spin" />
-                        <span>Verifying Biometric...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Fingerprint className="h-4 w-4" />
-                        <span>Do Bio KYC</span>
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         )}
@@ -4287,6 +4322,7 @@ const handleConfirmAmount = async () => {
           <div className="mx-auto w-full space-y-5">
             {modalType === "" ? (
               <>
+                {renderEkycBanner()}
                 {step === 0 && renderRetailerAuth()}
                 {step === 1 && renderCustomerDetails()}
                 {step === 2 && renderServices()}
