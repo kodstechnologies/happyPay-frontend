@@ -501,6 +501,10 @@ export function updateRetailerAadhaarDetails(payload: UpdateAadhaarPayload) {
 
 export interface UpdateBankDetailsResult {
   id: string;
+  accessToken?: string;
+  refreshToken?: string;
+  token?: string;
+  user?: RetailerUser;
   mobile: string;
   isMobileVerified: boolean;
   email: string;

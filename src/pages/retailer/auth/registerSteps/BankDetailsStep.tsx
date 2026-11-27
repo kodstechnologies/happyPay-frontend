@@ -13,11 +13,15 @@ import {
 } from "lucide-react";
 
 import { showToast } from "../../../../utils/toast";
+import { setTokens } from "../../../../services/auth/token";
+import { useAuth } from "../../../../context/AuthContext";
 import {
   updateRetailerBankDetails,
   getBankMasterList,
   type BankMasterItem,
   type CurrentRegistrationStepResult,
+  type RetailerUser,
+  type UpdateBankDetailsResult,
 } from "../../../../services/api/retailer/retailerAuthApi";
 
 export type BankDetailsStepHandle = {
@@ -33,6 +37,7 @@ type BankDetailsStepProps = {
 
 const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
   ({ userId: userIdProp, distributorId, onRegistrationComplete, initialData }, ref) => {
+    const { login } = useAuth();
     const userId =
       userIdProp || localStorage.getItem("retailerUserId") || undefined;
 
@@ -213,7 +218,7 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
         // The backend resolves the payout bank code from bankMasterId at
         // transaction time. Legacy records (no bankMasterId) already have
         // bank_code stored from the old flow and continue to work unchanged.
-        await updateRetailerBankDetails({
+        const bankRes = await updateRetailerBankDetails({
           userId,
           bankName,
           bank_code: undefined,   // resolved server-side via bankMasterId
@@ -226,6 +231,26 @@ const BankDetailsStep = forwardRef<BankDetailsStepHandle, BankDetailsStepProps>(
           distributorId,
           bankMasterId: bankMasterId ?? undefined,
         });
+
+        // Registration completion returns auth tokens - store them so the
+        // retailer lands on /retailer/kyc-pending already authenticated.
+        const regData = bankRes?.data as
+          | (UpdateBankDetailsResult & {
+              accessToken?: string;
+              refreshToken?: string;
+              token?: string;
+              user?: RetailerUser;
+            })
+          | undefined;
+        const accessToken = regData?.accessToken || regData?.token;
+        if (accessToken) {
+          setTokens(accessToken, regData?.refreshToken || "");
+          localStorage.setItem("token", accessToken);
+          localStorage.setItem("role", "retailer");
+          if (regData?.user) {
+            login(regData.user);
+          }
+        }
 
         // After successful bank details submission, directly complete registration
         // eKYC flow commented out as per user request
