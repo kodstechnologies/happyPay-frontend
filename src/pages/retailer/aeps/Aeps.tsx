@@ -320,6 +320,16 @@ const extractActcode = (response: unknown): string => {
  * ============================================================
  */
 
+const isActivationPendingMessage = (message: string): boolean => {
+  const lower = (message || "").toLowerCase();
+  return (
+    lower.includes("activation is pending") ||
+    lower.includes("pending at the bank") ||
+    lower.includes("pending from the bank") ||
+    lower.includes("aeps activation pending")
+  );
+};
+
 const generateTransactionId = () => {
   return `AEPS${Date.now()}${Math.floor(
     100 + Math.random() * 900
@@ -409,16 +419,6 @@ const Aeps = () => {
     !isBankRegistrationCompleted &&
     (Boolean(bioKycError && bioKycError.toLowerCase().includes("outlet not yet registered with bank")) ||
       Boolean(ekycPrompt?.message && ekycPrompt.message.toLowerCase().includes("outlet not yet registered with bank")));
-
-  const isActivationPendingMessage = (message: string): boolean => {
-    const lower = (message || "").toLowerCase();
-    return (
-      lower.includes("activation is pending") ||
-      lower.includes("pending at the bank") ||
-      lower.includes("pending from the bank") ||
-      lower.includes("aeps activation pending")
-    );
-  };
 
   // Check if the error is about pending activation at the bank - in this case, show "Do Bio KYC" button
   const isBankActivationPending =
@@ -939,6 +939,11 @@ const fetchLoginStatus = useCallback(async (): Promise<void> => {
     const currentActcode = extractActcode(response);
 
     setActcode(currentActcode);
+    // Bank confirmed login status is reachable again - clear any stale
+    // "activation pending" flag so the Do Bio KYC banner hides.
+    setBioKycError((prev) =>
+      prev && isActivationPendingMessage(prev) ? "" : prev
+    );
 
     if (!currentActcode) {
       setRetailerAuthenticated(false);
@@ -971,12 +976,18 @@ const fetchLoginStatus = useCallback(async (): Promise<void> => {
 
     setRetailerAuthenticated(false);
     setTfaStatusMessage("");
-    setTfaError(
-      getErrorMessage(
-        error,
-        "Failed to check AEPS login status."
-      )
+    const statusErrMsg = getErrorMessage(
+      error,
+      "Failed to check AEPS login status."
     );
+    // Provider reports "AePS activation is pending at the bank" - surface the
+    // Do Bio KYC banner/button so the retailer can retry biometric eKYC.
+    if (isActivationPendingMessage(statusErrMsg)) {
+      setBioKycError(
+        "AEPS activation is pending from the bank. Please click 'Do Bio KYC' to retry biometric authentication."
+      );
+    }
+    setTfaError(statusErrMsg);
   } finally {
     setIsCheckingLoginStatus(false);
   }
